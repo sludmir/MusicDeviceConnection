@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import SearchBar from './SearchBar';
 import DeviceDisplay from './DeviceDisplay';
@@ -6,9 +6,21 @@ import ThreeScene from './ThreeScene';
 import deviceLibrary from './deviceLibrary';
 
 function App() {
+  const preLoadDevices = true;
+  const preLoadedDevices = [
+      deviceLibrary['CDJ-3000'],
+      deviceLibrary['DJM-900NXS2']
+  ];
+  
   const [device, setDevice] = useState(null);
   const [setupDevices, setSetupDevices] = useState([]);
 
+  useEffect(() => {
+    if (preLoadDevices) {
+      setSetupDevices(preLoadedDevices);
+    }
+  }, []); 
+  
   function handleDeviceSearch(deviceData) {
     console.log("Received device data:", deviceData);
     if (deviceData && deviceData.name) {

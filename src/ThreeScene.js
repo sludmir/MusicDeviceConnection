@@ -231,27 +231,29 @@ function ThreeScene({ devices }) {
 
     function drawCables(device, deviceIndex) {
         console.log('Drawing cables for:', device.name, 'Index:', deviceIndex);
+
+        console.log('****** Devices in devicesRef:');
+        console.log(devicesRef.current);
+
         if (device.connections) {
             device.connections.forEach(connection => {
-                const startDevice = devicesRef.current[device.name][deviceIndex];
-                const endDevices = devicesRef.current[connection.device];
-                if (startDevice && endDevices && endDevices.length > 0) {
-                    const endDevice = endDevices[0]; // Connect to the first instance of the target device
-                    const start = getConnectionPoint(startDevice, device.name, connection.from);
-                    const end = getConnectionPoint(endDevice, connection.device, connection.to);
-                    
+                console.log("startDevice: " + device.name + ". endDevice: " + connection.device)
+                const startDeviceRender = devicesRef.current[device.name][0];
+                const endDeviceRender = devicesRef.current[connection.device][0];
+                
+                const startDevice = device
+                const endDevice = findDeviceByName(connection.device)
+                if (startDevice && endDevice) {
+                    let start = getConnectionPoint(startDevice, startDeviceRender, connection.from, 'output');
+                    let end = getConnectionPoint(endDevice, endDeviceRender, connection.to, 'input');
+
                     const cableColor = cableColors[connection.cable] || 0xffffff;
-                    
+    
                     // Create a curved path for the cable
                     const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
                     midPoint.y += 0.05; // Raise the midpoint slightly
-
-                    const curve = new THREE.QuadraticBezierCurve3(
-                        start,
-                        midPoint,
-                        end
-                    );
-
+    
+                    const curve = new THREE.QuadraticBezierCurve3(start, midPoint, end);
                     const points = curve.getPoints(50);
                     const geometry = new THREE.BufferGeometry().setFromPoints(points);
                     const material = new THREE.LineBasicMaterial({ color: cableColor });
@@ -261,12 +263,26 @@ function ThreeScene({ devices }) {
             });
         }
     }
+    
+    function getConnectionPoint(deviceModel, deviceRender, connectionName, connectionType) {
+        console.log("getConnectionPoint: device: " + deviceModel.name + ", connectionName: " + connectionName + ", connectionType:" + connectionType)
+        console.log("device: " + deviceModel)
 
-    function getConnectionPoint(deviceModel, deviceName, connectionName) {
-        const connectionPoints = deviceName.includes('CDJ') ? CDJ3000Connections : DJM900Connections;
-        const offset = connectionPoints[connectionName] || new THREE.Vector3(0, 0.25, 0); // Default to top if not found
-        const devicePosition = deviceModel.position.clone();
-        return devicePosition.add(offset);
+        const connections = connectionType === 'input' ? deviceModel.inputs : deviceModel.outputs;
+        const connection = connections.find(conn => conn.type === connectionName);
+
+        if (connection) {
+            console.log("Found connection: " + connection.type)
+            const devicePosition = deviceRender.position.clone();
+            return devicePosition.add(connection.coordinate);
+        }
+    
+        // Default to the top position if not found
+        return deviceRender.position.clone().add(new THREE.Vector3(0, 0.25, 0));
+    }
+    
+    function findDeviceByName(name) {
+        return Object.values(deviceLibrary).find(device => device.name === name);
     }
 
     function adjustCameraView() {
