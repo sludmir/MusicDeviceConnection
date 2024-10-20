@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -10,8 +10,14 @@ function ThreeScene({ devices }) {
     const cameraRef = useRef(null);
     const controlsRef = useRef(null);
     const rendererRef = useRef(null);
+
     const devicesRef = useRef({});
-    const djModelRef = useRef(null);
+    const prevDevicesRef = useRef(devices);
+
+    const cablesRef = useRef([]);
+    const djTableRef = useRef(null);
+
+    const [isSceneInitialized, setIsSceneInitialized] = useState(false);
 
     const cableColors = {
         'AUX Cable': 0x00ff00,
@@ -85,6 +91,9 @@ function ThreeScene({ devices }) {
         };
         window.addEventListener('resize', handleResize);
 
+        // Mark the scene as initialized
+        setIsSceneInitialized(true);
+
         return () => {
             window.removeEventListener('resize', handleResize);
             if (mountRef.current && renderer.domElement) {
@@ -105,71 +114,42 @@ function ThreeScene({ devices }) {
     }, []);
 
     useEffect(() => {
-        if (!sceneRef.current || !cameraRef.current || !controlsRef.current) return;
+        if (!isSceneInitialized || !sceneRef.current || !cameraRef.current || !controlsRef.current) return;
 
         const scene = sceneRef.current;
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
         const loader = new GLTFLoader();
+        const previousDevices = prevDevicesRef.current;
 
-        console.log('Devices to render:', devices);
+        // Compare current devices with previous devices
+        const removedDevices = previousDevices.filter(prevDevice => !devices.some(dev => dev.id === prevDevice.id));
+        const addedDevices = devices.filter(device => !previousDevices.some(prevDev => prevDev.id === device.id));
 
-        // Clear previous devices
-        Object.values(devicesRef.current).forEach(obj => {
-            if (Array.isArray(obj)) {
-                obj.forEach(device => scene.remove(device));
-            } else {
-                scene.remove(obj);
+        // Remove old devices that are no longer present
+        removedDevices.forEach(device => {
+            if (devicesRef.current[device.name]) {
+                devicesRef.current[device.name].forEach(model => {
+                    scene.remove(model);
+                });
+                delete devicesRef.current[device.name];
             }
         });
-        devicesRef.current = {};
-        scene.children = scene.children.filter(child => !(child instanceof THREE.Line));
 
-        // Find the mixer (if any)
-        const mixer = devices.find(device => device.name.includes('DJM'));
-        const mixerPosition = new THREE.Vector3(0, 1.15, -0.25);
-
-        // Get CDJs
-        const cdjs = devices.filter(d => d.name.includes('CDJ'));
-
-        devices.forEach((device, index) => {
-            console.log('Processing device:', device.name, 'Index:', index, 'ID:', device.id);
-            let position;
-            
-            if (device.name.includes('CDJ')) {
-                const cdjIndex = cdjs.indexOf(device);
-                const cdjPositions = [
-                    new THREE.Vector3(-0.9, 1.15, -0.25),  // left of mixer
-                    new THREE.Vector3(0.9, 1.15, -0.25),   // right of mixer
-                    new THREE.Vector3(-1.8, 1.15, -0.25),  // far left
-                    new THREE.Vector3(1.8, 1.15, -0.25)    // far right
-                ];
-                position = cdjPositions[cdjIndex];
-            } else if (device.name.includes('DJM')) {
-                position = mixerPosition;
-            } else if (device.name.includes('Speaker')) {
-                position = new THREE.Vector3(device.name.includes('Left') ? -2.5 : 2.5, 0.5, 0);
-            } else if (device.name.includes('Headphones') && djModelRef.current) {
-                position = new THREE.Vector3(0, 1.8, -0.75);
-            } else {
-                position = new THREE.Vector3(0, 1.15, -0.25);
-            }
-
-            loadDevice(device, position, loader, scene);
+        // Add new devices that were not previously present
+        addedDevices.forEach(device => {
+            loadDevice(device, loader, scene);
         });
 
-        // Draw cables after all devices are loaded
-        setTimeout(() => {
-            devices.forEach((device, index) => {
-                drawCables(device, index);
-            });
-            adjustCameraView();
-            rendererRef.current.render(scene, camera);
-        }, 1000);
+        // Update connections for all devices (removes old cables and adds new ones)
+        updateConnections(devices);
+
+        // Update the previous devices ref to the current state of devices
+        prevDevicesRef.current = devices;
 
     }, [devices]);
 
-    function loadDevice(device, position, loader, scene) {
+
+    function loadDevice(device, loader, scene) {
+        let position = { x: 1, y: 1, z: 2 };  // Default position if needed
         if (device.modelPath) {
             console.log('Loading model from path:', device.modelPath);
             loader.load(
@@ -177,46 +157,107 @@ function ThreeScene({ devices }) {
                 (gltf) => {
                     console.log('GLTF loaded successfully:', device.name);
                     const model = gltf.scene;
-                    model.position.copy(position);
+    
+                    // Compute the bounding box of the model AFTER it is loaded
+                    const box = new THREE.Box3().setFromObject(model);
+    
+                    // Get the size (width, height, depth) of the model's bounding box
+                    const size = new THREE.Vector3();
+                    box.getSize(size);  // size contains width (x), height (y), and depth (z)
+                    console.log(`Model dimensions (width, height, depth): ${size.x}, ${size.y}, ${size.z}`);
+    
+                    // Get the device position from your custom logic (optional)
+                    position = getDevicePosition(device, size);
+                    console.log(`loadDevice position setting: ${position.x}, ${position.y}, ${position.z}`);
+    
+                    // Set the model position using the calculated position
+                    model.position.set(position.x, position.y, position.z);
+    
+                    // Optionally, adjust the position based on the model's center
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);  // Center the model on its position
+    
+                    // Add the model to the scene
                     scene.add(model);
-
+    
+                    // Store reference to the model for future use
                     if (!devicesRef.current[device.name]) {
                         devicesRef.current[device.name] = [];
                     }
                     devicesRef.current[device.name].push(model);
-
-                    const box = new THREE.Box3().setFromObject(model);
-                    const center = box.getCenter(new THREE.Vector3());
-                    model.position.sub(center).add(position);
-
-                    const scale = 0.5;
+    
+                    // Scale the model (if needed)
+                    const scale = 1.0;
                     model.scale.set(scale, scale, scale);
-
+    
+                    // Traverse the model to access individual meshes and set up materials and shadows
                     model.traverse((child) => {
                         if (child.isMesh) {
+                            console.log('Mesh geometry:', child.geometry);  // Access geometry here
                             child.material.side = THREE.DoubleSide;
                             child.castShadow = true;
                             child.receiveShadow = true;
                         }
                     });
-
-                    if (device.name.includes('Headphones') && djModelRef.current) {
-                        djModelRef.current.add(model);
-                    }
                 },
                 undefined,
                 (error) => {
                     console.error('Error loading model:', device.name, error);
-                    createPlaceholder(device, position, scene);
+                    createPlaceholderRender(device, position, scene);  // Handle fallback if model fails to load
                 }
             );
         } else {
             console.log('No model path for device:', device.name);
-            createPlaceholder(device, position, scene);
+            createPlaceholderRender(device, position, scene);  // Handle devices with no model path
         }
     }
+    
 
-    function createPlaceholder(device, position, scene) {
+    // Define getDevicePosition if it's not defined yet
+    function getDevicePosition(device, modelSize) {
+
+        let position = { x: 1, y: 1, z: 2};
+        if (!djTableRef.current) {
+            console.log("getDevicePosition No table ref object set ");
+            return position;
+        }
+
+        if (device == null) {
+            console.log("getDevicePosition No device or model ref object set ");
+            return position;
+        }
+
+        const distanceBetweenObjects = 0.5;
+
+        const tablePosition = djTableRef.current.position.clone(); // Clone the position of the DJ table
+        const tableGeometry = djTableRef.current.geometry;
+        const tableWidth = tableGeometry.parameters.width;     // x dimension
+        const tableHeight = tableGeometry.parameters.height;   // y dimension
+        const tableDepth = tableGeometry.parameters.depth;    // z dimension
+
+        const deviceWidth = modelSize.x;     // x dimension
+        const deviceHeight = modelSize.y;   // y dimension
+        const deviceDepth = modelSize.z;
+
+        console.log("Looking for location: " + device.name);
+        
+        devices.forEach((storedDevice, index) => {
+            if (storedDevice.name === device.name) {
+                console.log(`finding location for Device ${index}:`, device.name, 'ID:', device.id);
+
+                const x = (tablePosition.x - (tableWidth/ 2)) + (index * distanceBetweenObjects);
+                const y = tablePosition.y + (tableHeight / 2) + (deviceHeight / 2);
+                const z = tablePosition.z;
+
+                position = { x: x, y: y, z: z };
+            }
+        });
+
+        console.log(`Setting location for Device. x:${position.x}, y:${position.y}, z:${position.z}`);
+        return position;
+    }
+
+    function createPlaceholderRender(device, position, scene) {
         console.log('Creating placeholder for:', device.name);
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshBasicMaterial({ color: 0x888888 });
@@ -240,33 +281,59 @@ function ThreeScene({ devices }) {
                 console.log("startDevice: " + device.name + ". endDevice: " + connection.device)
                 const startDeviceRender = devicesRef.current[device.name][0];
                 const endDeviceRender = devicesRef.current[connection.device][0];
-                
-                const startDevice = device
-                const endDevice = findDeviceByName(connection.device)
+
+                const startDevice = device;
+                const endDevice = findDeviceByName(connection.device);
                 if (startDevice && endDevice) {
                     let start = getConnectionPoint(startDevice, startDeviceRender, connection.from, 'output');
                     let end = getConnectionPoint(endDevice, endDeviceRender, connection.to, 'input');
 
                     const cableColor = cableColors[connection.cable] || 0xffffff;
-    
+
                     // Create a curved path for the cable
                     const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
                     midPoint.y += 0.05; // Raise the midpoint slightly
-    
+
                     const curve = new THREE.QuadraticBezierCurve3(start, midPoint, end);
                     const points = curve.getPoints(50);
                     const geometry = new THREE.BufferGeometry().setFromPoints(points);
                     const material = new THREE.LineBasicMaterial({ color: cableColor });
                     const line = new THREE.Line(geometry, material);
+
+                    // Add the cable (line) to the scene and store it in cablesRef
                     sceneRef.current.add(line);
+                    cablesRef.current.push(line);  // Store the cable
                 }
             });
         }
     }
-    
+
+
+    function updateConnections(devices) {
+        // First, remove old cables (or connections) before adding new ones
+        removeOldCables();  // You will define this function to clean up old cables
+
+        setTimeout(() => {
+            devices.forEach((device, index) => {
+                drawCables(device, index);  // Add cables for each device
+            });
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }, 1000);
+    }
+
+    function removeOldCables() {
+        // Assuming cables are stored in an array `cablesRef.current`
+        if (cablesRef.current && cablesRef.current.length > 0) {
+            cablesRef.current.forEach(cable => {
+                sceneRef.current.remove(cable);  // Remove each cable from the scene
+            });
+            cablesRef.current = [];  // Clear the array after removing all cables
+        }
+    }
+
     function getConnectionPoint(deviceModel, deviceRender, connectionName, connectionType) {
         console.log("getConnectionPoint: device: " + deviceModel.name + ", connectionName: " + connectionName + ", connectionType:" + connectionType)
-        console.log("device: " + deviceModel)
+        console.log("device: " + deviceModel.name)
 
         const connections = connectionType === 'input' ? deviceModel.inputs : deviceModel.outputs;
         const connection = connections.find(conn => conn.type === connectionName);
@@ -276,34 +343,34 @@ function ThreeScene({ devices }) {
             const devicePosition = deviceRender.position.clone();
             return devicePosition.add(connection.coordinate);
         }
-    
+
         // Default to the top position if not found
         return deviceRender.position.clone().add(new THREE.Vector3(0, 0.25, 0));
     }
-    
+
     function findDeviceByName(name) {
         return Object.values(deviceLibrary).find(device => device.name === name);
     }
 
-    function adjustCameraView() {
-        const box = new THREE.Box3().setFromObject(sceneRef.current);
-        const size = box.getSize(new THREE.Vector3());
-        const center = box.getCenter(new THREE.Vector3());
+    // function adjustCameraView() {
+    //     const box = new THREE.Box3().setFromObject(sceneRef.current);
+    //     const size = box.getSize(new THREE.Vector3());
+    //     const center = box.getCenter(new THREE.Vector3());
 
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const fov = cameraRef.current.fov * (Math.PI / 180);
-        let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov / 2));
+    //     const maxDim = Math.max(size.x, size.y, size.z);
+    //     const fov = cameraRef.current.fov * (Math.PI / 180);
+    //     let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov / 2));
 
-        cameraZ *= 1.5;
-        const cameraY = size.y / 2;
+    //     cameraZ *= 1.5;
+    //     const cameraY = size.y / 2;
 
-        cameraRef.current.position.set(center.x, center.y + cameraY, center.z + cameraZ);
-        cameraRef.current.lookAt(center);
-        cameraRef.current.updateProjectionMatrix();
+    //     cameraRef.current.position.set(center.x, center.y + cameraY, center.z + cameraZ);
+    //     cameraRef.current.lookAt(center);
+    //     cameraRef.current.updateProjectionMatrix();
 
-        controlsRef.current.target.copy(center);
-        controlsRef.current.update();
-    }
+    //     controlsRef.current.target.copy(center);
+    //     controlsRef.current.update();
+    // }
 
     function createClubEnvironment(scene) {
         // Floor
@@ -331,6 +398,8 @@ function ThreeScene({ devices }) {
         table.receiveShadow = true;
         table.castShadow = true;
         scene.add(table);
+
+        djTableRef.current = table;  // Store the reference in the djTableRef
     }
 
     return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;

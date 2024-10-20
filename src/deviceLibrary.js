@@ -31,7 +31,7 @@ const deviceLibrary = {
       { type: "Link", coordinate: new THREE.Vector3(-0.3, 0.2, 0.5) }  // Example input coordinate
     ],
     outputs: [
-      { type: "Digital Out", coordinate: new THREE.Vector3(-0.18, 0.045, -0.17) }, // Example output coordinate
+      { type: "Digital", coordinate: new THREE.Vector3(-0.18, 0.045, -0.17) }, // Example output coordinate
       { type: "Link", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) },        // Example output coordinate
       { type: "Line 1", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) }        // Example output coordinate
     ],
@@ -39,7 +39,7 @@ const deviceLibrary = {
       {
         device: "DJM-900NXS2",
         cable: "Digital Cable",
-        from: "Digital Out",
+        from: "Digital",
         to: "Digital"
       },
       // {
