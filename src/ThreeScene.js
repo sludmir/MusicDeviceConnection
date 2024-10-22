@@ -11,7 +11,7 @@ function ThreeScene({ devices }) {
     const controlsRef = useRef(null);
     const rendererRef = useRef(null);
 
-    const devicesRef = useRef({});
+    const devicesRef = useRef([]);
     const prevDevicesRef = useRef(devices);
 
     const cablesRef = useRef([]);
@@ -126,11 +126,10 @@ function ThreeScene({ devices }) {
 
         // Remove old devices that are no longer present
         removedDevices.forEach(device => {
-            if (devicesRef.current[device.name]) {
-                devicesRef.current[device.name].forEach(model => {
-                    scene.remove(model);
-                });
-                delete devicesRef.current[device.name];
+            if (devicesRef.current[device.id]) {
+                const model = devicesRef.current[device.id];
+                scene.remove(model);
+                delete devicesRef.current[device.id];
             }
         });
 
@@ -181,10 +180,7 @@ function ThreeScene({ devices }) {
                     scene.add(model);
     
                     // Store reference to the model for future use
-                    if (!devicesRef.current[device.name]) {
-                        devicesRef.current[device.name] = [];
-                    }
-                    devicesRef.current[device.name].push(model);
+                    devicesRef.current[device.id] = model;
     
                     // Scale the model (if needed)
                     const scale = 1.0;
@@ -242,7 +238,7 @@ function ThreeScene({ devices }) {
         console.log("Looking for location: " + device.name);
         
         devices.forEach((storedDevice, index) => {
-            if (storedDevice.name === device.name) {
+            if (storedDevice.id === device.id) {
                 console.log(`finding location for Device ${index}:`, device.name, 'ID:', device.id);
 
                 const x = (tablePosition.x - (tableWidth/ 2)) + (index * distanceBetweenObjects);
@@ -264,11 +260,14 @@ function ThreeScene({ devices }) {
         const cube = new THREE.Mesh(geometry, material);
         cube.position.copy(position);
         scene.add(cube);
-        if (!devicesRef.current[device.name]) {
-            devicesRef.current[device.name] = [];
-        }
-        devicesRef.current[device.name].push(cube);
+        devicesRef.current[device.id] = cube;
     }
+
+    function getDeviceId(name) {
+        const device = devices.find(device => device.name === name);
+        return device ? device.id : null;
+    }
+    
 
     function drawCables(device, deviceIndex) {
         console.log('Drawing cables for:', device.name, 'Index:', deviceIndex);
@@ -278,9 +277,10 @@ function ThreeScene({ devices }) {
 
         if (device.connections) {
             device.connections.forEach(connection => {
-                console.log("startDevice: " + device.name + ". endDevice: " + connection.device)
-                const startDeviceRender = devicesRef.current[device.name][0];
-                const endDeviceRender = devicesRef.current[connection.device][0];
+                const endDeviceId = getDeviceId(connection.device);
+                console.log("startDevice: " + device.name  + "startDevice id: " + device.id + ". endDevice: " + connection.device + " endDevice id: " + endDeviceId)
+                const startDeviceRender = devicesRef.current[device.id];
+                const endDeviceRender = devicesRef.current[endDeviceId];
 
                 const startDevice = device;
                 const endDevice = findDeviceByName(connection.device);
@@ -338,6 +338,7 @@ function ThreeScene({ devices }) {
         const connections = connectionType === 'input' ? deviceModel.inputs : deviceModel.outputs;
         const connection = connections.find(conn => conn.type === connectionName);
 
+        console.log(deviceRender);
         if (connection) {
             console.log("Found connection: " + connection.type)
             const devicePosition = deviceRender.position.clone();

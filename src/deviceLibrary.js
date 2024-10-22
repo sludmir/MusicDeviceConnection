@@ -31,7 +31,7 @@ const deviceLibrary = {
       { type: "Link", coordinate: new THREE.Vector3(-0.3, 0.2, 0.5) }  // Example input coordinate
     ],
     outputs: [
-      { type: "Digital", coordinate: new THREE.Vector3(-0.18, 0.045, -0.17) }, // Example output coordinate
+      { type: "Digital", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) }, // Example output coordinate
       { type: "Link", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) },        // Example output coordinate
       { type: "Line 1", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) }        // Example output coordinate
     ],
@@ -110,7 +110,7 @@ const deviceLibrary = {
     inputs: [
       { type: "Line", coordinate: new THREE.Vector3(-0.5, 0.2, 0.5) },
       { type: "Phono", coordinate: new THREE.Vector3(-0.4, 0.2, 0.5) },
-      { type: "Digital", coordinate: new THREE.Vector3(-0.1, 0.02, -0.15) },
+      { type: "Digital", coordinate: new THREE.Vector3(-0.2, 0.04, -0.3) },
       { type: "Mic", coordinate: new THREE.Vector3(-0.2, 0.2, 0.5) }
     ],
     outputs: [

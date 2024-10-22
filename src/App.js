@@ -4,12 +4,13 @@ import SearchBar from './SearchBar';
 import DeviceDisplay from './DeviceDisplay';
 import ThreeScene from './ThreeScene';
 import deviceLibrary from './deviceLibrary';
+import { v4 as uuidv4 } from 'uuid';
 
 function App() {
   const preLoadDevices = true;
   const preLoadedDevices = [
-      deviceLibrary['CDJ-3000'],
-      deviceLibrary['DJM-900NXS2']
+      { ...deviceLibrary['CDJ-3000'], id: uuidv4()},
+      { ...deviceLibrary['DJM-900NXS2'], id: uuidv4()}
   ];
   
   const [device, setDevice] = useState(null);
@@ -35,7 +36,7 @@ function App() {
 
   const handleAddToDeviceSetup = (deviceToAdd) => {
     console.log("Attempting to add device:", deviceToAdd.name);
-    const newDevice = { ...deviceToAdd, id: Date.now() };
+    const newDevice = { ...deviceToAdd, id: uuidv4() };
     setSetupDevices(prevDevices => {
       const updatedDevices = [...prevDevices, newDevice];
       console.log("Updated setup devices:", updatedDevices);

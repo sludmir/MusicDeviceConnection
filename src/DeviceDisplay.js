@@ -17,7 +17,7 @@ function DeviceDisplay({ device, onAddToDeviceSetup }) {
   };
 
   return (
-    <div>
+    <div className='device-display'>
       <h2>{device.name}</h2>
       {device.image && <img src={device.image} alt={`${device.name}`} style={{ width: '100%', maxWidth: '300px' }} />}
       <p>{device.description}</p>
@@ -25,13 +25,17 @@ function DeviceDisplay({ device, onAddToDeviceSetup }) {
       <h3>Inputs:</h3>
       <ul>
         {device.inputs && device.inputs.map((input, index) => (
-          <li key={index}>{input}</li>
+          <li key={input.type || index}> {/* Use input.type if available */}
+            {input.type} at {input.coordinate.toArray().join(', ')} {/* Display type and coordinate */}
+          </li>
         ))}
       </ul>
       <h3>Outputs:</h3>
       <ul>
         {device.outputs && device.outputs.map((output, index) => (
-          <li key={index}>{output}</li>
+          <li key={output.type || index}> {/* Use output.type if available */}
+            {output.type} at {output.coordinate.toArray().join(', ')} {/* Display type and coordinate */}
+          </li>
         ))}
       </ul>
       <h3>Cables:</h3>

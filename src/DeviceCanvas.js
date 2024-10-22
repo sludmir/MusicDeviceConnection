@@ -51,7 +51,7 @@ function DeviceCanvas({ device }) {
   }
 
   return (
-    <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', maxWidth: '300px' }} />
+    <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', maxWidth: '300px', backgroundColor: 'orange' }} />
   );
 }
 

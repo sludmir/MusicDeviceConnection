@@ -44,9 +44,20 @@ h1, h2, h3, h4, h5, h6, p, button, input, textarea {
 
 .sidebar {
   width: 300px;
-  background-color: #2a2a2a;
+  /* background-color: #2a2a2a; */
   padding: 20px;
   overflow-y: auto;
+  background-color: blueviolet;
+
+}
+
+.device-display {
+  width: 300px;
+  /* background-color: #2a2a2a; */
+  padding: 20px;
+  overflow-y: auto;
+  background-color: green;
+
 }
 
 .render-area {

@@ -10,11 +10,17 @@ function DeviceConnections({ device }) {
       <h3>Connections:</h3>
       <ul>
         {device.connections.map((connection, index) => {
-          // Ensure 'cable' is an array before trying to join it
-          const cables = Array.isArray(connection.cable) ? connection.cable.join(', ') : connection.cable;
+          
+          const cables = connection.cable || 'Unknown cable'; // Fallback if cable is undefined
+          const targetDevice = connection.device || 'Unknown device';
+          
+          console.log("DeviceConnections 123");
+          console.log(connection);
+          console.log(cables);
+
           return (
             <li key={index}>
-              Connects to {connection.device} using {cables}
+              Connects to {targetDevice} using {cables}
             </li>
           );
         })}
