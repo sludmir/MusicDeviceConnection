@@ -1,22 +1,5 @@
 import * as THREE from 'three';
 
-const CDJ3000Connections = {
-  digitalOut: new THREE.Vector3(0.1, 0.25, 0.5),  // Moved up and slightly to the right
-  lineOut: new THREE.Vector3(-0.1, 0.25, 0.5),    // Moved up and slightly to the left
-};
-
-const DJM900Connections = {
-  ch1Digital: new THREE.Vector3(-0.4, 0.2, 0.5),  // Moved up
-  ch1Line: new THREE.Vector3(-0.3, 0.2, 0.5),     // Moved up
-  ch2Digital: new THREE.Vector3(-0.1, 0.2, 0.5),  // Moved up
-  ch2Line: new THREE.Vector3(0, 0.2, 0.5),        // Moved up
-  ch3Digital: new THREE.Vector3(0.1, 0.2, 0.5),   // Moved up
-  ch3Line: new THREE.Vector3(0.2, 0.2, 0.5),      // Moved up
-  ch4Digital: new THREE.Vector3(0.3, 0.2, 0.5),   // Moved up
-  ch4Line: new THREE.Vector3(0.4, 0.2, 0.5),      // Moved up
-  headphones: new THREE.Vector3(0, -0.2, 0.3),
-};
-
 const deviceLibrary = {
   // // CDJs
   "CDJ-3000": {
@@ -49,7 +32,8 @@ const deviceLibrary = {
       //   to: "Line"
       // }
     ],
-    price: 2299
+    price: 2299,
+    locationPriority: 1000
   },
   // "CDJ-2000NXS2": {
   //   name: "CDJ-2000NXS2",
@@ -119,7 +103,8 @@ const deviceLibrary = {
       { type: "Rec Out", coordinate: new THREE.Vector3(0.7, 0.2, 0.5) }
     ],
     connections: [],
-    price: 2299
+    price: 2299,
+    locationPriority: 0
   },
   // "DJM-750MK2": {
   //   name: "DJM-750MK2",
@@ -201,5 +186,4 @@ const deviceLibrary = {
   // }
 };
 
-export { CDJ3000Connections, DJM900Connections };
 export default deviceLibrary;

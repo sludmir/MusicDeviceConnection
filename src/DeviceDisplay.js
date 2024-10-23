@@ -45,7 +45,6 @@ function DeviceDisplay({ device, onAddToDeviceSetup }) {
         ))}
       </ul>
       <DeviceConnections device={device} />
-      <DeviceCanvas device={device} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import deviceLibrary, { CDJ3000Connections, DJM900Connections } from './deviceLibrary';
+import { mod } from 'three/webgpu';
 
 function ThreeScene({ devices }) {
     const mountRef = useRef(null);
@@ -121,8 +122,11 @@ function ThreeScene({ devices }) {
         const previousDevices = prevDevicesRef.current;
 
         // Compare current devices with previous devices
-        const removedDevices = previousDevices.filter(prevDevice => !devices.some(dev => dev.id === prevDevice.id));
-        const addedDevices = devices.filter(device => !previousDevices.some(prevDev => prevDev.id === device.id));
+        let removedDevices = previousDevices; //.filter(prevDevice => !devices.some(dev => dev.id === prevDevice.id));
+        let addedDevices = devices.filter(device => !previousDevices.some(prevDev => prevDev.id === device.id));
+
+        const sortedDevices = [...devices].sort((a, b) => a.locationPriority - b.locationPriority);
+        console.log('sorted devices: ', sortedDevices);
 
         // Remove old devices that are no longer present
         removedDevices.forEach(device => {
@@ -130,12 +134,25 @@ function ThreeScene({ devices }) {
                 const model = devicesRef.current[device.id];
                 scene.remove(model);
                 delete devicesRef.current[device.id];
+                console.log('removed devices ', device.id);
             }
         });
 
-        // Add new devices that were not previously present
-        addedDevices.forEach(device => {
-            loadDevice(device, loader, scene);
+        // Add or reposition devices based on sorted order
+        sortedDevices.forEach((device, index) => {
+            if (devicesRef.current[device.id]) {
+                // const model = devicesRef.current[device.id];
+                // const box = new THREE.Box3().setFromObject(model);
+                // const size = new THREE.Vector3();
+                // box.getSize(size);
+                // console.log('Model dimensions:', size.x, size.y, size.z);
+                // const position = getDevicePosition(device, index, size);
+                // model.position.set(position.x, position.y, position.z);
+            } else {
+                // Load new device if it's not already present
+                loadDevice(device, index, loader, scene);
+            }
+            console.log('loading/repositioning device ', device.id, index);
         });
 
         // Update connections for all devices (removes old cables and adds new ones)
@@ -147,45 +164,45 @@ function ThreeScene({ devices }) {
     }, [devices]);
 
 
-    function loadDevice(device, loader, scene) {
+    function loadDevice(device, index, loader, scene) {
         let position = { x: 1, y: 1, z: 2 };  // Default position if needed
         if (device.modelPath) {
-            console.log('Loading model from path:', device.modelPath);
+            console.log('Loading model from path:', device.modelPath, index);
             loader.load(
                 device.modelPath,
                 (gltf) => {
-                    console.log('GLTF loaded successfully:', device.name);
+                    console.log('GLTF loaded successfully:', device.name, index);
                     const model = gltf.scene;
-    
+
                     // Compute the bounding box of the model AFTER it is loaded
                     const box = new THREE.Box3().setFromObject(model);
-    
+
                     // Get the size (width, height, depth) of the model's bounding box
                     const size = new THREE.Vector3();
                     box.getSize(size);  // size contains width (x), height (y), and depth (z)
                     console.log(`Model dimensions (width, height, depth): ${size.x}, ${size.y}, ${size.z}`);
-    
+
                     // Get the device position from your custom logic (optional)
-                    position = getDevicePosition(device, size);
+                    position = getDevicePosition(device, index, size);
                     console.log(`loadDevice position setting: ${position.x}, ${position.y}, ${position.z}`);
-    
+
                     // Set the model position using the calculated position
                     model.position.set(position.x, position.y, position.z);
-    
+
                     // Optionally, adjust the position based on the model's center
                     const center = box.getCenter(new THREE.Vector3());
                     model.position.sub(center);  // Center the model on its position
-    
+
                     // Add the model to the scene
                     scene.add(model);
-    
+
                     // Store reference to the model for future use
                     devicesRef.current[device.id] = model;
-    
+
                     // Scale the model (if needed)
                     const scale = 1.0;
                     model.scale.set(scale, scale, scale);
-    
+
                     // Traverse the model to access individual meshes and set up materials and shadows
                     model.traverse((child) => {
                         if (child.isMesh) {
@@ -207,12 +224,12 @@ function ThreeScene({ devices }) {
             createPlaceholderRender(device, position, scene);  // Handle devices with no model path
         }
     }
-    
+
 
     // Define getDevicePosition if it's not defined yet
-    function getDevicePosition(device, modelSize) {
+    function getDevicePosition(device, index, modelSize) {
 
-        let position = { x: 1, y: 1, z: 2};
+        let position = { x: 1, y: 1, z: 2 };
         if (!djTableRef.current) {
             console.log("getDevicePosition No table ref object set ");
             return position;
@@ -223,7 +240,7 @@ function ThreeScene({ devices }) {
             return position;
         }
 
-        const distanceBetweenObjects = 0.5;
+        const distanceBetweenObjects = 0.75;
 
         const tablePosition = djTableRef.current.position.clone(); // Clone the position of the DJ table
         const tableGeometry = djTableRef.current.geometry;
@@ -236,20 +253,16 @@ function ThreeScene({ devices }) {
         const deviceDepth = modelSize.z;
 
         console.log("Looking for location: " + device.name);
-        
-        devices.forEach((storedDevice, index) => {
-            if (storedDevice.id === device.id) {
-                console.log(`finding location for Device ${index}:`, device.name, 'ID:', device.id);
+        console.log(`finding location for Device ${index}:`, device.name, 'ID:', device.id);
+        const tableSideMultiplier = ((index % 2) == 0) ? -1 : 1;
+        const distanceMultiplier = index === 0 ? 0 : Math.floor((index - 1) / 2) + 1;
+        const x = ((tablePosition.x / 2)) + (tableSideMultiplier * distanceMultiplier * distanceBetweenObjects);
+        const y = tablePosition.y + (tableHeight / 2) + (deviceHeight / 2);
+        const z = tablePosition.z;
 
-                const x = (tablePosition.x - (tableWidth/ 2)) + (index * distanceBetweenObjects);
-                const y = tablePosition.y + (tableHeight / 2) + (deviceHeight / 2);
-                const z = tablePosition.z;
+        position = { x: x, y: y, z: z };
 
-                position = { x: x, y: y, z: z };
-            }
-        });
-
-        console.log(`Setting location for Device. x:${position.x}, y:${position.y}, z:${position.z}`);
+        console.log(`Setting location for ${device.name}. x:${position.x}, y:${position.y}, z:${position.z}`);
         return position;
     }
 
@@ -267,7 +280,7 @@ function ThreeScene({ devices }) {
         const device = devices.find(device => device.name === name);
         return device ? device.id : null;
     }
-    
+
 
     function drawCables(device, deviceIndex) {
         console.log('Drawing cables for:', device.name, 'Index:', deviceIndex);
@@ -278,7 +291,11 @@ function ThreeScene({ devices }) {
         if (device.connections) {
             device.connections.forEach(connection => {
                 const endDeviceId = getDeviceId(connection.device);
-                console.log("startDevice: " + device.name  + "startDevice id: " + device.id + ". endDevice: " + connection.device + " endDevice id: " + endDeviceId)
+                if (endDeviceId == null) {
+                    return;
+                }
+
+                console.log("startDevice: " + device.name + "startDevice id: " + device.id + ". endDevice: " + connection.device + " endDevice id: " + endDeviceId)
                 const startDeviceRender = devicesRef.current[device.id];
                 const endDeviceRender = devicesRef.current[endDeviceId];
 

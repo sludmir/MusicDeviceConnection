@@ -7,7 +7,7 @@ import deviceLibrary from './deviceLibrary';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
-  const preLoadDevices = true;
+  const preLoadDevices = false;
   const preLoadedDevices = [
       { ...deviceLibrary['CDJ-3000'], id: uuidv4()},
       { ...deviceLibrary['DJM-900NXS2'], id: uuidv4()}
