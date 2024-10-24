@@ -130,8 +130,8 @@ function ThreeScene({ devices }) {
 
         // Remove old devices that are no longer present
         removedDevices.forEach(device => {
-            if (devicesRef.current[device.id]) {
-                const model = devicesRef.current[device.id];
+            if (devicesRef.current[device.id]?.model) {
+                const model = devicesRef.current[device.id].model;
                 scene.remove(model);
                 delete devicesRef.current[device.id];
                 console.log('removed devices ', device.id);
@@ -140,7 +140,7 @@ function ThreeScene({ devices }) {
 
         // Add or reposition devices based on sorted order
         sortedDevices.forEach((device, index) => {
-            if (devicesRef.current[device.id]) {
+            if (devicesRef.current[device.id]?.model) {
                 // const model = devicesRef.current[device.id];
                 // const box = new THREE.Box3().setFromObject(model);
                 // const size = new THREE.Vector3();
@@ -197,7 +197,7 @@ function ThreeScene({ devices }) {
                     scene.add(model);
 
                     // Store reference to the model for future use
-                    devicesRef.current[device.id] = model;
+                    devicesRef.current[device.id] = {model: model, connectionsInUse: {outputs: [], inputs: []}};
 
                     // Scale the model (if needed)
                     const scale = 1.0;
@@ -273,7 +273,7 @@ function ThreeScene({ devices }) {
         const cube = new THREE.Mesh(geometry, material);
         cube.position.copy(position);
         scene.add(cube);
-        devicesRef.current[device.id] = cube;
+        devicesRef.current[device.id] = {model: cube, connectionsInUse: {outputs: [], inputs: []}};
     }
 
     function getDeviceId(name) {
@@ -296,16 +296,26 @@ function ThreeScene({ devices }) {
                 }
 
                 console.log("startDevice: " + device.name + "startDevice id: " + device.id + ". endDevice: " + connection.device + " endDevice id: " + endDeviceId)
-                const startDeviceRender = devicesRef.current[device.id];
-                const endDeviceRender = devicesRef.current[endDeviceId];
+                const startDeviceRender = devicesRef.current[device.id]?.model;
+                const startDeviceConnectionsInUse = devicesRef.current[device.id]?.connectionsInUse;
+                const endDeviceRender = devicesRef.current[endDeviceId]?.model;
+                const endDeviceConnectionsInUse = devicesRef.current[endDeviceId]?.connectionsInUse;
 
                 const startDevice = device;
                 const endDevice = findDeviceByName(connection.device);
+
+                if(!connectionIsAvailable(connection, startDeviceConnectionsInUse, endDeviceConnectionsInUse)){
+                    return;
+                }
+                
                 if (startDevice && endDevice) {
+                    startDeviceConnectionsInUse.inputs.push(connection.from);
+                    endDeviceConnectionsInUse.inputs.push(connection.to);
+
                     let start = getConnectionPoint(startDevice, startDeviceRender, connection.from, 'output');
                     let end = getConnectionPoint(endDevice, endDeviceRender, connection.to, 'input');
 
-                    const cableColor = cableColors[connection.cable] || 0xffffff;
+                    const cableColor = getRandomColor(); //cableColors[connection.cable] || 0xffffff;
 
                     // Create a curved path for the cable
                     const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
@@ -325,13 +335,29 @@ function ThreeScene({ devices }) {
         }
     }
 
+    function getRandomColor(){
+        // Generates a random color in hex format (e.g., #RRGGBB)
+        return Math.floor(Math.random() * 16777215); // 16777215 is the decimal equivalent of #FFFFFF
+      };
+
+    function connectionIsAvailable(connection, startDeviceConnectionsInUse, endDeviceConnectionsInUse){
+        // if neither input nor output are in use, then it is available
+        if (!startDeviceConnectionsInUse.inputs.includes(connection.from) &&
+            !endDeviceConnectionsInUse.inputs.includes(connection.to)){
+            return true;
+        }
+
+        return false;
+    }
 
     function updateConnections(devices) {
         // First, remove old cables (or connections) before adding new ones
         removeOldCables();  // You will define this function to clean up old cables
 
+        const sortedDevices = [...devices].sort((a, b) => a.locationPriority - b.locationPriority);
+
         setTimeout(() => {
-            devices.forEach((device, index) => {
+            sortedDevices.forEach((device, index) => {
                 drawCables(device, index);  // Add cables for each device
             });
             rendererRef.current.render(sceneRef.current, cameraRef.current);

@@ -15,15 +15,33 @@ const deviceLibrary = {
     ],
     outputs: [
       { type: "Digital", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) }, // Example output coordinate
-      { type: "Link", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) },        // Example output coordinate
-      { type: "Line 1", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) }        // Example output coordinate
+      { type: "Link", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) },        // Example output coordinate
+      { type: "Line Out", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) }        // Example output coordinate
     ],
     connections: [
       {
         device: "DJM-900NXS2",
         cable: "Digital Cable",
-        from: "Digital",
-        to: "Digital"
+        from: "Line Out",
+        to: "Line3"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line2"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line4"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line1"
       },
       // {
       //   device: "DJM-900NXS2",
@@ -92,10 +110,13 @@ const deviceLibrary = {
     description: "4-channel professional DJ mixer",
     modelPath: "/models/RENDERS/DJM900(v2).glb",
     inputs: [
-      { type: "Line", coordinate: new THREE.Vector3(-0.5, 0.2, 0.5) },
-      { type: "Phono", coordinate: new THREE.Vector3(-0.4, 0.2, 0.5) },
-      { type: "Digital", coordinate: new THREE.Vector3(-0.2, 0.04, -0.3) },
-      { type: "Mic", coordinate: new THREE.Vector3(-0.2, 0.2, 0.5) }
+      { type: "Line2", coordinate: new THREE.Vector3(-0.065, 0.09, -0.3) },
+      { type: "Line1", coordinate: new THREE.Vector3(-0.12, 0.09, -0.3) },
+      { type: "Line3", coordinate: new THREE.Vector3(-0.01, 0.09, -0.3) },
+      { type: "Line4", coordinate: new THREE.Vector3(0.045, 0.09, -0.3) },
+      // { type: "Phono", coordinate: new THREE.Vector3(-0.4, 0.2, 0.5) },
+      // { type: "Digital", coordinate: new THREE.Vector3(-0.2, 0.04, -0.3) },
+      // { type: "Mic", coordinate: new THREE.Vector3(-0.2, 0.2, 0.5) }
     ],
     outputs: [
       { type: "Master Out", coordinate: new THREE.Vector3(0.5, 0.2, 0.5) },
