@@ -5,12 +5,13 @@ console.log('Device Library:', deviceLibrary);
 
 function SearchBar({ onSearch }) {
   const [inputValue, setInputValue] = useState('');
+  const [selectedDevice, setSelectedDevice] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
     if (inputValue.length > 0) {
       const filteredSuggestions = Object.entries(deviceLibrary)
-        .filter(([key, device]) => 
+        .filter(([key, device]) =>
           key.toLowerCase().includes(inputValue.toLowerCase()) ||
           device.type.toLowerCase().includes(inputValue.toLowerCase()) ||
           device.name.toLowerCase().includes(inputValue.toLowerCase())
@@ -36,8 +37,10 @@ function SearchBar({ onSearch }) {
     if (device) {
       console.log('Device found, calling onSearch with:', device);
       onSearch(device);
-      setInputValue(device.name);
+      setSelectedDevice(device.name);
+      setInputValue('')
       setSuggestions([]);
+      console.log('suggestions: ', suggestions)
     } else {
       console.error(`Device not found: ${deviceKey}`);
       alert('Device not found in library');
@@ -70,18 +73,20 @@ function SearchBar({ onSearch }) {
         />
         <button type="submit">Search</button>
       </form>
-      {suggestions.length > 0 && (
-        <ul className="suggestions-list">
-          {suggestions.map((suggestion, index) => (
-            <li 
-              key={index} 
-              onClick={() => handleSuggestionClick(suggestion.value)}
-            >
-              {suggestion.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="search-bar-suggestions">
+        {suggestions.length > 0 && (
+          <ul className="suggestions-list">
+            {suggestions.map((suggestion, index) => (
+              <li
+                key={index}
+                onClick={() => handleSuggestionClick(suggestion.value)}
+              >
+                {suggestion.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
