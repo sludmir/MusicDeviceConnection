@@ -169,7 +169,7 @@ function ThreeScene({ devices }) {
         if (device.modelPath) {
             console.log('Loading model from path:', device.modelPath, index);
             loader.load(
-                device.modelPath,
+                `${process.env.PUBLIC_URL}${device.modelPath}`,
                 (gltf) => {
                     console.log('GLTF loaded successfully:', device.name, index);
                     const model = gltf.scene;
