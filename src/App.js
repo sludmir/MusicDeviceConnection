@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import SearchBar from './SearchBar';
 import DeviceDisplay from './DeviceDisplay';
@@ -9,22 +9,45 @@ import { v4 as uuidv4 } from 'uuid';
 function App() {
   const preLoadDevices = false;
   const preLoadedDevices = [
-    { ...deviceLibrary['DJM-900NXS2'], id: uuidv4()},
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4()},
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4()},
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4()},
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4()}
+    { ...deviceLibrary['DJM-900NXS2'], id: uuidv4() },
+    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
+    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
+    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
+    { ...deviceLibrary['CDJ-3000'], id: uuidv4() }
   ];
-  
+
   const [device, setDevice] = useState(null);
   const [setupDevices, setSetupDevices] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const sidebarRef = useRef(null); // Create a ref for the sidebar
+
+  const handleHamburgerClick = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleClickOutside = (event) => {
+    if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSidebarOpen]);
 
   useEffect(() => {
     if (preLoadDevices) {
       setSetupDevices(preLoadedDevices);
     }
-  }, []); 
-  
+  }, []);
+
   function handleDeviceSearch(deviceData) {
     console.log("Received device data:", deviceData);
     if (deviceData && deviceData.name) {
@@ -66,24 +89,31 @@ function App() {
       <header className="App-header">
         <h1>Pioneer DJ Equipment Configurator</h1>
       </header>
+      <div className="hamburger-container">
+        <div className="hamburger" onClick={handleHamburgerClick}>
+          &#9776; {/* Hamburger icon */}
+        </div>
+      </div>
       <div className="main-content">
-        <div className="sidebar">
-          <SearchBar onSearch={handleDeviceSearch} />
-          {device && <DeviceDisplay device={device} onAddToDeviceSetup={handleAddToDeviceSetup} />}
-          <div className="my-setup">
-            <h2>My Setup</h2>
-            <ul>
-              {setupDevices.map(device => (
-                <li key={device.id}>
-                  {device.name}
-                  <button onClick={() => handleRemoveFromSetup(device.id)}>Remove</button>
-                </li>
-              ))}
-            </ul>
-            <div className="total-price">
-              Total: ${calculateTotalPrice().toFixed(2)}
+        <div className={`${isSidebarOpen ? 'sidebar-active' : 'sidebar'}`}>
+          <div className="sidebar-inner-container">
+            <SearchBar onSearch={handleDeviceSearch} />
+            {device && <DeviceDisplay device={device} onAddToDeviceSetup={handleAddToDeviceSetup} />}
+            <div className="my-setup">
+              <h2>My Setup</h2>
+              <ul>
+                {setupDevices.map(device => (
+                  <li key={device.id}>
+                    {device.name}
+                    <button onClick={() => handleRemoveFromSetup(device.id)}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+              <div className="total-price">
+                Total: ${calculateTotalPrice().toFixed(2)}
+              </div>
+              <button className="buy-now-btn">Buy Now</button>
             </div>
-            <button className="buy-now-btn">Buy Now</button>
           </div>
         </div>
         <div className="render-area">
