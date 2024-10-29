@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/MusicDeviceConnection/static/css/main.38c7e97a.css",
-    "main.js": "/MusicDeviceConnection/static/js/main.76edd947.js",
+    "main.css": "/MusicDeviceConnection/static/css/main.41fbd9bd.css",
+    "main.js": "/MusicDeviceConnection/static/js/main.8342c791.js",
     "static/js/453.8ab44547.chunk.js": "/MusicDeviceConnection/static/js/453.8ab44547.chunk.js",
     "static/media/Musieer.ttf": "/MusicDeviceConnection/static/media/Musieer.da84f9c122533cb66019.ttf",
     "index.html": "/MusicDeviceConnection/index.html",
-    "main.38c7e97a.css.map": "/MusicDeviceConnection/static/css/main.38c7e97a.css.map",
-    "main.76edd947.js.map": "/MusicDeviceConnection/static/js/main.76edd947.js.map",
+    "main.41fbd9bd.css.map": "/MusicDeviceConnection/static/css/main.41fbd9bd.css.map",
+    "main.8342c791.js.map": "/MusicDeviceConnection/static/js/main.8342c791.js.map",
     "453.8ab44547.chunk.js.map": "/MusicDeviceConnection/static/js/453.8ab44547.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.38c7e97a.css",
-    "static/js/main.76edd947.js"
+    "static/css/main.41fbd9bd.css",
+    "static/js/main.8342c791.js"
   ]
 }
