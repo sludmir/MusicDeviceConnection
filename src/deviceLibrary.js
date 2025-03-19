@@ -127,84 +127,71 @@ const deviceLibrary = {
     price: 2299,
     locationPriority: 0
   },
-  // "DJM-750MK2": {
-  //   name: "DJM-750MK2",
-  //   type: "mixer",
-  //   brand: "Pioneer DJ",
-  //   description: "4-channel digital DJ mixer",
-  //   modelPath: "/models/RENDERS/djm_750mk2.glb",
-  //   inputs: ["Line", "Phono", "Digital", "Mic"],
-  //   outputs: ["Master Out", "Booth Out"],
-  //   connections: [],
-  //   price: 1199
-  // },
-  // "DJM-V10": {
-  //   name: "DJM-V10",
-  //   type: "mixer",
-  //   brand: "Pioneer DJ",
-  //   description: "6-channel professional DJ mixer",
-  //   modelPath: "/models/RENDERS/djm_v10.glb",
-  //   inputs: ["Line", "Phono", "Digital", "Mic"],
-  //   outputs: ["Master Out", "Booth Out", "Zone Out"],
-  //   connections: [],
-  //   price: 3199
-  // },
+ "RMX-1000": {
+    name: "RMX-1000",
+    type: "FX",
+    brand: "Pioneer DJ",
+    description: "DJ FX Unit",
+    modelPath: "/models/RENDERS/RMX1000.glb",
+    inputs: [
+      { type: "Return In", coordinate: new THREE.Vector3(-0.065, 0.09, -0.3) },
+      { type: "Send In", coordinate: new THREE.Vector3(-0.12, 0.09, -0.3) },
+    ],
+    outputs: [
+      { type: "Return Out", coordinate: new THREE.Vector3(0.5, 0.2, 0.5) },
+      { type: "Send Out", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) },
+    ],
+    connections: [],
+    price: 999,
+    locationPriority: 0
+  }, 
+"Laptop": {
+    name: "Laptop",
+    type: "computer",
+    brand: "Apple",
+    description: "Apple Macbook",
+    modelPath: "/models/RENDERS/laptop.glb",
+    inputs: [
+      { type: "USB", coordinate: new THREE.Vector3(-0.5, 0.2, 0.5) }, // Example input coordinate
+      { type: "SD", coordinate: new THREE.Vector3(-0.4, 0.2, 0.5) },  // Example input coordinate
+      { type: "Link", coordinate: new THREE.Vector3(-0.3, 0.2, 0.5) }  // Example input coordinate
+    ],
+    outputs: [
+      { type: "Digital", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) }, // Example output coordinate
+      { type: "Link", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) },        // Example output coordinate
+      { type: "Line Out", coordinate: new THREE.Vector3(-0.36, 0.09, -0.34) }        // Example output coordinate
+    ],
+    connections: [
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line3"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line2"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line4"
+      },
+      {
+        device: "DJM-900NXS2",
+        cable: "Digital Cable",
+        from: "Line Out",
+        to: "Line1"
+      },
 
-  // // Headphones
-  // "HDJ-X10": {
-  //   name: "HDJ-X10",
-  //   type: "headphones",
-  //   brand: "Pioneer DJ",
-  //   description: "Flagship professional over-ear DJ headphones",
-  //   modelPath: "/models/RENDERS/hdj_x10.glb",
-  //   inputs: ["3.5mm Jack", "6.3mm Jack"],
-  //   outputs: [],
-  //   connections: [
-  //     { 
-  //       device: "DJM-900NXS2", 
-  //       cable: "Headphone Cable", 
-  //       from: "output",
-  //       to: "headphones"
-  //     }
-  //   ],
-  //   price: 349
-  // },
-  // "HDJ-X7": {
-  //   name: "HDJ-X7",
-  //   type: "headphones",
-  //   brand: "Pioneer DJ",
-  //   description: "Professional over-ear DJ headphones",
-  //   modelPath: "/models/RENDERS/hdj_x7.glb",
-  //   inputs: ["3.5mm Jack", "6.3mm Jack"],
-  //   outputs: [],
-  //   connections: [
-  //     { 
-  //       device: "DJM-750MK2", 
-  //       cable: "Headphone Cable", 
-  //       from: "output",
-  //       to: "headphones"
-  //     }
-  //   ],
-  //   price: 199
-  // },
-  // "HDJ-X5": {
-  //   name: "HDJ-X5",
-  //   type: "headphones",
-  //   brand: "Pioneer DJ",
-  //   description: "Over-ear DJ headphones",
-  //   modelPath: "/models/RENDERS/hdj_x5.glb",
-  //   inputs: ["3.5mm Jack"],
-  //   outputs: [],
-  //   connections: [
-  //     { 
-  //       device: "DJM-250MK2", 
-  //       cable: "Headphone Cable", 
-  //       from: "output",
-  //       to: "headphones"
-  //     }
-  //   ],
-  //   price: 99
-  // }
+    ],
+    price: 1500,
+    locationPriority: 0
+  },
 };
+
 
 export default deviceLibrary;

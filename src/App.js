@@ -5,21 +5,110 @@ import DeviceDisplay from './DeviceDisplay';
 import ThreeScene from './ThreeScene';
 import deviceLibrary from './deviceLibrary';
 import { v4 as uuidv4 } from 'uuid';
+import { signInWithGoogle, logout } from "./Auth";
+import { auth } from "./firebaseConfig";
+import { collection, getDocs, addDoc, doc } from "firebase/firestore";
+import { db, storage } from "./firebaseConfig";
+import { initializeDatabase } from './firebaseUtils';
+
+// Test Firebase connection
+async function testFirebaseConnection() {
+  try {
+    console.log("Starting Firebase connection test...");
+    
+    // Check if Firebase is initialized
+    if (!auth || !db) {
+      console.error("Firebase is not properly initialized");
+      return false;
+    }
+
+    // Get current auth state synchronously
+    const currentUser = auth.currentUser;
+    console.log("Current auth state:", currentUser ? `Authenticated as ${currentUser.email}` : "Not authenticated");
+
+    if (!currentUser) {
+      console.log("No user authenticated, please sign in");
+      return false;
+    }
+
+    // Test Firestore access with a simple query
+    try {
+      console.log("Testing Firestore access...");
+      const testRef = collection(db, "products");
+      await getDocs(testRef);
+      console.log("Successfully connected to Firestore");
+      return true;
+    } catch (firestoreError) {
+      console.error("Firestore access error:", firestoreError);
+      return false;
+    }
+  } catch (error) {
+    console.error("Firebase connection test failed:", error);
+    return false;
+  }
+}
 
 function App() {
-  const preLoadDevices = false;
-  const preLoadedDevices = [
-    { ...deviceLibrary['DJM-900NXS2'], id: uuidv4() },
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4() },
-    { ...deviceLibrary['CDJ-3000'], id: uuidv4() }
-  ];
-
+  const [user, setUser] = useState(null);
+  const [selectedSetup, setSelectedSetup] = useState(null);
+  const [setupDevices, setSetupDevices] = useState({
+    DJ: [],
+    Producer: [],
+    Musician: []
+  });
   const [device, setDevice] = useState(null);
-  const [setupDevices, setSetupDevices] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const sidebarRef = useRef(null); // Create a ref for the sidebar
+  const sidebarRef = useRef(null);
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Handle authentication state changes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      console.log("Auth state changed:", user ? "User logged in" : "User logged out");
+      setUser(user);
+      
+      if (user) {
+        console.log("User authenticated:", user.email);
+        try {
+          // Initialize database if needed
+          const initResult = await initializeDatabase();
+          console.log("Database initialization result:", initResult);
+
+          // Test Firebase connection
+          const connected = await testFirebaseConnection();
+          setIsFirebaseConnected(connected);
+          if (!connected) {
+            setError("Failed to connect to Firebase. Please try again.");
+          }
+        } catch (error) {
+          console.error("Error during initialization:", error);
+          setError("Connection error. Please try again.");
+        }
+      } else {
+        console.log("User not authenticated");
+        setIsFirebaseConnected(false);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Load initial devices when Firebase is connected
+  useEffect(() => {
+    if (isFirebaseConnected && user) {
+      // Initialize with some default devices if needed
+      setSetupDevices(prev => ({
+        ...prev,
+        DJ: [], // You can populate this with initial devices if needed
+        Producer: [],
+        Musician: []
+      }));
+    }
+  }, [isFirebaseConnected, user]);
 
   const handleHamburgerClick = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -31,94 +120,78 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (isSidebarOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isSidebarOpen]);
-
-  useEffect(() => {
-    if (preLoadDevices) {
-      setSetupDevices(preLoadedDevices);
-    }
-  }, []);
-
-  function handleDeviceSearch(deviceData) {
-    console.log("Received device data:", deviceData);
-    if (deviceData && deviceData.name) {
-      setDevice(deviceData);
-      console.log("Device set:", deviceData.name);
-    } else {
-      setDevice(null);
-      console.error("Invalid device data received");
-      alert('Device not found in library');
-    }
-  }
-
-  const handleAddToDeviceSetup = (deviceToAdd) => {
-    console.log("Attempting to add device:", deviceToAdd.name);
-    const newDevice = { ...deviceToAdd, id: uuidv4() };
-    setSetupDevices(prevDevices => {
-      const updatedDevices = [...prevDevices, newDevice];
-      console.log("Updated setup devices:", updatedDevices);
-      return updatedDevices;
-    });
-    console.log("Device added to setup:", newDevice.name, "with ID:", newDevice.id);
+  const handleSetupSelection = (setupType) => {
+    setSelectedSetup(setupType);
   };
 
-  const handleRemoveFromSetup = (deviceId) => {
-    setSetupDevices(prevDevices => {
-      const updatedDevices = prevDevices.filter(d => d.id !== deviceId);
-      console.log("Updated setup devices after removal:", updatedDevices);
-      return updatedDevices;
-    });
-    console.log("Device removed from setup with ID:", deviceId);
-  };
-
-  const calculateTotalPrice = () => {
-    return setupDevices.reduce((total, device) => total + (device.price || 0), 0);
-  };
-
-  return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Pioneer DJ Equipment Configurator</h1>
-      </header>
-      <div className="hamburger-container">
-        <div className="hamburger" onClick={handleHamburgerClick}>
-          &#9776; {/* Hamburger icon */}
+  if (isLoading) {
+    return (
+      <div className="App" style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div className="loading-screen">
+          <h2>Loading...</h2>
+          <p>Please wait while we initialize the application.</p>
         </div>
       </div>
-      <div className="main-content">
-        <div className={`${isSidebarOpen ? 'sidebar-active' : 'sidebar'}`}>
-          <div className="sidebar-inner-container">
-            <SearchBar onSearch={handleDeviceSearch} />
-            {device && <DeviceDisplay device={device} onAddToDeviceSetup={handleAddToDeviceSetup} />}
-            <div className="my-setup">
-              <h2>My Setup</h2>
-              <ul>
-                {setupDevices.map(device => (
-                  <li key={device.id}>
-                    {device.name}
-                    <button onClick={() => handleRemoveFromSetup(device.id)}>Remove</button>
-                  </li>
-                ))}
-              </ul>
-              <div className="total-price">
-                Total: ${calculateTotalPrice().toFixed(2)}
-              </div>
-              <button className="buy-now-btn">Buy Now</button>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="App" style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div className="error-screen">
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <header className="App-header" style={{ padding: '20px' }}>
+        <h1>Music Equipment Configurator</h1>
+        {user ? (
+          <div>
+            <p>Welcome, {user.displayName}</p>
+            <button onClick={logout}>Sign Out</button>
+          </div>
+        ) : (
+          <button onClick={signInWithGoogle}>Sign In with Google</button>
+        )}
+      </header>
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {user && !selectedSetup ? (
+          <div className="setup-selection" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <h2>Select Your Setup Type</h2>
+            <div className="setup-buttons" style={{ display: 'flex', gap: '20px' }}>
+              {["DJ", "Producer", "Musician"].map((setupType) => (
+                <button 
+                  key={setupType} 
+                  onClick={() => handleSetupSelection(setupType)}
+                  className="setup-button"
+                  style={{
+                    padding: '20px 40px',
+                    fontSize: '18px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {setupType} Setup
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-        <div className="render-area">
-          <ThreeScene devices={setupDevices} />
-        </div>
+        ) : user && selectedSetup ? (
+          <div className="setup-container" style={{ flex: 1, display: 'flex' }}>
+            <div className="main-content" style={{ flex: 1, position: 'relative' }}>
+              <ThreeScene 
+                devices={setupDevices[selectedSetup]} 
+                isInitialized={isFirebaseConnected}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
