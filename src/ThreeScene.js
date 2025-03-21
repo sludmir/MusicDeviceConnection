@@ -263,25 +263,23 @@ function ThreeScene({ devices, isInitialized }) {
 
             console.log("Authenticated as:", auth.currentUser.email);
 
-            // Only check root collection first
-            const productsCollectionRef = collection(db, "products");
-            const productsSnapshot = await getDocs(productsCollectionRef);
+            // Get products from Firestore
+            const productsRef = collection(db, "products");
+            const querySnapshot = await getDocs(productsRef);
             
-            if (!productsSnapshot.empty) {
-                const products = productsSnapshot.docs.map(doc => ({
+            const products = [];
+            querySnapshot.forEach((doc) => {
+                const productData = doc.data();
+                console.log("Found product in Firestore:", productData.name);
+                products.push({
                     id: doc.id,
-                    ...doc.data()
-                }));
-                
-                console.log("Found products:", products.length);
-                setSearchResults(products);
-                setFilteredResults(products);
-                return;
-            }
-
-            console.log("No products found. Please add products to get started.");
-            setSearchResults([]);
-            setFilteredResults([]);
+                    ...productData
+                });
+            });
+            
+            console.log(`Found ${products.length} products in Firestore:`, products);
+            setSearchResults(products);
+            setFilteredResults(products);
 
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -293,17 +291,22 @@ function ThreeScene({ devices, isInitialized }) {
 
     // Update the search input handler to filter results
     const handleSearchInputChange = (e) => {
-        const query = e.target.value;
+        const query = e.target.value.toLowerCase();
         setSearchQuery(query);
         
-        // Filter the search results based on the query
-        const filteredResults = searchResults.filter(product =>
-            product.name.toLowerCase().includes(query.toLowerCase()) ||
-            product.category.toLowerCase().includes(query.toLowerCase()) ||
-            product.description.toLowerCase().includes(query.toLowerCase())
-        );
+        console.log("Filtering products with query:", query);
+        console.log("Available products:", searchResults);
         
-        setFilteredResults(filteredResults);
+        // Filter the search results based on the query
+        const filtered = searchResults.filter(product => {
+            const nameMatch = product.name?.toLowerCase().includes(query);
+            const categoryMatch = product.category?.toLowerCase().includes(query);
+            const descriptionMatch = product.description?.toLowerCase().includes(query);
+            return nameMatch || categoryMatch || descriptionMatch;
+        });
+        
+        console.log("Filtered results:", filtered);
+        setFilteredResults(filtered);
     };
 
     // Update openSearch to properly handle Firebase fetching
@@ -358,87 +361,109 @@ function ThreeScene({ devices, isInitialized }) {
     useEffect(() => {
         if (!mountRef.current) return;
 
-        try {
-            console.log("Initializing ThreeScene...");
-            
-            // Check Firebase initialization first
-            if (!db || !auth) {
-                console.error("Firebase not initialized");
-                setError('Firebase not properly initialized. Please refresh the page.');
-                return;
-            }
+        let isInitialized = false;
 
-            // Initialize scene only if Firebase is ready
-            const width = mountRef.current.clientWidth;
-            const height = mountRef.current.clientHeight;
+        const initializeScene = async () => {
+            try {
+                console.log("Initializing ThreeScene...");
+                
+                // Wait for Firebase auth to be ready
+                if (!auth?.currentUser) {
+                    console.log("Waiting for authentication...");
+                    return;
+                }
 
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
+                if (isInitialized) return;
+                isInitialized = true;
 
-            sceneRef.current = scene;
-            cameraRef.current = camera;
-            rendererRef.current = renderer;
-
-            scene.background = new THREE.Color(0x111111);
-            renderer.setSize(width, height);
-            mountRef.current.appendChild(renderer.domElement);
-
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(5, 5, 5);
-            scene.add(directionalLight);
-
-            const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
-            scene.add(hemisphereLight);
-
-            // Set up camera and controls
-            camera.position.set(0, 3, 5);
-            const controls = new OrbitControls(camera, renderer.domElement);
-            controlsRef.current = controls;
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.25;
-            controls.enableZoom = true;
-            controls.update();
-
-            // Create environment
-            createClubEnvironment(scene);
-            
-            // Create ghost spots and setup raycasting immediately
-            createGhostPlacementSpots(scene);
-            const cleanupRaycasting = setupRaycasting();
-            setSceneInitialized(true);
-
-            // Animation loop
-            const animate = () => {
-                requestAnimationFrame(animate);
-                controls.update();
-                renderer.render(scene, camera);
-            };
-            animate();
-
-            // Handle window resize
-            const handleResize = () => {
-                if (!mountRef.current) return;
                 const width = mountRef.current.clientWidth;
                 const height = mountRef.current.clientHeight;
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-                renderer.setSize(width, height);
-            };
-            window.addEventListener('resize', handleResize);
 
-            // Cleanup
-            return () => {
-                window.removeEventListener('resize', handleResize);
-                if (cleanupRaycasting) cleanupRaycasting();
-                if (mountRef.current && renderer.domElement) {
-                    mountRef.current.removeChild(renderer.domElement);
-                }
-                scene.traverse((object) => {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+                sceneRef.current = scene;
+                cameraRef.current = camera;
+                rendererRef.current = renderer;
+
+                scene.background = new THREE.Color(0x111111);
+                renderer.setSize(width, height);
+                mountRef.current.appendChild(renderer.domElement);
+
+                // Add lights
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+                scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(5, 5, 5);
+                scene.add(directionalLight);
+
+                const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
+                scene.add(hemisphereLight);
+
+                // Set up camera and controls
+                camera.position.set(0, 3, 5);
+                const controls = new OrbitControls(camera, renderer.domElement);
+                controlsRef.current = controls;
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.25;
+                controls.enableZoom = true;
+                controls.update();
+
+                // Create environment
+                createClubEnvironment(scene);
+                
+                // Create ghost spots and setup raycasting
+                createGhostPlacementSpots(scene);
+                const cleanupRaycasting = setupRaycasting();
+                setSceneInitialized(true);
+
+                // Animation loop
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // Handle window resize
+                const handleResize = () => {
+                    if (!mountRef.current) return;
+                    const width = mountRef.current.clientWidth;
+                    const height = mountRef.current.clientHeight;
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(width, height);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    if (cleanupRaycasting) cleanupRaycasting();
+                };
+            } catch (err) {
+                console.error('Error initializing Three.js scene:', err);
+                setError('Failed to initialize 3D scene. Please refresh the page.');
+            }
+        };
+
+        // Set up auth state listener
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                initializeScene();
+            } else {
+                setError("Please sign in to access the application");
+            }
+        });
+
+        return () => {
+            unsubscribe();
+            if (mountRef.current && rendererRef.current?.domElement) {
+                mountRef.current.removeChild(rendererRef.current.domElement);
+            }
+            if (sceneRef.current) {
+                sceneRef.current.traverse((object) => {
                     if (object.geometry) object.geometry.dispose();
                     if (object.material) {
                         if (Array.isArray(object.material)) {
@@ -448,12 +473,11 @@ function ThreeScene({ devices, isInitialized }) {
                         }
                     }
                 });
-                renderer.dispose();
-            };
-        } catch (err) {
-            console.error('Error initializing Three.js scene:', err);
-            setError('Failed to initialize 3D scene. Please refresh the page.');
-        }
+            }
+            if (rendererRef.current) {
+                rendererRef.current.dispose();
+            }
+        };
     }, []);
 
     useEffect(() => {

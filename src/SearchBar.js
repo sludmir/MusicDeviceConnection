@@ -1,92 +1,76 @@
 import React, { useState, useEffect } from 'react';
-import deviceLibrary from './deviceLibrary';
+import { db } from './firebaseConfig';
+import { collection, getDocs } from 'firebase/firestore';
 import './SearchBar.css';
-console.log('Device Library:', deviceLibrary);
 
-function SearchBar({ onSearch }) {
-  const [inputValue, setInputValue] = useState('');
-  const [selectedDevice, setSelectedDevice] = useState('');
+function SearchBar({ onDeviceSelect }) {
+  const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
-    if (inputValue.length > 0) {
-      const filteredSuggestions = Object.entries(deviceLibrary)
-        .filter(([key, device]) =>
-          key.toLowerCase().includes(inputValue.toLowerCase()) ||
-          device.type.toLowerCase().includes(inputValue.toLowerCase()) ||
-          device.name.toLowerCase().includes(inputValue.toLowerCase())
-        )
-        .map(([key, device]) => ({
-          label: `${device.type} > ${device.name}`,
-          value: key
+    // Fetch products from Firestore when component mounts
+    const fetchProducts = async () => {
+      try {
+        const productsRef = collection(db, "products");
+        const snapshot = await getDocs(productsRef);
+        const productsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
         }));
-      setSuggestions(filteredSuggestions);
-    } else {
-      setSuggestions([]);
-    }
-  }, [inputValue]);
+        setProducts(productsData);
+        console.log('Products loaded from Firestore:', productsData);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   const handleInputChange = (event) => {
-    setInputValue(event.target.value);
-  };
+    const value = event.target.value.toLowerCase();
+    setSearchTerm(value);
 
-  const handleSuggestionClick = (deviceKey) => {
-    console.log('Clicked device key:', deviceKey);
-    console.log('Device from library:', deviceLibrary[deviceKey]);
-    const device = deviceLibrary[deviceKey];
-    if (device) {
-      console.log('Device found, calling onSearch with:', device);
-      onSearch(device);
-      setSelectedDevice(device.name);
-      setInputValue('')
-      setSuggestions([]);
-      console.log('suggestions: ', suggestions)
-    } else {
-      console.error(`Device not found: ${deviceKey}`);
-      alert('Device not found in library');
-    }
-  };
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    const device = Object.values(deviceLibrary).find(
-      d => d.name.toLowerCase() === inputValue.toLowerCase()
+    // Filter products based on search term
+    const filteredSuggestions = products.filter(product =>
+      product.name.toLowerCase().includes(value) ||
+      product.category?.toLowerCase().includes(value) ||
+      product.description?.toLowerCase().includes(value)
     );
-    if (device) {
-      onSearch(device);
-    } else {
-      console.error(`Device not found: ${inputValue}`);
-      alert('Device not found in library');
-      // Fallback to API call if needed
-      // ... (keep your existing API call logic here)
-    }
+
+    setSuggestions(filteredSuggestions);
+  };
+
+  const handleSuggestionClick = (product) => {
+    console.log('Selected product:', product);
+    onDeviceSelect(product);
+    setSearchTerm('');
+    setSuggestions([]);
   };
 
   return (
-    <div className="search-bar-container">
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          placeholder="Enter device name..."
-        />
-        <button type="submit">Search</button>
-      </form>
-      <div className="search-bar-suggestions">
-        {suggestions.length > 0 && (
-          <ul className="suggestions-list">
-            {suggestions.map((suggestion, index) => (
-              <li
-                key={index}
-                onClick={() => handleSuggestionClick(suggestion.value)}
-              >
-                {suggestion.label}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+    <div className="search-container">
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={handleInputChange}
+        placeholder="Search for a device..."
+        className="search-input"
+      />
+      {suggestions.length > 0 && (
+        <ul className="suggestions-list">
+          {suggestions.map((product) => (
+            <li
+              key={product.id}
+              onClick={() => handleSuggestionClick(product)}
+              className="suggestion-item"
+            >
+              {product.name}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

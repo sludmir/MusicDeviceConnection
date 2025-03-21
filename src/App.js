@@ -3,7 +3,6 @@ import './App.css';
 import SearchBar from './SearchBar';
 import DeviceDisplay from './DeviceDisplay';
 import ThreeScene from './ThreeScene';
-import deviceLibrary from './deviceLibrary';
 import { v4 as uuidv4 } from 'uuid';
 import { signInWithGoogle, logout } from "./Auth";
 import { auth } from "./firebaseConfig";
