@@ -4,13 +4,13 @@ import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from "
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBvBg2-bMMDpKYCSKIIt4MQotXVvZr5Qwg",
+  apiKey: "",
   authDomain: "musicdeviceconnection.firebaseapp.com",
   projectId: "musicdeviceconnection",
   storageBucket: "musicdeviceconnection.appspot.com",
-  messagingSenderId: "897367746043",
-  appId: "1:897367746043:web:94426c84afeaac5255175e",
-  measurementId: "G-WJGQ979CK1"
+  messagingSenderId: "",
+  appId: "",
+  measurementId: ""
 };
 
 // Initialize Firebase
