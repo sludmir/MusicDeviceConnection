@@ -5,9 +5,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { collection, getDocs, doc, getDoc, updateDoc, addDoc } from "firebase/firestore"; // Import Firestore methods
 import { db } from "./firebaseConfig"; // Import Firestore
 import { auth } from "./firebaseConfig"; // Add auth import at the top
-import ProductForm from './ProductForm'; // Import ProductForm component
+import ProductSubmissionForm from './ProductSubmissionForm'; // Replace the old ProductForm import
 
-function ThreeScene({ devices, isInitialized }) {
+function ThreeScene({ devices, isInitialized, setupType }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -18,6 +18,7 @@ function ThreeScene({ devices, isInitialized }) {
     const cablesRef = useRef([]);
     const djTableRef = useRef(null);
     const ghostSpotsRef = useRef([]);
+    const placedDevices = useRef([]);
     const [showProductForm, setShowProductForm] = useState(false);
     const [selectedGhostIndex, setSelectedGhostIndex] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
@@ -33,6 +34,10 @@ function ThreeScene({ devices, isInitialized }) {
     const [filteredResults, setFilteredResults] = useState([]);
     const [sceneInitialized, setSceneInitialized] = useState(false);
     const [error, setError] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [placedDevicesList, setPlacedDevicesList] = useState([]);
+    const [basicSetupComplete, setBasicSetupComplete] = useState(false);
+    const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
 
     // Product type constants
     const PRODUCT_TYPES = {
@@ -73,152 +78,440 @@ function ThreeScene({ devices, isInitialized }) {
         { x: 0, y: 1.05, z: 0.3, type: SPOT_TYPES.FX_FRONT }       // FX Front (Wide units)
     ];
 
-    // Function to determine product type based on product data
-    function getProductType(product) {
-        const name = product.name.toLowerCase();
-        
-        // Mixer detection
-        if (name.includes('mixer') || name.includes('djm')) {
-            return PRODUCT_TYPES.MIXER;
-        }
-        
-        // Player detection
-        if (name.includes('cdj') || name.includes('player') || name.includes('turntable')) {
-            return PRODUCT_TYPES.PLAYER;
-        }
-        
-        // FX Unit detection (wide units like RMX-1000)
-        if (name.includes('rmx') || product.width > 0.5) {
-            return PRODUCT_TYPES.FX_UNIT_WIDE;
-        }
-        
-        // Regular FX units
-        if (name.includes('fx') || name.includes('effect') || name.includes('echo')) {
-            return PRODUCT_TYPES.FX_UNIT;
-        }
-        
-        return null;
-    }
+    // Add searchModalStyle and positionModalStyle definitions
+    const searchModalStyle = {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        backgroundColor: 'white',
+        padding: isMobile ? '15px' : '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        zIndex: 1000,
+        width: isMobile ? '90%' : '500px',
+        maxWidth: '500px',
+        maxHeight: isMobile ? '80vh' : 'auto',
+        overflowY: 'auto',
+        color: 'black'
+    };
 
-    // Function to find the best available spot for a product
+    const positionModalStyle = {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        backgroundColor: 'white',
+        padding: isMobile ? '15px' : '20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        zIndex: 1000,
+        width: isMobile ? '90%' : 'auto',
+        maxHeight: isMobile ? '80vh' : '300px',
+        overflowY: 'auto',
+        color: 'black'
+    };
+
+    // Function to find the best spot for a product
     function findBestSpot(product, occupiedSpots) {
         const productType = getProductType(product);
-        const availableSpots = djSetupSpots.filter(spot => !occupiedSpots.includes(spot));
+        
+        // Get all available spots (not occupied)
+        const availableSpots = djSetupSpots.filter(spot => 
+            !occupiedSpots.some(occupied => 
+                occupied.x === spot.x && 
+                occupied.y === spot.y && 
+                occupied.z === spot.z
+            )
+        );
+
+        console.log('Finding spot for:', product.name, 'Type:', productType);
+        console.log('Occupied spots:', occupiedSpots);
+        console.log('Available spots:', availableSpots);
 
         switch (productType) {
             case PRODUCT_TYPES.MIXER:
-                return availableSpots.find(spot => spot.type === SPOT_TYPES.MIDDLE);
+                // For mixers, always try to place in the middle first
+                const middleSpot = djSetupSpots.find(spot => spot.type === SPOT_TYPES.MIDDLE);
+                if (!occupiedSpots.some(occupied => 
+                    occupied.x === middleSpot.x && 
+                    occupied.y === middleSpot.y && 
+                    occupied.z === middleSpot.z
+                )) {
+                    console.log('Placing mixer in middle spot');
+                    return middleSpot;
+                }
+                break;
 
             case PRODUCT_TYPES.PLAYER:
-                // Try spots in preferred order
+                // Define player spot types in order of preference
                 const playerSpotTypes = [
                     SPOT_TYPES.MIDDLE_LEFT,
                     SPOT_TYPES.MIDDLE_RIGHT,
                     SPOT_TYPES.FAR_LEFT,
-                    SPOT_TYPES.FAR_RIGHT,
-                    SPOT_TYPES.MIDDLE_LEFT_INNER,
-                    SPOT_TYPES.MIDDLE_RIGHT_INNER
+                    SPOT_TYPES.FAR_RIGHT
                 ];
-                
+
+                // Get all occupied player spots
+                const occupiedPlayerSpots = occupiedSpots.filter(spot => 
+                    playerSpotTypes.includes(spot.type)
+                );
+
+                console.log('Occupied player spots:', occupiedPlayerSpots);
+
+                // Find the first available preferred spot
                 for (const spotType of playerSpotTypes) {
                     const spot = availableSpots.find(s => s.type === spotType);
-                    if (spot) return spot;
-                }
-                break;
-
-            case PRODUCT_TYPES.FX_UNIT_WIDE:
-                // Wide FX units prefer the front spot
-                return availableSpots.find(spot => spot.type === SPOT_TYPES.FX_FRONT) ||
-                       availableSpots.find(spot => spot.type === SPOT_TYPES.FX_TOP);
-
-            case PRODUCT_TYPES.FX_UNIT:
-                // Regular FX units prefer side spots first
-                const fxSpotTypes = [
-                    SPOT_TYPES.FX_LEFT,
-                    SPOT_TYPES.FX_RIGHT,
-                    SPOT_TYPES.FX_TOP,
-                    SPOT_TYPES.FX_FRONT
-                ];
-                
-                for (const spotType of fxSpotTypes) {
-                    const spot = availableSpots.find(s => s.type === spotType);
-                    if (spot) return spot;
+                    if (spot) {
+                        console.log('Found available player spot:', spotType);
+                        return spot;
+                    }
                 }
                 break;
         }
 
         // If no specific spot found, return first available spot
+        console.log('No specific spot found, using first available spot');
         return availableSpots[0];
+    }
+
+    // Update getProductType to better identify mixers
+    function getProductType(product) {
+        const name = product.name.toLowerCase();
+        
+        // Mixer detection - expanded to catch more mixer types
+        if (name.includes('mixer') || 
+            name.includes('djm') || 
+            name.includes('mix') || 
+            (product.category && product.category.toLowerCase().includes('mixer'))) {
+            console.log('Detected as MIXER:', product.name);
+            return PRODUCT_TYPES.MIXER;
+        }
+        
+        // Player detection - expanded to catch more player types
+        if (name.includes('cdj') || 
+            name.includes('player') || 
+            name.includes('turntable') || 
+            name.includes('deck') ||
+            (product.category && product.category.toLowerCase().includes('player'))) {
+            console.log('Detected as PLAYER:', product.name);
+            return PRODUCT_TYPES.PLAYER;
+        }
+        
+        // FX Unit detection (wide units like RMX-1000)
+        if (name.includes('rmx') || product.width > 0.5) {
+            console.log('Detected as FX_UNIT_WIDE:', product.name);
+            return PRODUCT_TYPES.FX_UNIT_WIDE;
+        }
+        
+        // Regular FX units
+        if (name.includes('fx') || name.includes('effect')) {
+            console.log('Detected as FX_UNIT:', product.name);
+            return PRODUCT_TYPES.FX_UNIT;
+        }
+        
+        console.log('No specific type detected for:', product.name);
+        return null;
     }
 
     // Update handleProductSelect to use the new placement logic
     const handleProductSelect = (product) => {
         if (!product) return;
 
-        console.log(`Adding selected product: ${product.name}`);
+        console.log(`Adding selected product: ${product.name} to position ${selectedGhostIndex}`);
         
-        // Get currently occupied spots
-        const occupiedSpots = Object.values(devicesRef.current).map(device => {
-            const position = device.model.position;
-            return djSetupSpots.find(spot => 
-                Math.abs(spot.x - position.x) < 0.1 && 
-                Math.abs(spot.y - position.y) < 0.1 && 
-                Math.abs(spot.z - position.z) < 0.1
-            );
-        }).filter(Boolean);
-
-        // Find the best spot for the product
-        const bestSpot = findBestSpot(product, occupiedSpots);
-        
-        if (bestSpot) {
-            const spotIndex = djSetupSpots.indexOf(bestSpot);
-            addProductToPosition(product, spotIndex);
-        } else {
-            alert("No suitable spots available for this product.");
-        }
+        // Directly add the product to the selected ghost position
+        addProductToPosition(product, selectedGhostIndex);
 
         setShowSearch(false);
         setSearchMode('');
         setSearchQuery('');
     };
 
-    const addProductToPosition = (product, positionIndex) => {
+    // Add this helper function to track existing connections
+    function getConnectionKey(sourceDevice, targetDevice, connection) {
+        return `${sourceDevice.id}-${targetDevice.id}-${connection.sourcePort.type}-${connection.targetPort.type}`;
+    }
+
+    // Update the updateConnections function to maintain all connections
+    function updateConnections(devices) {
+        console.log('Updating connections for devices:', devices);
+        
+        // Find the mixer device
+        const mixer = devices.find(device => device.name.includes('DJM'));
+        if (!mixer) {
+            console.log('No mixer found in devices');
+            return;
+        }
+
+        // Find all CDJs
+        const cdjs = devices.filter(device => device.name.includes('CDJ'));
+        console.log('Found CDJs:', cdjs.length);
+
+        // Clear all existing cables
+        cablesRef.current.forEach(cable => {
+            sceneRef.current.remove(cable);
+        });
+        cablesRef.current = [];
+
+        // Draw cables for each CDJ to mixer
+        cdjs.forEach(cdj => {
+            const connections = findMatchingPorts(cdj, mixer);
+            connections.forEach(connection => {
+                // Create a unique key for this connection using uniqueIds
+                const connectionKey = `${cdj.uniqueId}-${mixer.uniqueId}-${connection.sourcePort.type}-${connection.targetPort.type}`;
+                
+                // Check if this connection already exists
+                const existingCable = cablesRef.current.find(cable => 
+                    cable.userData && cable.userData.connectionKey === connectionKey
+                );
+
+                // Only create new cable if it doesn't exist
+                if (!existingCable) {
+                    console.log('Creating new cable for:', cdj.name, 'to mixer');
+                    drawCable(cdj, mixer, connection);
+                }
+            });
+        });
+
+        // Ensure the scene is re-rendered
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
+    }
+
+    // Modify the drawCable function to create more pronounced arch-like curves
+    function drawCable(sourceDevice, targetDevice, connection) {
+        if (!sourceDevice || !targetDevice || !connection) return;
+
+        // Get device positions and port coordinates
+        const sourcePosition = sourceDevice.position;
+        const targetPosition = targetDevice.position;
+        const sourcePort = connection.sourcePort.coordinate;
+        const targetPort = connection.targetPort.coordinate;
+
+        // Calculate actual world positions
+        const startPoint = new THREE.Vector3(
+            sourcePosition.x + sourcePort.x,
+            sourcePosition.y + sourcePort.y,
+            sourcePosition.z + sourcePort.z
+        );
+
+        const endPoint = new THREE.Vector3(
+            targetPosition.x + targetPort.x,
+            targetPosition.y + targetPort.y,
+            targetPosition.z + targetPort.z
+        );
+
+        // Get the line number and calculate the midpoint
+        const lineNumber = parseInt(connection.targetPort.type.replace('Line', ''));
+        const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
+        
+        // Calculate arch parameters
+        const distance = startPoint.distanceTo(endPoint);
+        const baseArchHeight = 0.6; // Increased base height for more pronounced arch
+        const archVariation = (lineNumber - 2.5) * 0.08; // Increased variation
+
+        // Create the arch peak point (middle of the cable)
+        const archPeak = midPoint.clone();
+        archPeak.z -= baseArchHeight + archVariation;
+
+        // Create control points that curve towards the arch peak
+        const control1 = startPoint.clone().lerp(archPeak, 0.5);
+        const control2 = endPoint.clone().lerp(archPeak, 0.5);
+
+        // Create the curve with the new control points
+        const curve = new THREE.CubicBezierCurve3(
+            startPoint,
+            control1,
+            control2,
+            endPoint
+        );
+
+        // Create the cable geometry
+        const points = curve.getPoints(50);
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+        // Set up the material with the appropriate color
+        const cableColor = cableColors[`Line${lineNumber}`] || cableColors.Default;
+        const material = new THREE.LineBasicMaterial({
+            color: cableColor
+        });
+
+        // Create the line and add metadata
+        const line = new THREE.Line(geometry, material);
+        const connectionKey = `${sourceDevice.uniqueId}-${targetDevice.uniqueId}-${connection.sourcePort.type}-${connection.targetPort.type}`;
+        
+        line.userData = {
+            connectionKey: connectionKey,
+            sourceDevice: sourceDevice.id,
+            targetDevice: targetDevice.id,
+            sourcePort: connection.sourcePort.type,
+            targetPort: connection.targetPort.type,
+            connectionType: connection.type
+        };
+
+        // Add to scene and store reference
+        sceneRef.current.add(line);
+        cablesRef.current.push(line);
+    }
+
+    // Helper function to check if basic setup is complete (2 players + 1 mixer)
+    const checkBasicSetupComplete = (devicesList) => {
+        if (currentSetupType !== 'DJ') return false;
+        
+        // Count CDJs and check for mixer
+        const playerCount = devicesList.filter(device => 
+            device.name.toLowerCase().includes('cdj') || 
+            device.name.toLowerCase().includes('player')
+        ).length;
+        
+        const hasMixer = devicesList.some(device => 
+            device.name.toLowerCase().includes('djm') || 
+            device.name.toLowerCase().includes('mixer')
+        );
+        
+        const isComplete = playerCount >= 2 && hasMixer;
+        
+        console.log('Checking basic setup:', {
+            playerCount,
+            hasMixer,
+            isComplete,
+            devices: devicesList.map(d => d.name)
+        });
+        
+        return isComplete;
+    };
+
+    // Update useEffect to watch both placedDevicesList and basicSetupComplete
+    useEffect(() => {
+        if (placedDevicesList.length > 0) {
+            console.log('Checking basic setup on mount/update:', {
+                devices: placedDevicesList.map(d => d.name),
+                currentBasicSetupComplete: basicSetupComplete
+            });
+            
+            const isComplete = checkBasicSetupComplete(placedDevicesList);
+            console.log('Basic setup check result:', {
+                isComplete,
+                playerCount: placedDevicesList.filter(d => 
+                    d.name.toLowerCase().includes('cdj') || 
+                    d.name.toLowerCase().includes('player')
+                ).length,
+                hasMixer: placedDevicesList.some(d => 
+                    d.name.toLowerCase().includes('djm') || 
+                    d.name.toLowerCase().includes('mixer')
+                )
+            });
+
+            if (isComplete !== basicSetupComplete) {
+                console.log('Basic setup state changed, updating...');
+                setBasicSetupComplete(isComplete);
+                
+                // Force a complete scene reload
+                if (sceneRef.current) {
+                    // Clear existing ghost spots
+                    ghostSpotsRef.current.forEach(spot => {
+                        if (spot.parent) {
+                            sceneRef.current.remove(spot);
+                        }
+                    });
+                    ghostSpotsRef.current = [];
+                    
+                    // Recreate ghost spots with updated positions
+                    createGhostPlacementSpots(sceneRef.current);
+                    
+                    // Force a re-render
+                    if (rendererRef.current && cameraRef.current) {
+                        rendererRef.current.render(sceneRef.current, cameraRef.current);
+                    }
+                }
+            }
+        }
+    }, [placedDevicesList, basicSetupComplete]);
+
+    // Update addProductToPosition to ensure proper state updates
+    const addProductToPosition = async (product, positionIndex) => {
         const position = ghostSpotsRef.current[positionIndex]?.position;
         if (position) {
             const loader = new GLTFLoader();
             
-            // Check if the product has a valid modelUrl from Firebase
             if (!product.modelUrl) {
                 console.error("No model URL found for product:", product.name);
                 alert("This product doesn't have a 3D model available.");
                 return;
             }
 
-            console.log(`Loading 3D model from: ${product.modelUrl}`);
+            console.log(`Loading 3D model for ${product.name} at position:`, position);
             
             loader.load(
-                product.modelUrl, // Use the Firebase Storage URL
+                product.modelUrl,
                 (gltf) => {
                     const model = gltf.scene;
+                    
+                    // Set the model position directly to the ghost square position
                     model.position.set(position.x, position.y, position.z);
                     
-                    // Store additional product data with the model
+                    // Create device object with exact position and unique identifier
+                    const deviceWithPosition = {
+                        ...product,
+                        id: product.id,
+                        position: {
+                            x: position.x,
+                            y: position.y,
+                            z: position.z
+                        },
+                        inputs: product.inputs || [],
+                        outputs: product.outputs || [],
+                        uniqueId: `${product.id}-${position.x}-${position.y}-${position.z}`
+                    };
+
+                    // Store the complete device data with the model
                     model.userData = {
                         productId: product.id,
                         name: product.name,
-                        connections: product.connections || [],
-                        inputs: product.inputs || [],
-                        outputs: product.outputs || []
+                        position: deviceWithPosition.position,
+                        inputs: deviceWithPosition.inputs,
+                        outputs: deviceWithPosition.outputs,
+                        uniqueId: deviceWithPosition.uniqueId
                     };
 
                     sceneRef.current.add(model);
-                    devicesRef.current[product.id] = {
-                        model,
-                        data: product,
-                        connectionsInUse: { inputs: [], outputs: [] }
-                    };
                     
-                    console.log(`Added ${product.name} to position ${positionIndex}`);
+                    // Store device reference with uniqueId as the key
+                    devicesRef.current[deviceWithPosition.uniqueId] = {
+                        model,
+                        data: deviceWithPosition
+                    };
+
+                    // Update placedDevices array with the position-aware device
+                    const existingDeviceIndex = placedDevices.current.findIndex(d => d.uniqueId === deviceWithPosition.uniqueId);
+                    if (existingDeviceIndex !== -1) {
+                        placedDevices.current[existingDeviceIndex] = deviceWithPosition;
+                    } else {
+                        placedDevices.current.push(deviceWithPosition);
+                    }
+                    
+                    console.log(`Added ${product.name} to position ${positionIndex}:`, deviceWithPosition.position);
+                    console.log('Current placed devices:', placedDevices.current);
+
+                    // Update the placed devices list and check for basic setup completion
+                    setPlacedDevicesList(prev => {
+                        const newList = [...prev, deviceWithPosition];
+                        console.log('Updated placed devices list:', {
+                            newList: newList.map(d => d.name),
+                            currentBasicSetupComplete: basicSetupComplete
+                        });
+                        return newList;
+                    });
+
+                    // Update connections for all devices
+                    updateConnections(placedDevices.current);
+
+                    // Force a re-render of the scene
+                    if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                        rendererRef.current.render(sceneRef.current, cameraRef.current);
+                    }
                 },
                 (progress) => {
                     console.log(`Loading progress: ${(progress.loaded / progress.total * 100)}%`);
@@ -276,13 +569,13 @@ function ThreeScene({ devices, isInitialized }) {
                     ...productData
                 });
             });
-            
+
             console.log(`Found ${products.length} products in Firestore:`, products);
-            setSearchResults(products);
+                setSearchResults(products);
             setFilteredResults(products);
 
-        } catch (error) {
-            console.error("Error fetching products:", error);
+            } catch (error) {
+                console.error("Error fetching products:", error);
             setError("Failed to fetch products. Please try again.");
             setSearchResults([]);
             setFilteredResults([]);
@@ -340,15 +633,12 @@ function ThreeScene({ devices, isInitialized }) {
         { x: 1.2, y: 1.3, z: 0 },     // Right Speaker (was 2)
     ];
 
-    const currentSetupType = 'DJ'; // Change this dynamically based on user selection
-
     const cableColors = {
-        'AUX Cable': 0x00ff00,
-        'RCA Cable': 0xff00ff,
-        'XLR Cable': 0xffff00,
-        'USB Cable': 0x00ffff,
-        'Digital Cable': 0xff8000,
-        'Audio Cable': 0x8080ff,
+        'Line1': 0xff0000,  // Pure red
+        'Line2': 0xff3333,  // Lighter red
+        'Line3': 0xcc0000,  // Darker red
+        'Line4': 0xff6666,  // Even lighter red
+        'Default': 0xff0000
     };
 
     useEffect(() => {
@@ -403,13 +693,23 @@ function ThreeScene({ devices, isInitialized }) {
                 scene.add(hemisphereLight);
 
                 // Set up camera and controls
-                camera.position.set(0, 3, 5);
-                const controls = new OrbitControls(camera, renderer.domElement);
-                controlsRef.current = controls;
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.25;
-                controls.enableZoom = true;
-                controls.update();
+                if (isMobile) {
+                    camera.position.set(0, 4, 6); // Slightly closer on mobile (was 7)
+                    camera.fov = 85; // Wider field of view for mobile
+                    camera.updateProjectionMatrix();
+                } else {
+                    camera.position.set(0, 2.5, 4); // Start closer (was 0, 3, 5)
+                }
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controlsRef.current = controls;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.25;
+        controls.enableZoom = true;
+                controls.enablePan = !isMobile; // Disable panning on mobile
+                controls.maxPolarAngle = Math.PI / 2; // Limit vertical rotation
+                controls.minDistance = isMobile ? 3 : 2; // Allow closer zoom (was 4 and 3)
+                controls.maxDistance = isMobile ? 10 : 8;
+        controls.update();
 
                 // Create environment
                 createClubEnvironment(scene);
@@ -421,25 +721,25 @@ function ThreeScene({ devices, isInitialized }) {
 
                 // Animation loop
                 const animate = () => {
-                    requestAnimationFrame(animate);
-                    controls.update();
-                    renderer.render(scene, camera);
-                };
-                animate();
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        };
+        animate();
 
                 // Handle window resize
-                const handleResize = () => {
-                    if (!mountRef.current) return;
-                    const width = mountRef.current.clientWidth;
-                    const height = mountRef.current.clientHeight;
-                    camera.aspect = width / height;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(width, height);
-                };
-                window.addEventListener('resize', handleResize);
+        const handleResize = () => {
+            if (!mountRef.current) return;
+            const width = mountRef.current.clientWidth;
+            const height = mountRef.current.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        };
+        window.addEventListener('resize', handleResize);
 
-                return () => {
-                    window.removeEventListener('resize', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
                     if (cleanupRaycasting) cleanupRaycasting();
                 };
             } catch (err) {
@@ -464,15 +764,15 @@ function ThreeScene({ devices, isInitialized }) {
             }
             if (sceneRef.current) {
                 sceneRef.current.traverse((object) => {
-                    if (object.geometry) object.geometry.dispose();
-                    if (object.material) {
-                        if (Array.isArray(object.material)) {
-                            object.material.forEach(material => material.dispose());
-                        } else {
-                            object.material.dispose();
-                        }
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => material.dispose());
+                    } else {
+                        object.material.dispose();
                     }
-                });
+                }
+            });
             }
             if (rendererRef.current) {
                 rendererRef.current.dispose();
@@ -652,123 +952,104 @@ function ThreeScene({ devices, isInitialized }) {
         return device ? device.id : null;
     }
 
-    function drawCables(device, deviceIndex) {
-        console.log('Drawing cables for:', device.name, 'Index:', deviceIndex);
+    function findMatchingPorts(sourceDevice, targetDevice) {
+        if (!sourceDevice || !targetDevice) return [];
 
-        console.log('****** Devices in devicesRef:');
-        console.log(devicesRef.current);
+        const connections = [];
+        
+        // Get outputs from source device
+        const outputs = sourceDevice.outputs || [];
+        // Get inputs from target device
+        const inputs = targetDevice.inputs || [];
 
-        if (device.connections) {
-            device.connections.forEach(connection => {
-                const endDeviceId = getDeviceId(connection.device);
-                if (endDeviceId == null) {
-                    return;
-                }
+        console.log('Checking connections between:', sourceDevice.name, 'and', targetDevice.name);
+        console.log('Source device position:', sourceDevice.position);
+        console.log('Source outputs:', outputs);
+        console.log('Target inputs:', inputs);
 
-                console.log("startDevice: " + device.name + "startDevice id: " + device.id + ". endDevice: " + connection.device + " endDevice id: " + endDeviceId)
-                const startDeviceRender = devicesRef.current[device.id]?.model;
-                const startDeviceConnectionsInUse = devicesRef.current[device.id]?.connectionsInUse;
-                const endDeviceRender = devicesRef.current[endDeviceId]?.model;
-                const endDeviceConnectionsInUse = devicesRef.current[endDeviceId]?.connectionsInUse;
+        // If this is a CDJ connecting to a mixer, handle line assignments based on position
+        if (sourceDevice.name.includes('CDJ') && targetDevice.name.includes('DJM')) {
+            const sourcePosition = sourceDevice.position;
+            let lineNumber;
 
-                const startDevice = device;
-                const endDevice = findDeviceByName(connection.device);
+            // Determine line number based on CDJ position
+            // Use exact position matching with a small tolerance
+            const tolerance = 0.1;
+            
+            if (Math.abs(sourcePosition.x + 1.6) < tolerance) {  // Far left (-1.6)
+                lineNumber = 1;
+            } else if (Math.abs(sourcePosition.x + 0.8) < tolerance) {  // Middle left (-0.8)
+                lineNumber = 2;
+            } else if (Math.abs(sourcePosition.x - 0.8) < tolerance) {  // Middle right (0.8)
+                lineNumber = 3;
+            } else if (Math.abs(sourcePosition.x - 1.6) < tolerance) {  // Far right (1.6)
+                lineNumber = 4;
+            }
 
-                if (!connectionIsAvailable(connection, startDeviceConnectionsInUse, endDeviceConnectionsInUse)) {
-                    return;
-                }
+            console.log(`CDJ at position ${sourcePosition.x} assigned to Line${lineNumber}`);
 
-                if (startDevice && endDevice) {
-                    startDeviceConnectionsInUse.inputs.push(connection.from);
-                    endDeviceConnectionsInUse.inputs.push(connection.to);
+            // Test coordinates for CDJ outputs
+            outputs.forEach((output) => {
+                if (output.type === 'Line Out') {
+                    const targetInput = inputs.find(input => input.type === `Line${lineNumber}`);
+                    if (targetInput) {
+                        // Coordinates for output (CDJ) - with right offset
+                        const testOutputCoordinate = {
+                            x: 0.12,   // Slight right offset for CDJ output
+                            y: 0.07,      // Height on CDJ
+                            z: -0.32    // Back of CDJ
+                        };
 
-                    let start = getConnectionPoint(startDevice, startDeviceRender, connection.from, 'output');
-                    let end = getConnectionPoint(endDevice, endDeviceRender, connection.to, 'input');
+                        // Coordinates for input (mixer) - spread across width
+                        const testInputCoordinate = {
+                            x: (lineNumber - 2.5) * 0.15,  // Spread inputs across mixer width
+                            y: 0.072,                          // Height on mixer
+                            z: -0.3                        // Back of mixer
+                        };
 
-                    const cableColor = getRandomColor(); //cableColors[connection.cable] || 0xffffff;
-
-                    // Create a curved path for the cable
-                    const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-                    midPoint.y += 0.05; // Raise the midpoint slightly
-
-                    const curve = new THREE.QuadraticBezierCurve3(start, midPoint, end);
-                    const points = curve.getPoints(50);
-                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                    const material = new THREE.LineBasicMaterial({ color: cableColor });
-                    const line = new THREE.Line(geometry, material);
-
-                    // Add the cable (line) to the scene and store it in cablesRef
-                    sceneRef.current.add(line);
-                    cablesRef.current.push(line);  // Store the cable
-                }
-            });
-        }
-    }
-
-    function getRandomColor() {
-        return Math.floor(Math.random() * 16777215);
-    }
-
-    function connectionIsAvailable(connection, startDeviceConnectionsInUse, endDeviceConnectionsInUse) {
-        // if neither input nor output are in use, then it is available
-        if (!startDeviceConnectionsInUse.inputs.includes(connection.from) &&
-            !endDeviceConnectionsInUse.inputs.includes(connection.to)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    function updateConnections(devices) {
-        removeOldCables();
-
-        const sortedDevices = [...devices].sort((a, b) => a.locationPriority - b.locationPriority);
-
-        setTimeout(() => {
-            sortedDevices.forEach((device, index) => {
-                if (device.connections) {
-                    device.connections.forEach(connection => {
-                        const targetDevice = devices.find(d => d.id === connection.targetDeviceId);
-                        if (targetDevice) {
-                            drawCable(device, targetDevice, connection);
-                        }
-                    });
+                        connections.push({
+                            sourcePort: {
+                                ...output,
+                                coordinate: testOutputCoordinate
+                            },
+                            targetPort: {
+                                ...targetInput,
+                                coordinate: testInputCoordinate
+                            },
+                            type: output.type
+                        });
+                        
+                        console.log(`Connected CDJ Line Out to Mixer Line${lineNumber} with coordinates:`, 
+                            { output: testOutputCoordinate, input: testInputCoordinate });
+                    }
                 }
             });
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-        }, 1000);
-    }
-
-    function removeOldCables() {
-        // Assuming cables are stored in an array cablesRef.current
-        if (cablesRef.current && cablesRef.current.length > 0) {
-            cablesRef.current.forEach(cable => {
-                sceneRef.current.remove(cable);  // Remove each cable from the scene
-            });
-            cablesRef.current = [];  // Clear the array after removing all cables
-        }
-    }
-
-    function getConnectionPoint(device, deviceRender, connectionName, connectionType) {
-        console.log("getConnectionPoint: device: " + device.name + ", connectionName: " + connectionName + ", connectionType:" + connectionType)
-        console.log("device: " + device.name)
-
-        const connections = connectionType === 'input' ? device.inputs : device.outputs;
-        const connection = connections.find(conn => conn.type === connectionName);
-
-        console.log(deviceRender);
-        if (connection) {
-            console.log("Found connection: " + connection.type)
-            const devicePosition = deviceRender.position.clone();
-            return devicePosition.add(connection.coordinate);
         }
 
-        // Default to the top position if not found
-        return deviceRender.position.clone().add(new THREE.Vector3(0, 0.25, 0));
+        console.log('Found connections:', connections);
+        return connections;
     }
 
-    function findDeviceByName(name) {
-        return devices.find(device => device.name === name);
+    // Helper function to determine if two connection types are compatible
+    function isCompatibleConnection(outputType, inputType) {
+        console.log('Checking compatibility between:', outputType, 'and', inputType);
+        
+        // Define compatible connection types
+        const compatibilityMap = {
+            'Digital': ['Digital'],
+            'Line Out': ['Line In', 'Line1', 'Line2', 'Line3', 'Line4'], // Add mixer line inputs
+            'RCA': ['RCA'],
+            'Link': ['Link'],
+            'USB': ['USB'],
+            'Audio': ['Audio', 'Line In', 'Line1', 'Line2', 'Line3', 'Line4'] // Add mixer line inputs
+        };
+
+        // Get compatible types for the output
+        const compatibleTypes = compatibilityMap[outputType] || [];
+        const isCompatible = compatibleTypes.includes(inputType);
+        console.log('Compatible types for', outputType, ':', compatibleTypes);
+        console.log('Is compatible:', isCompatible);
+        return isCompatible;
     }
 
     function createClubEnvironment(scene) {
@@ -888,92 +1169,131 @@ function ThreeScene({ devices, isInitialized }) {
         }
     }, [isConnectionMapping, currentMappingDevice, selectedConnectionType]);
 
-    function drawCable(startDevice, endDevice, connection) {
-        const startModel = devicesRef.current[startDevice.id]?.model;
-        const endModel = devicesRef.current[endDevice.id]?.model;
-        
-        if (!startModel || !endModel) return;
-
-        // Get connection points from the devices
-        const startPoint = getConnectionPointFromDevice(startDevice, connection.from, 'output');
-        const endPoint = getConnectionPointFromDevice(endDevice, connection.to, 'input');
-
-        // Create a curved path for the cable
-        const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
-        midPoint.y += 0.05; // Raise the midpoint slightly
-
-        const curve = new THREE.QuadraticBezierCurve3(startPoint, midPoint, endPoint);
-        const points = curve.getPoints(50);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({ 
-            color: cableColors[connection.cableType] || 0xffffff 
-        });
-        const line = new THREE.Line(geometry, material);
-
-        sceneRef.current.add(line);
-        cablesRef.current.push(line);
-    }
-
-    function getConnectionPointFromDevice(device, connectionName, type) {
-        const model = devicesRef.current[device.id]?.model;
-        if (!model) return new THREE.Vector3();
-
-        const connections = type === 'input' ? device.inputs : device.outputs;
-        const connection = connections?.find(c => c.type === connectionName);
-        
-        if (connection?.position) {
-            // Convert the stored local position to world position
-            const worldPosition = model.localToWorld(
-                new THREE.Vector3(
-                    connection.position.x,
-                    connection.position.y,
-                    connection.position.z
-                )
-            );
-            return worldPosition;
+    function createGhostPlacementSpots(scene) {
+        if (!djTableRef.current) {
+            console.log('Cannot create ghost spots: No DJ table reference');
+            return;
         }
 
-        // Fallback to model position if no connection point is defined
-        return model.position.clone();
-    }
+        console.log('Creating ghost spots with setup type:', currentSetupType);
+        console.log('Basic setup complete:', basicSetupComplete);
 
-    function createGhostPlacementSpots(scene) {
-        if (!djTableRef.current) return;
+        // Clear previous spots
+        ghostSpotsRef.current.forEach(spot => {
+            if (spot.parent) {
+                scene.remove(spot);
+            }
+        });
+        ghostSpotsRef.current = [];
 
-        const spots = currentSetupType === 'DJ' ? djSetupSpots : producerSetupSpots;
-        ghostSpotsRef.current.forEach(spot => scene.remove(spot)); // Clear previous spots
-        ghostSpotsRef.current = []; // Reset the array
+        // Get initial spots based on setup type
+        let initialSpots = [];
+        switch (currentSetupType) {
+            case 'DJ':
+                // Initially show only mixer and player positions
+                initialSpots = [
+                    djSetupSpots[0],  // Middle (Mixer)
+                    djSetupSpots[1],  // Middle Left (Player)
+                    djSetupSpots[2],  // Middle Right (Player)
+                    djSetupSpots[3],  // Far Left (Player)
+                    djSetupSpots[4],  // Far Right (Player)
+                ];
+                
+                // Add additional spots if basic setup is complete
+                if (basicSetupComplete) {
+                    console.log('Basic setup complete, adding additional spots');
+                    initialSpots = [
+                        ...initialSpots,
+                        djSetupSpots[7],   // Behind Middle
+                        djSetupSpots[8],   // FX Top
+                        djSetupSpots[9],   // FX Left
+                        djSetupSpots[10],  // FX Right
+                        djSetupSpots[11],  // FX Front
+                    ];
+                } else {
+                    console.log('Basic setup not complete, showing only initial spots');
+                }
+                break;
 
-        spots.forEach((position, index) => {
-            // Determine if this is an FX spot or the middle back spot
-            const isFXSpot = position.type?.includes('fx_');
+            case 'Producer':
+                // Show laptop and synth/FX positions
+                initialSpots = [
+                    { x: 0, y: 1.05, z: 0, type: 'interface' },          // Middle (Interface)
+                    { x: -0.8, y: 1.05, z: 0, type: 'synth_left' },     // Left Synth
+                    { x: 0.8, y: 1.05, z: 0, type: 'synth_right' },     // Right Synth
+                    { x: -1.6, y: 1.05, z: 0, type: 'fx_left' },        // Left FX
+                    { x: 1.6, y: 1.05, z: 0, type: 'fx_right' }         // Right FX
+                ];
+                break;
+
+            case 'Musician':
+                // Show just two basic spots initially
+                initialSpots = [
+                    // Main instrument position (center)
+                    { 
+                        x: 0, 
+                        y: 1.05, 
+                        z: 0, 
+                        type: 'main_instrument',
+                        size: { width: 0.4, depth: 0.4 }  // Larger spot for main instrument
+                    },
+                    // Effects position (in front)
+                    { 
+                        x: 0, 
+                        y: 0.05,  // Lower position for floor effects
+                        z: 0.5,   // In front of the main instrument
+                        type: 'effects',
+                        size: { width: 0.8, depth: 0.3 }  // Wide but shallow for pedals
+                    }
+                ];
+                break;
+        }
+
+        console.log('Creating ghost spots:', {
+            setupType: currentSetupType,
+            basicSetupComplete,
+            numberOfSpots: initialSpots.length,
+            spots: initialSpots.map(s => ({ type: s.type, position: { x: s.x, y: s.y, z: s.z } }))
+        });
+
+        // Create ghost squares for the selected spots
+        initialSpots.forEach((position, index) => {
+            const isFXSpot = position.type?.includes('fx_') || position.type === 'effects';
             const isMiddleBack = position.type === SPOT_TYPES.MIDDLE_BACK;
-            const shouldBeSmall = isFXSpot || isMiddleBack;
+            const customSize = position.size || null;
             
-            // Create smaller geometry for FX spots and middle back spot
+            // Determine geometry size based on spot type and custom size
             const geometry = new THREE.BoxGeometry(
-                shouldBeSmall ? 0.15 : 0.3,  // Half width for FX and middle back spots
-                0.05,                         // Keep height the same
-                shouldBeSmall ? 0.15 : 0.3    // Half depth for FX and middle back spots
+                customSize ? customSize.width : (isFXSpot ? 0.15 : 0.3),
+                0.05,
+                customSize ? customSize.depth : (isFXSpot ? 0.15 : 0.3)
             );
             
             const material = new THREE.MeshBasicMaterial({ 
-                color: 0x808080, // Grey color
+                color: 0x808080,
                 transparent: true, 
                 opacity: 0.4 
             });
-            const ghostSquare = new THREE.Mesh(geometry, material);
 
+            const ghostSquare = new THREE.Mesh(geometry, material);
             ghostSquare.position.set(position.x, position.y, position.z);
             ghostSquare.userData = { 
                 index,
                 defaultColor: 0x808080,
-                hoverColor: 0xa0a0a0 // Lighter grey for hover
-            }; 
+                hoverColor: 0xa0a0a0,
+                type: position.type,
+                recommendedType: getRecommendedProductType(position.type)
+            };
 
             scene.add(ghostSquare);
             ghostSpotsRef.current.push(ghostSquare);
+            console.log(`Created ghost square ${index} at position:`, position);
         });
+
+        // Force a re-render after creating ghost spots
+        if (rendererRef.current && cameraRef.current) {
+            rendererRef.current.render(scene, cameraRef.current);
+        }
     }
 
     function setupRaycasting() {
@@ -981,72 +1301,222 @@ function ThreeScene({ devices, isInitialized }) {
         const mouse = new THREE.Vector2();
         let hoveredSquare = null;
 
-        function onMouseMove(event) {
+        function handlePointerEvent(event) {
             if (!rendererRef.current?.domElement) return;
             
-            // Get the canvas element's bounding rectangle
             const rect = rendererRef.current.domElement.getBoundingClientRect();
             
-            // Calculate mouse position in normalized device coordinates (-1 to +1)
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            // Handle both mouse and touch events
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+            
+            mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(mouse, cameraRef.current);
             const intersects = raycaster.intersectObjects(ghostSpotsRef.current);
 
-            // Reset previously hovered square
             if (hoveredSquare) {
                 hoveredSquare.material.color.setHex(hoveredSquare.userData.defaultColor);
                 hoveredSquare.material.opacity = 0.4;
             }
 
-            // Set new hovered square
             if (intersects.length > 0) {
                 hoveredSquare = intersects[0].object;
                 hoveredSquare.material.color.setHex(hoveredSquare.userData.hoverColor);
                 hoveredSquare.material.opacity = 0.6;
+
+                // Handle click/tap
+                if (event.type === 'click' || event.type === 'touchend') {
+                    const clickedIndex = intersects[0].object.userData.index;
+                    handleGhostSquareClick(clickedIndex);
+                }
             } else {
                 hoveredSquare = null;
             }
         }
 
-        function onMouseClick(event) {
-            if (!rendererRef.current?.domElement) return;
+        const element = rendererRef.current?.domElement;
+        if (element) {
+            // Add touch event listeners
+            element.addEventListener('touchstart', handlePointerEvent, { passive: false });
+            element.addEventListener('touchmove', handlePointerEvent, { passive: false });
+            element.addEventListener('touchend', handlePointerEvent, { passive: false });
             
-            event.preventDefault();
-
-            // Get the canvas element's bounding rectangle
-            const rect = rendererRef.current.domElement.getBoundingClientRect();
-            
-            // Calculate mouse position in normalized device coordinates (-1 to +1)
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, cameraRef.current);
-            const intersects = raycaster.intersectObjects(ghostSpotsRef.current);
-
-            if (intersects.length > 0) {
-                const clickedIndex = intersects[0].object.userData.index;
-                handleGhostSquareClick(clickedIndex);
-            }
-        }
-
-        // Only add listeners if we're within the canvas bounds
-        if (rendererRef.current?.domElement) {
-            rendererRef.current.domElement.addEventListener("mousemove", onMouseMove);
-            rendererRef.current.domElement.addEventListener("click", onMouseClick);
+            // Keep mouse events for non-touch devices
+            element.addEventListener('mousemove', handlePointerEvent);
+            element.addEventListener('click', handlePointerEvent);
         }
 
         return () => {
-            if (rendererRef.current?.domElement) {
-                rendererRef.current.domElement.removeEventListener("mousemove", onMouseMove);
-                rendererRef.current.domElement.removeEventListener("click", onMouseClick);
+            if (element) {
+                element.removeEventListener('touchstart', handlePointerEvent);
+                element.removeEventListener('touchmove', handlePointerEvent);
+                element.removeEventListener('touchend', handlePointerEvent);
+                element.removeEventListener('mousemove', handlePointerEvent);
+                element.removeEventListener('click', handlePointerEvent);
             }
         };
     }
 
+    // Add useEffect for mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Update the removeDevice function to handle position-specific removal
+    const removeDevice = (uniqueId) => {
+        const device = placedDevicesList.find(d => d.uniqueId === uniqueId);
+        if (device) {
+            // Find the specific device reference using uniqueId
+            const deviceRef = Object.values(devicesRef.current).find(ref => 
+                ref.data?.uniqueId === uniqueId
+            );
+
+            if (deviceRef?.model) {
+                sceneRef.current.remove(deviceRef.model);
+                // Remove the specific device reference
+                delete devicesRef.current[device.id];
+            }
+            
+            // Remove any cables connected to this device's position
+            cablesRef.current = cablesRef.current.filter(cable => {
+                if (cable.userData.sourceDevice === device.id || cable.userData.targetDevice === device.id) {
+                    sceneRef.current.remove(cable);
+                    return false;
+                }
+                return true;
+            });
+            
+            // Update the placed devices list using the unique identifier
+            updatePlacedDevicesList(device, 'remove');
+            
+            // Update connections after removal
+            const updatedDevicesList = placedDevicesList.filter(d => d.uniqueId !== uniqueId);
+            updateConnections(updatedDevicesList);
+
+            // Force a re-render of the scene
+            if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                rendererRef.current.render(sceneRef.current, cameraRef.current);
+            }
+        }
+    };
+
+    // Update currentSetupType when setupType prop changes
+    useEffect(() => {
+        setCurrentSetupType(setupType || 'DJ');
+    }, [setupType]);
+
+    // Add function to determine recommended product types based on setup and position
+    const getRecommendedProductType = (spotType) => {
+        switch (currentSetupType) {
+            case 'DJ':
+                switch (spotType) {
+                    case SPOT_TYPES.MIDDLE: return 'Mixer (DJM)';
+                    case SPOT_TYPES.MIDDLE_LEFT:
+                    case SPOT_TYPES.MIDDLE_RIGHT:
+                    case SPOT_TYPES.FAR_LEFT:
+                    case SPOT_TYPES.FAR_RIGHT: return 'Player (CDJ)';
+                    case SPOT_TYPES.FX_TOP:
+                    case SPOT_TYPES.FX_LEFT:
+                    case SPOT_TYPES.FX_RIGHT: return 'Effects Unit';
+                    default: return 'Any Device';
+                }
+            case 'Producer':
+                switch (spotType) {
+                    case SPOT_TYPES.MIDDLE: return 'Audio Interface';
+                    case SPOT_TYPES.MIDDLE_LEFT:
+                    case SPOT_TYPES.MIDDLE_RIGHT: return 'Synthesizer';
+                    case SPOT_TYPES.FAR_LEFT:
+                    case SPOT_TYPES.FAR_RIGHT: return 'Effects Unit';
+                    default: return 'Any Device';
+                }
+            case 'Musician':
+                return 'Instrument or Effects';
+            default:
+                return 'Any Device';
+        }
+    };
+
+    // Update updatePlacedDevicesList to check for basic setup completion
+    const updatePlacedDevicesList = (device, action = 'add') => {
+        if (action === 'add') {
+            const deviceWithPosition = {
+                ...device,
+                uniqueId: `${device.id}-${device.position.x}-${device.position.y}-${device.position.z}`
+            };
+            setPlacedDevicesList(prev => {
+                const newList = [...prev, deviceWithPosition];
+                // Check if basic setup is complete after adding device
+                const isComplete = checkBasicSetupComplete(newList);
+                console.log('Basic setup status after adding device:', {
+                    isComplete,
+                    deviceName: device.name,
+                    currentList: newList.map(d => d.name)
+                });
+                if (isComplete !== basicSetupComplete) {
+                    setBasicSetupComplete(isComplete);
+                    // Force a complete scene reload when basic setup is complete
+                    if (sceneRef.current) {
+                        // Clear existing ghost spots
+                        ghostSpotsRef.current.forEach(spot => sceneRef.current.remove(spot));
+                        ghostSpotsRef.current = [];
+                        
+                        // Recreate ghost spots with additional positions
+                        createGhostPlacementSpots(sceneRef.current);
+                        
+                        // Force a re-render
+                        if (rendererRef.current && cameraRef.current) {
+                            rendererRef.current.render(sceneRef.current, cameraRef.current);
+                        }
+                    }
+                }
+                return newList;
+            });
+        } else {
+            setPlacedDevicesList(prev => {
+                const newList = prev.filter(d => d.uniqueId !== device.uniqueId);
+                // Check if basic setup is still complete after removing device
+                const isComplete = checkBasicSetupComplete(newList);
+                console.log('Basic setup status after removing device:', {
+                    isComplete,
+                    deviceName: device.name,
+                    currentList: newList.map(d => d.name)
+                });
+                if (isComplete !== basicSetupComplete) {
+                    setBasicSetupComplete(isComplete);
+                    // Force a complete scene reload when basic setup is no longer complete
+                    if (sceneRef.current) {
+                        // Clear existing ghost spots
+                        ghostSpotsRef.current.forEach(spot => sceneRef.current.remove(spot));
+                        ghostSpotsRef.current = [];
+                        
+                        // Recreate ghost spots without additional positions
+                        createGhostPlacementSpots(sceneRef.current);
+                        
+                        // Force a re-render
+                        if (rendererRef.current && cameraRef.current) {
+                            rendererRef.current.render(sceneRef.current, cameraRef.current);
+                        }
+                    }
+                }
+                return newList;
+            });
+        }
+    };
+
     return (
-        <div ref={mountRef} style={{ width: "100%", height: "100%" }}>
+        <div ref={mountRef} style={{ 
+            width: "100%", 
+            height: isMobile ? "calc(100vh - 60px)" : "100%",
+            touchAction: "none" // Prevent default touch actions
+        }}>
             {error && (
                 <div style={{
                     position: 'absolute',
@@ -1067,14 +1537,16 @@ function ThreeScene({ devices, isInitialized }) {
             {isConnectionMapping && (
                 <div style={{
                     position: 'absolute',
-                    top: '20px',
+                    top: isMobile ? '10px' : '20px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     backgroundColor: 'white',
-                    padding: '20px',
+                    padding: isMobile ? '15px' : '20px',
                     borderRadius: '8px',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                    zIndex: 1000
+                    zIndex: 1000,
+                    width: isMobile ? '90%' : 'auto',
+                    maxWidth: '500px'
                 }}>
                     <h3>Mapping {currentMappingDevice?.name} Connection Points</h3>
                     <div style={{ marginBottom: '10px' }}>
@@ -1143,21 +1615,9 @@ function ThreeScene({ devices, isInitialized }) {
 
             {/* Search Modal */}
             {showSearch && (
-                <div className="search-modal" style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    backgroundColor: 'white',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                    zIndex: 1000,
-                    minWidth: '300px', // Added minimum width
-                    maxWidth: '500px'   // Added maximum width
-                }}>
+                <div className="search-modal" style={searchModalStyle}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <h3 style={{ margin: 0 }}>
+                        <h3 style={{ margin: 0, color: 'black' }}>
                             {searchMode === 'ghost' ? `Select Device for Position ${selectedGhostIndex + 1}` : 'Search Products'}
                         </h3>
                         <button 
@@ -1170,12 +1630,25 @@ function ThreeScene({ devices, isInitialized }) {
                                 background: 'none',
                                 border: 'none',
                                 fontSize: '20px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                color: 'black'
                             }}
                         >
                             ×
                         </button>
                     </div>
+                    {searchMode === 'ghost' && ghostSpotsRef.current[selectedGhostIndex] && (
+                        <div style={{
+                            marginBottom: '15px',
+                            padding: '8px',
+                            backgroundColor: '#f0f8ff',
+                            borderRadius: '4px',
+                            color: 'black',
+                            border: '1px solid #b8daff'
+                        }}>
+                            <strong>Recommended:</strong> {ghostSpotsRef.current[selectedGhostIndex].userData.recommendedType}
+                        </div>
+                    )}
                     <input
                         type="text"
                         placeholder="Search for a product..."
@@ -1186,7 +1659,8 @@ function ThreeScene({ devices, isInitialized }) {
                             padding: '8px',
                             marginBottom: '15px',
                             borderRadius: '4px',
-                            border: '1px solid #ddd'
+                            border: '1px solid #ddd',
+                            color: 'black'
                         }}
                         autoFocus
                     />
@@ -1194,7 +1668,8 @@ function ThreeScene({ devices, isInitialized }) {
                         marginBottom: '10px',
                         padding: '8px',
                         backgroundColor: '#f5f5f5',
-                        borderRadius: '4px'
+                        borderRadius: '4px',
+                        color: 'black'
                     }}>
                         {searchMode === 'ghost' ? 
                             `Selecting device for position ${selectedGhostIndex + 1}` : 
@@ -1204,7 +1679,8 @@ function ThreeScene({ devices, isInitialized }) {
                         maxHeight: '300px',
                         overflowY: 'auto',
                         border: '1px solid #ddd',
-                        borderRadius: '4px'
+                        borderRadius: '4px',
+                        color: 'black'
                     }}>
                         {searchResults.length === 0 ? (
                             <div style={{ padding: '10px', textAlign: 'center', color: '#666' }}>
@@ -1226,36 +1702,18 @@ function ThreeScene({ devices, isInitialized }) {
                                             cursor: 'pointer',
                                             backgroundColor: 'white',
                                             transition: 'background-color 0.2s',
-                                            '&:hover': {
-                                                backgroundColor: '#f5f5f5'
-                                            }
+                                            color: 'black'
                                         }}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
-                                                <div style={{ fontWeight: 'bold' }}>{product.name}</div>
+                                                <div style={{ fontWeight: 'bold', color: 'black' }}>{product.name}</div>
                                                 <div style={{ fontSize: '0.8em', color: '#666' }}>{product.category}</div>
                                             </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleConnectionPointMapping(product);
-                                                }}
-                                                style={{
-                                                    padding: '4px 8px',
-                                                    backgroundColor: '#4CAF50',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                Map
-                                            </button>
                                         </div>
-                                    </li>
+                                </li>
                                 ))}
-                            </ul>
+                    </ul>
                         )}
                     </div>
                     <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between' }}>
@@ -1278,17 +1736,7 @@ function ThreeScene({ devices, isInitialized }) {
 
             {/* Position Selection Modal */}
             {showPositionModal && (
-                <div className="position-modal" style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    backgroundColor: 'white',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                    zIndex: 1000
-                }}>
+                <div className="position-modal" style={positionModalStyle}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                         <h3 style={{ margin: 0 }}>Select Position for {selectedProduct?.name}</h3>
                         <button 
@@ -1345,7 +1793,39 @@ function ThreeScene({ devices, isInitialized }) {
             )}
 
             {/* Product Form Modal */}
-            {showProductForm && <ProductForm onClose={() => setShowProductForm(false)} />}
+            {showProductForm && <ProductSubmissionForm onClose={() => setShowProductForm(false)} />}
+
+            {/* Setup List Box */}
+            <div className="setup-list-box">
+                <h3>Current Setup</h3>
+                {placedDevicesList.map((device) => {
+                    // Determine the position label based on x coordinate
+                    let positionLabel = '';
+                    if (device.name.includes('CDJ')) {
+                        if (Math.abs(device.position.x + 1.6) < 0.1) {
+                            positionLabel = '(Far Left)';
+                        } else if (Math.abs(device.position.x + 0.8) < 0.1) {
+                            positionLabel = '(Middle Left)';
+                        } else if (Math.abs(device.position.x - 0.8) < 0.1) {
+                            positionLabel = '(Middle Right)';
+                        } else if (Math.abs(device.position.x - 1.6) < 0.1) {
+                            positionLabel = '(Far Right)';
+                        }
+                    }
+                    
+                    return (
+                        <div key={device.uniqueId} className="setup-list-item">
+                            <span>{device.name} {positionLabel}</span>
+                            <button onClick={() => removeDevice(device.uniqueId)}>Remove</button>
+                        </div>
+                    );
+                })}
+                {placedDevicesList.length === 0 && (
+                    <div style={{ textAlign: 'center', opacity: 0.7 }}>
+                        No devices added yet
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

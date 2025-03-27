@@ -187,6 +187,7 @@ function App() {
               <ThreeScene 
                 devices={setupDevices[selectedSetup]} 
                 isInitialized={isFirebaseConnected}
+                setupType={selectedSetup}
               />
             </div>
           </div>
