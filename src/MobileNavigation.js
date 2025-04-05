@@ -7,7 +7,8 @@ const MobileNavigation = ({
     placedDevicesList,
     onRemoveDevice,
     isUpdatingPaths,
-    onUpdateModelPaths
+    onUpdateModelPaths,
+    style
 }) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -17,20 +18,14 @@ const MobileNavigation = ({
             <button 
                 onClick={() => setIsOpen(!isOpen)}
                 style={{
-                    position: 'fixed',
-                    top: '20px',
-                    left: '20px',
-                    zIndex: 2000,
-                    background: 'none',
+                    ...style,
+                    background: 'rgba(0, 0, 0, 0.7)',
                     border: 'none',
-                    padding: '10px',
+                    padding: '12px',
                     cursor: 'pointer',
-                    width: '44px',
-                    height: '44px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center'
+                    borderRadius: '8px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                 }}
             >
                 <div style={{
@@ -62,19 +57,21 @@ const MobileNavigation = ({
             <div style={{
                 position: 'fixed',
                 top: 0,
-                left: 0,
+                right: 0,
                 width: '80%',
                 maxWidth: '300px',
                 height: '100vh',
                 backgroundColor: 'rgba(10, 10, 10, 0.95)',
-                transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+                transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
                 transition: 'transform 0.3s ease',
                 zIndex: 1999,
-                boxShadow: '4px 0 15px rgba(0,0,0,0.3)',
+                boxShadow: '-4px 0 15px rgba(0,0,0,0.3)',
                 backdropFilter: 'blur(10px)',
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '80px 20px 20px 20px'
+                padding: '80px 20px 20px 20px',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch'
             }}>
                 {/* View Controls */}
                 <div style={{ marginBottom: '24px' }}>
@@ -82,7 +79,8 @@ const MobileNavigation = ({
                         color: '#ffffff', 
                         marginBottom: '12px',
                         fontSize: '14px',
-                        opacity: 0.7 
+                        opacity: 0.7,
+                        letterSpacing: '1px'
                     }}>VIEW</h3>
                     <button 
                         onClick={() => {
@@ -110,14 +108,19 @@ const MobileNavigation = ({
                         color: '#ffffff', 
                         marginBottom: '12px',
                         fontSize: '14px',
-                        opacity: 0.7 
+                        opacity: 0.7,
+                        letterSpacing: '1px'
                     }}>ACTIONS</h3>
                     <button 
                         onClick={() => {
                             onOpenSearch();
                             setIsOpen(false);
                         }}
-                        style={mobileButtonStyle}
+                        style={{
+                            ...mobileButtonStyle,
+                            backgroundColor: 'rgba(0, 162, 255, 0.2)',
+                            borderColor: 'rgba(0, 162, 255, 0.3)'
+                        }}
                     >
                         Add Device
                     </button>
@@ -139,13 +142,15 @@ const MobileNavigation = ({
                         color: '#ffffff', 
                         marginBottom: '12px',
                         fontSize: '14px',
-                        opacity: 0.7 
+                        opacity: 0.7,
+                        letterSpacing: '1px'
                     }}>CURRENT SETUP</h3>
                     <div style={{
                         maxHeight: '40vh',
                         overflowY: 'auto',
                         scrollbarWidth: 'thin',
-                        scrollbarColor: '#333333 #000000'
+                        scrollbarColor: '#333333 #000000',
+                        WebkitOverflowScrolling: 'touch'
                     }}>
                         <style>
                             {`
@@ -169,22 +174,27 @@ const MobileNavigation = ({
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
-                                    padding: '8px 12px',
+                                    padding: '12px 16px',
                                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                    borderRadius: '4px',
+                                    borderRadius: '8px',
                                     marginBottom: '8px'
                                 }}
                             >
-                                <span style={{ color: '#ffffff' }}>{device.name}</span>
+                                <span style={{ 
+                                    color: '#ffffff',
+                                    fontSize: '14px'
+                                }}>{device.name}</span>
                                 <button 
                                     onClick={() => onRemoveDevice(device.uniqueId)}
                                     style={{
-                                        background: 'none',
-                                        border: 'none',
+                                        background: 'rgba(255, 107, 107, 0.2)',
+                                        border: '1px solid rgba(255, 107, 107, 0.3)',
                                         color: '#ff6b6b',
                                         cursor: 'pointer',
-                                        padding: '4px 8px',
-                                        fontSize: '12px'
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        borderRadius: '4px',
+                                        transition: 'all 0.2s ease'
                                     }}
                                 >
                                     Remove
@@ -196,7 +206,8 @@ const MobileNavigation = ({
                                 textAlign: 'center', 
                                 color: '#ffffff',
                                 opacity: 0.5,
-                                padding: '20px 0'
+                                padding: '20px 0',
+                                fontSize: '14px'
                             }}>
                                 No devices added yet
                             </div>
@@ -216,6 +227,7 @@ const MobileNavigation = ({
                         width: '100%',
                         height: '100%',
                         backgroundColor: 'rgba(0,0,0,0.5)',
+                        backdropFilter: 'blur(4px)',
                         zIndex: 1998
                     }}
                 />
@@ -226,16 +238,19 @@ const MobileNavigation = ({
 
 const mobileButtonStyle = {
     width: '100%',
-    padding: '12px',
+    padding: '12px 16px',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '4px',
+    borderRadius: '8px',
     color: '#ffffff',
     marginBottom: '8px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     textAlign: 'left',
-    fontSize: '14px'
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between'
 };
 
 export default MobileNavigation; 

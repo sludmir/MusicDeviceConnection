@@ -130,32 +130,16 @@ function ThreeScene({ devices, isInitialized, setupType }) {
     // Add these camera positions after your other constants
     const CAMERA_POSITIONS = {
         default: {
-            position: { x: 0, y: 2.2, z: 1.8 },
+            position: { x: 0, y: isMobile ? 3 : 2.2, z: isMobile ? 2.5 : 1.8 },
             target: { x: 0, y: 0.9, z: 0 }
         },
         set: {
-            position: { x: 0, y: 2.4, z: 2.0 },
+            position: { x: 0, y: isMobile ? 3.2 : 2.4, z: isMobile ? 2.8 : 2.0 },
             target: { x: 0, y: 0.9, z: 0 }
         },
         connections: {
-            position: { x: 0, y: 2.2, z: -1.8 },
+            position: { x: 0, y: isMobile ? 3 : 2.2, z: isMobile ? -2.5 : -1.8 },
             target: { x: 0, y: 0.9, z: 0 }
-        }
-    };
-
-    // Add this near your other constants
-    const MOBILE_CAMERA_POSITIONS = {
-        default: {
-            position: { x: 0, y: 2.5, z: 2.5 }, // Higher and closer view for mobile
-            target: { x: 0, y: 0.5, z: 0 }
-        },
-        set: {
-            position: { x: 0, y: 2.2, z: 2.2 }, // Adjusted for better mobile viewing
-            target: { x: 0, y: 0.3, z: 0 }
-        },
-        connections: {
-            position: { x: -2, y: 2, z: 2 }, // Angled view for better connection visibility
-            target: { x: 0, y: 0.5, z: 0 }
         }
     };
 
@@ -1801,24 +1785,27 @@ function ThreeScene({ devices, isInitialized, setupType }) {
     };
 
     // Add this new function after your other functions
-    const moveCameraToPosition = (position) => {
-        const positions = isMobile ? MOBILE_CAMERA_POSITIONS : CAMERA_POSITIONS;
-        const targetPos = positions[position] || positions.default;
+    const moveCameraToPosition = (positionName) => {
+        const position = CAMERA_POSITIONS[positionName];
+        if (!position) return;
 
         gsap.to(cameraRef.current.position, {
-            x: targetPos.position.x,
-            y: targetPos.position.y,
-            z: targetPos.position.z,
-            duration: 1,
-            ease: 'power2.inOut'
+            x: position.position.x,
+            y: position.position.y,
+            z: position.position.z,
+            duration: 1.5,
+            ease: "power2.inOut",
+            onUpdate: () => {
+                cameraRef.current.lookAt(position.target.x, position.target.y, position.target.z);
+            }
         });
 
         gsap.to(controlsRef.current.target, {
-            x: targetPos.target.x,
-            y: targetPos.target.y,
-            z: targetPos.target.z,
-            duration: 1,
-            ease: 'power2.inOut',
+            x: position.target.x,
+            y: position.target.y,
+            z: position.target.z,
+            duration: 1.5,
+            ease: "power2.inOut",
             onUpdate: () => {
                 controlsRef.current.update();
             }
@@ -1976,6 +1963,12 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                         onRemoveDevice={removeDevice}
                         isUpdatingPaths={isUpdatingPaths}
                         onUpdateModelPaths={handleUpdateModelPaths}
+                        style={{
+                            position: 'fixed',
+                            top: '20px',
+                            right: '20px',
+                            zIndex: 2000
+                        }}
                     />
                 )}
 
