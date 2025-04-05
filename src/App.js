@@ -33,7 +33,7 @@ async function testFirebaseConnection() {
     // Test Firestore access with a simple query
     try {
       console.log("Testing Firestore access...");
-      const testRef = collection(db, "products");
+      const testRef = collection(db, "users");
       await getDocs(testRef);
       console.log("Successfully connected to Firestore");
       return true;

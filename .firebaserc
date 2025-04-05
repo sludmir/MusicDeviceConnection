@@ -1,5 +1,24 @@
 {
   "projects": {
     "default": "musicdeviceconnection"
-  }
+  },
+  "targets": {
+    "musicdeviceconnection": {
+      "hosting": {
+        "main": [
+          "musicdeviceconnection"
+        ],
+        "connectmyset-com": [
+          "connectmyset-com"
+        ],
+        "connectmyset": [
+          "connectmyset.com"
+        ],
+        "connectmysetapp": [
+          "connectmyset.web.app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

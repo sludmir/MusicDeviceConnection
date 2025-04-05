@@ -6,7 +6,7 @@ function ProductSubmissionForm({ onClose }) {
     const [formData, setFormData] = useState({
         name: '',
         category: '',
-        modelUrl: '',
+        modelPath: '',
         description: '',
         inputs: [],
         outputs: []
@@ -86,7 +86,7 @@ function ProductSubmissionForm({ onClose }) {
 
         try {
             // Validate required fields
-            if (!formData.name || !formData.category || !formData.modelUrl) {
+            if (!formData.name || !formData.category || !formData.modelPath) {
                 throw new Error('Please fill in all required fields');
             }
 
@@ -201,8 +201,8 @@ function ProductSubmissionForm({ onClose }) {
                     </label>
                     <input
                         type="url"
-                        name="modelUrl"
-                        value={formData.modelUrl}
+                        name="modelPath"
+                        value={formData.modelPath}
                         onChange={handleInputChange}
                         style={{
                             width: '100%',

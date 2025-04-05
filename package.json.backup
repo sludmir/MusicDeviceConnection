@@ -1,15 +1,11 @@
 {
-  "name": "connect-my-set",
-  "version": "1.0.0",
+  "name": "frontend",
+  "version": "0.1.0",
   "private": true,
   "dependencies": {
     "@babel/helpers": "^7.27.0",
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@babel/runtime": "^7.27.0",
-    "@firebase/app": "^0.9.28",
-    "@firebase/auth": "^1.6.1",
-    "@firebase/firestore": "^4.4.3",
-    "@firebase/storage": "^0.12.2",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
@@ -23,12 +19,12 @@
     "micromatch": "^4.0.8",
     "nanoid": "^5.1.5",
     "path-to-regexp": "^8.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
     "rollup": "^4.39.0",
     "send": "^1.2.0",
-    "three": "^0.162.0",
+    "three": "^0.169.0",
     "uuid": "^10.0.0",
     "web-vitals": "^2.1.4",
     "webpack": "^5.98.0",
@@ -36,14 +32,11 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "GENERATE_SOURCEMAP=false react-scripts build",
+    "build": "CI=false react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "lint": "eslint src/**/*.{js,jsx}",
-    "security-check": "npm audit --production | grep -v 'nth-check' | grep -v 'postcss' || true",
-    "deploy": "npm run build && firebase deploy",
-    "deploy:full": "npm run security-check && npm run lint && npm run test -- --watchAll=false && npm run deploy",
-    "emulate": "firebase emulators:start"
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -69,9 +62,6 @@
     "nth-check": "^2.1.1",
     "postcss": "^8.5.3",
     "resolve-url-loader": "^5.0.0",
-    "svgo": "^3.3.2",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.0",
-    "eslint-plugin-react-hooks": "^4.6.0"
+    "svgo": "^3.3.2"
   }
 }

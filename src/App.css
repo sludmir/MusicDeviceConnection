@@ -388,3 +388,222 @@ canvas {
   color: #89CFF0;
   font-family: 'SF Pro Display', sans-serif;
 }
+
+.camera-controls {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.camera-button {
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'SF Pro Display', sans-serif;
+  backdrop-filter: blur(5px);
+}
+
+.camera-button:hover {
+  background-color: rgba(0, 0, 0, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 768px) {
+  .camera-controls {
+    right: 10px;
+  }
+  
+  .camera-button {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+}
+
+/* Import modern fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap');
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+
+/* Camera controls - minimalist style */
+.camera-controls {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 1000;
+}
+
+.camera-button {
+  background-color: rgba(10, 10, 10, 0.7);
+  color: #ffffff;
+  border: 1px solid rgba(0, 162, 255, 0.3);
+  padding: 12px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+  min-width: 120px;
+  text-align: center;
+}
+
+.camera-button:hover {
+  background-color: rgba(0, 162, 255, 0.2);
+  border-color: rgba(0, 162, 255, 0.8);
+}
+
+/* Setup list box - minimalist redesign */
+.setup-list-box {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 162, 255, 0.2);
+  border-radius: 6px;
+  padding: 16px;
+  width: 280px;
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.setup-list-box h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  color: rgba(0, 162, 255, 0.9);
+  text-transform: uppercase;
+}
+
+.setup-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.setup-list-item:last-child {
+  border-bottom: none;
+}
+
+.setup-list-item span {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.setup-list-item button {
+  background: none;
+  border: none;
+  color: rgba(255, 82, 82, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 4px 8px;
+}
+
+.setup-list-item button:hover {
+  color: rgba(255, 82, 82, 1);
+}
+
+/* Search modal - minimalist style */
+.search-modal {
+  background-color: rgba(10, 10, 10, 0.95) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 162, 255, 0.2);
+  color: #ffffff !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
+.search-modal input {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 162, 255, 0.2);
+  color: #ffffff;
+  padding: 12px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.search-modal input:focus {
+  border-color: rgba(0, 162, 255, 0.6);
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.search-modal button {
+  background-color: rgba(0, 162, 255, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(0, 162, 255, 0.3);
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.search-modal button:hover {
+  background-color: rgba(0, 162, 255, 0.3);
+  border-color: rgba(0, 162, 255, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .camera-controls {
+    right: 12px;
+  }
+  
+  .camera-button {
+    padding: 10px 20px;
+    min-width: 100px;
+    font-size: 14px;
+  }
+  
+  .setup-list-box {
+    width: calc(100% - 24px);
+    bottom: 12px;
+    right: 12px;
+  }
+}
+
+/* Animation classes */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

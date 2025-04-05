@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+    
+    function isValidModel() {
+      return request.resource.contentType.matches('model/.*|application/octet-stream|image/.*')
+        && request.resource.size < 50 * 1024 * 1024; // 50MB max
+    }
+
+    // Allow public read access to all files in the models directory and its subdirectories
+    match /models/{allPaths=**} {
+      allow read: if true;  // Public read access
+      allow write: if isSignedIn() && isValidModel();
+    }
+
+    // Allow public read access to textures directory
+    match /textures/{allPaths=**} {
+      allow read: if true;  // Public read access
+      allow write: if isSignedIn() && isValidImage();
+    }
+
+    // User profile images
+    match /users/{userId}/profile/{imageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() 
+        && isOwner(userId)
+        && isValidImage();
+    }
+
+    // Device images
+    match /devices/{deviceId}/images/{imageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() 
+        && isValidImage();
+    }
+
+    // Device 3D models and their textures
+    match /devices/{deviceId}/models/{allPaths=**} {
+      allow read: if true;  // Public read access to models and their textures
+      allow write: if isSignedIn() 
+        && isValidModel();
+    }
+
+    // Setup screenshots
+    match /setups/{setupId}/screenshots/{imageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() 
+        && isValidImage();
+    }
+  }
+} 
