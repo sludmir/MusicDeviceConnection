@@ -10,8 +10,9 @@ import { gsap } from 'gsap';
 import { updateAllModelPaths, isFirebaseStorageUrl, getModelPath, setProductModelPath } from './firebaseUtils'; // Add this import
 import ProductSuggestionForm from './ProductSuggestionForm';
 import MobileNavigation from './MobileNavigation';
+import { getConnectionSuggestions } from './chatGPTService';
 
-function ThreeScene({ devices, isInitialized, setupType }) {
+function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCategoryToggle }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -48,6 +49,11 @@ function ThreeScene({ devices, isInitialized, setupType }) {
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
+    const [connectionAdvice, setConnectionAdvice] = useState('');
+    const [isAdviceLoading, setIsAdviceLoading] = useState(false);
+    const [hasQuotaError, setHasQuotaError] = useState(false);
+    const [lastApiCall, setLastApiCall] = useState(0);
+    const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
     // Product type constants
     const PRODUCT_TYPES = {
@@ -457,7 +463,12 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                 }, 0);
             }
         }
-    }, [placedDevicesList]);
+        
+        // Communicate device changes to parent component
+        if (onDevicesChange) {
+            onDevicesChange(placedDevicesList);
+        }
+    }, [placedDevicesList, onDevicesChange]);
 
     // Update addProductToPosition to ensure proper state updates
     const addProductToPosition = async (product, positionIndex) => {
@@ -469,11 +480,19 @@ function ThreeScene({ devices, isInitialized, setupType }) {
 
         try {
             console.log(`Loading 3D model for ${product.name} at position:`, position);
-            console.log(`Using model URL:`, product.modelUrl);
+            // Check for Firebase Storage URL in either modelPath or modelUrl
+            const modelURL = product.modelPath || product.modelUrl;
+            console.log(`Using model URL:`, modelURL);
+            
+            if (!modelURL) {
+                console.error('No model URL found for product:', product.name);
+                alert(`No 3D model found for ${product.name}. Please check the product configuration.`);
+                return;
+            }
             
             const loader = new GLTFLoader();
             loader.load(
-                product.modelUrl,
+                modelURL,
                 (gltf) => {
                     console.log("Model loaded successfully:", product.name);
                     const model = gltf.scene;
@@ -498,7 +517,8 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                         },
                         inputs: product.inputs || [],
                         outputs: product.outputs || [],
-                        uniqueId: `${product.id}-${position.x}-${position.y}-${position.z}`
+                        uniqueId: `${product.id}-${position.x}-${position.y}-${position.z}`,
+                        modelPath: modelURL // Ensure modelPath is set for future reference
                     };
 
                     // Store the complete device data with the model
@@ -546,7 +566,7 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                 },
                 (error) => {
                     console.error("Error loading model:", error);
-                    console.error("Failed model URL:", product.modelUrl);
+                    console.error("Failed model URL:", modelURL);
                     alert(`Failed to load 3D model for ${product.name}. Please check the console for details.`);
                 }
             );
@@ -891,7 +911,7 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                 console.log(`repositioning device ${device.id} to x: ${position.x}, y: ${position.y}, z: ${position.z}`);
             } else {
                 // Load new device if it's not already present
-                loadDevice(device, index, loader, scene);
+                loadDeviceWithFirebase(device, index, loader, scene);
             }
             console.log('loading/repositioning device ', device.id, index);
         });
@@ -970,6 +990,44 @@ function ThreeScene({ devices, isInitialized, setupType }) {
             createPlaceholderRender(device, position, scene);  // Handle devices with no model URL
         }
     }
+
+    // Function to get Firebase Storage URL for a device model
+    const getFirebaseModelURL = async (deviceName) => {
+        try {
+            // Import the function from firebaseUtils
+            const { getStorageModelURL } = await import('./firebaseUtils');
+            const modelURL = await getStorageModelURL(`${deviceName}.glb`);
+            return modelURL;
+        } catch (error) {
+            console.error('Error getting Firebase model URL for:', deviceName, error);
+            return null;
+        }
+    };
+
+    // Function to load device with Firebase Storage URL
+    const loadDeviceWithFirebase = async (device, index, loader, scene) => {
+        let position = { x: 1, y: 1, z: 2 };  // Default position if needed
+        
+        // If device already has a Firebase Storage URL, use it
+        if (device.modelPath && (device.modelPath.startsWith('https://') || device.modelPath.startsWith('gs://'))) {
+            loadDevice(device, index, loader, scene);
+            return;
+        }
+        
+        // Try to get Firebase Storage URL for the device
+        console.log('Attempting to get Firebase Storage URL for:', device.name);
+        const firebaseURL = await getFirebaseModelURL(device.name);
+        
+        if (firebaseURL) {
+            console.log('Found Firebase Storage URL for', device.name, ':', firebaseURL);
+            // Create a copy of the device with the Firebase URL
+            const deviceWithURL = { ...device, modelPath: firebaseURL };
+            loadDevice(deviceWithURL, index, loader, scene);
+        } else {
+            console.log('No Firebase Storage URL found for:', device.name, '- using placeholder');
+            createPlaceholderRender(device, position, scene);
+        }
+    };
 
     function getDevicePosition(device, index, modelSize) {
         let position = { x: 1, y: 1, z: 2 };
@@ -1895,6 +1953,118 @@ function ThreeScene({ devices, isInitialized, setupType }) {
         setShowSuggestionForm(true);
     };
 
+    useEffect(() => {
+      // Prevent API calls if we have a quota error
+      if (hasQuotaError) {
+        return;
+      }
+
+      // Debounce API calls - only call if it's been at least 5 seconds since last call
+      const now = Date.now();
+      if (now - lastApiCall < 5000) {
+        return;
+      }
+
+      if (placedDevicesList && placedDevicesList.length >= 3) {
+        setIsAdviceLoading(true);
+        setLastApiCall(now);
+        
+        getConnectionSuggestions(placedDevicesList)
+          .then(setConnectionAdvice)
+          .catch((error) => {
+            console.error('ChatGPT API error:', error);
+            if (error.message.includes('quota') || error.message.includes('429')) {
+              setHasQuotaError(true);
+              setConnectionAdvice('API quota exceeded. Please try again later or upgrade your OpenAI plan.');
+            } else {
+              setConnectionAdvice('Could not get connection advice. Please try again.');
+            }
+          })
+          .finally(() => setIsAdviceLoading(false));
+      } else {
+        setConnectionAdvice('');
+      }
+    }, [placedDevicesList, hasQuotaError, lastApiCall]);
+
+    console.log('OPENAI KEY:', process.env.REACT_APP_OPENAI_API_KEY);
+
+    // Handle category toggle for device visibility
+    const handleCategoryToggle = (categoryId, isVisible) => {
+        console.log(`Toggling category ${categoryId} visibility: ${isVisible}`);
+        setHiddenCategories(prev => {
+            const newHidden = new Set(prev);
+            if (isVisible) {
+                newHidden.delete(categoryId);
+            } else {
+                newHidden.add(categoryId);
+            }
+            console.log('New hidden categories:', Array.from(newHidden));
+            return newHidden;
+        });
+    };
+
+    // Expose the toggle function to parent (only once)
+    useEffect(() => {
+        if (onCategoryToggle) {
+            onCategoryToggle(handleCategoryToggle);
+        }
+    }, []); // Empty dependency array to run only once
+
+    // Update device visibility when hidden categories change
+    useEffect(() => {
+        if (sceneRef.current && placedDevicesList.length > 0) {
+            console.log('Processing devices for visibility:', placedDevicesList.map(d => d.name));
+            console.log('Hidden categories:', Array.from(hiddenCategories));
+            
+            placedDevicesList.forEach(device => {
+                // Get the device object from devicesRef instead of scene
+                const deviceRef = devicesRef.current[device.uniqueId];
+                if (deviceRef && deviceRef.model) {
+                    // Determine if this device should be hidden based on its category
+                    const deviceCategory = getDeviceCategory(device);
+                    const shouldHide = hiddenCategories.has(deviceCategory);
+                    console.log(`Device: ${device.name} -> Category: ${deviceCategory} -> Should hide: ${shouldHide}`);
+                    deviceRef.model.visible = !shouldHide;
+                } else {
+                    console.log(`Device object not found for: ${device.name} (${device.uniqueId})`);
+                }
+            });
+            
+            // Force a re-render
+            if (rendererRef.current && cameraRef.current) {
+                rendererRef.current.render(sceneRef.current, cameraRef.current);
+            }
+        }
+    }, [hiddenCategories, placedDevicesList]);
+
+    // Helper function to determine device category
+    const getDeviceCategory = (device) => {
+        const name = device.name.toLowerCase();
+        console.log(`Categorizing device: "${device.name}" -> "${name}"`);
+        
+        if (name.includes('cdj') || name.includes('turntable') || name.includes('controller')) {
+            console.log(`  -> Matched players category`);
+            return 'players';
+        } else if (name.includes('djm') || name.includes('mixer')) {
+            console.log(`  -> Matched mixers category`);
+            return 'mixers';
+        } else if (name.includes('rmx') || name.includes('effect')) {
+            console.log(`  -> Matched effects category`);
+            return 'effects';
+        } else if (name.includes('speaker') || name.includes('monitor')) {
+            console.log(`  -> Matched speakers category`);
+            return 'speakers';
+        } else if (name.includes('cable') || name.includes('rca') || name.includes('xlr')) {
+            console.log(`  -> Matched cables category`);
+            return 'cables';
+        } else if (name.includes('headphone') || name.includes('case')) {
+            console.log(`  -> Matched accessories category`);
+            return 'accessories';
+        }
+        console.log(`  -> Default to players category`);
+        return 'players'; // default category
+    };
+
     return (
         <>
             <div ref={mountRef} style={{ 
@@ -2012,6 +2182,38 @@ function ThreeScene({ devices, isInitialized, setupType }) {
                                 )}
                             </div>
                         )}
+                        <div style={{ marginTop: '16px' }}>
+                          <h4 style={{ color: '#89CFF0', marginBottom: '8px' }}>Connection Guide</h4>
+                          {placedDevicesList.length < 3 ? (
+                            <div style={{ color: '#aaa', fontStyle: 'italic' }}>
+                              Add at least 3 devices to get connection advice
+                            </div>
+                          ) : hasQuotaError ? (
+                            <div>
+                              <div style={{ color: '#ff6b6b', marginBottom: '8px' }}>
+                                {connectionAdvice}
+                              </div>
+                              <button 
+                                onClick={() => setHasQuotaError(false)}
+                                style={{
+                                  background: 'rgba(0, 162, 255, 0.2)',
+                                  border: '1px solid rgba(0, 162, 255, 0.3)',
+                                  color: '#00a2ff',
+                                  padding: '4px 8px',
+                                  fontSize: '12px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Try Again
+                              </button>
+                            </div>
+                          ) : isAdviceLoading ? (
+                            <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading connection advice...</div>
+                          ) : (
+                            <div style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{connectionAdvice}</div>
+                          )}
+                        </div>
                     </div>
                 )}
 
