@@ -1986,8 +1986,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
       }
     }, [placedDevicesList, hasQuotaError, lastApiCall]);
 
-    console.log('OPENAI KEY:', process.env.REACT_APP_OPENAI_API_KEY);
-
     // Handle category toggle for device visibility
     const handleCategoryToggle = (categoryId, isVisible) => {
         console.log(`Toggling category ${categoryId} visibility: ${isVisible}`);

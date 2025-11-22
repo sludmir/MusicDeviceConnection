@@ -4,6 +4,10 @@ import SearchBar from './SearchBar';
 import DeviceDisplay from './DeviceDisplay';
 import ThreeScene from './ThreeScene';
 import SetupTimeline from './SetupTimeline';
+import ProductDashboard from './ProductDashboard';
+import MySets from './MySets';
+import Settings from './Settings';
+import Preferences from './Preferences';
 // import ConnectionPanel from './ConnectionPanel';
 import { v4 as uuidv4 } from 'uuid';
 import { signInWithGoogle, logout } from "./Auth";
@@ -68,6 +72,8 @@ function App() {
   const [actualDevices, setActualDevices] = useState([]);
   const [threeSceneToggleFunction, setThreeSceneToggleFunction] = useState(null);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [showProductDashboard, setShowProductDashboard] = useState(false);
+  const [currentView, setCurrentView] = useState(null); // 'mySets', 'settings', 'preferences', 'productDashboard'
 
   // Handle authentication state changes
   useEffect(() => {
@@ -172,21 +178,27 @@ function App() {
   };
 
   const handleMySets = () => {
-    console.log('Navigate to My Sets');
     closeProfileDropdown();
-    // TODO: Implement My Sets screen
+    setCurrentView('mySets');
   };
 
   const handleSettings = () => {
-    console.log('Navigate to Settings');
     closeProfileDropdown();
-    // TODO: Implement Settings screen
+    setCurrentView('settings');
   };
 
   const handlePreferences = () => {
-    console.log('Navigate to Preferences');
     closeProfileDropdown();
-    // TODO: Implement Preferences screen
+    setCurrentView('preferences');
+  };
+
+  const handleProductManagement = () => {
+    closeProfileDropdown();
+    setCurrentView('productDashboard');
+  };
+
+  const handleBackToMain = () => {
+    setCurrentView(null);
   };
 
   // Close dropdown when clicking outside
@@ -234,6 +246,7 @@ function App() {
             setSelectedSetup(null);
             setSelectedCategory(null);
             setActualDevices([]);
+            setCurrentView(null);
           }} 
           style={{ 
             cursor: 'pointer', 
@@ -365,6 +378,26 @@ function App() {
                     </div>
                   </div>
                   
+                  <div 
+                    onClick={handleProductManagement}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      transition: 'background-color 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <span style={{ fontSize: '16px' }}>📦</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Product Management</div>
+                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Manage products & prices</div>
+                    </div>
+                  </div>
+                  
                   <div style={{ 
                     height: '1px', 
                     backgroundColor: '#333', 
@@ -399,7 +432,21 @@ function App() {
       </header>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {user && !selectedSetup ? (
+        {/* Render different views based on currentView state */}
+        {currentView === 'mySets' ? (
+          <MySets 
+            onBack={handleBackToMain}
+            currentSetup={selectedSetup}
+            currentDevices={actualDevices}
+            setupType={selectedSetup}
+          />
+        ) : currentView === 'settings' ? (
+          <Settings onBack={handleBackToMain} />
+        ) : currentView === 'preferences' ? (
+          <Preferences onBack={handleBackToMain} />
+        ) : currentView === 'productDashboard' ? (
+          <ProductDashboard onClose={handleBackToMain} />
+        ) : user && !selectedSetup ? (
           <div className="setup-selection" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
             <h2>Select Your Setup Type</h2>
             <div className="setup-buttons" style={{ display: 'flex', gap: '20px' }}>
@@ -444,6 +491,11 @@ function App() {
           </div>
         ) : null}
       </div>
+      
+      {/* Product Dashboard Modal */}
+      {showProductDashboard && (
+        <ProductDashboard onClose={() => setShowProductDashboard(false)} />
+      )}
     </div>
   );
 }

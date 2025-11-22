@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// import { getConnectionSuggestions } from './chatGPTService';
 
 const ProductSuggestionForm = ({ onClose, recommendedType, spotType }) => {
     const [formData, setFormData] = useState({
@@ -12,9 +13,22 @@ const ProductSuggestionForm = ({ onClose, recommendedType, spotType }) => {
         modelFile: null,
         additionalNotes: ''
     });
+    // const [connectionSuggestions, setConnectionSuggestions] = useState('');
+    // const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // Get connection suggestions from ChatGPT
+        // setIsLoading(true);
+        // try {
+        //     const suggestions = await getConnectionSuggestions([formData]);
+        //     setConnectionSuggestions(suggestions);
+        // } catch (error) {
+        //     console.error('Error getting connection suggestions:', error);
+        //     alert('Failed to get connection suggestions. Please try again.');
+        // }
+        // setIsLoading(false);
         
         // Create email content
         const emailSubject = encodeURIComponent('New Product Suggestion for Music Equipment Configurator');
@@ -47,6 +61,10 @@ Model File Name: ${formData.modelFile?.name || 'No file selected'}
 Additional Notes:
 --------------
 ${formData.additionalNotes}
+
+Connection Suggestions:
+-------------------
+Connection suggestions temporarily disabled
 `);
 
         // Open email client with the form data
@@ -291,6 +309,38 @@ ${formData.additionalNotes}
                         onChange={(e) => setFormData({ ...formData, additionalNotes: e.target.value })}
                         style={{ ...inputStyle, height: '80px', fontFamily: 'inherit' }}
                     />
+                </div>
+
+                <div className="form-section" style={{ marginTop: '24px' }}>
+                    <h3 style={{ 
+                        fontSize: '18px', 
+                        marginBottom: '16px',
+                        fontWeight: '500',
+                        letterSpacing: '-0.3px',
+                        fontStyle: 'italic'
+                    }}>Connection Suggestions</h3>
+                    
+                    {/* {isLoading ? (
+                        <div style={{ color: '#666', fontStyle: 'italic' }}>Getting connection suggestions...</div>
+                    ) : connectionSuggestions ? (
+                        <div style={{ 
+                            backgroundColor: '#1a1a1a',
+                            padding: '15px',
+                            borderRadius: '8px',
+                            marginTop: '10px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'inherit'
+                        }}>
+                            {connectionSuggestions}
+                        </div>
+                    ) : (
+                        <div style={{ color: '#666', fontStyle: 'italic' }}>
+                            Connection suggestions will appear here after you submit the form
+                        </div>
+                    )} */}
+                    <div style={{ color: '#666', fontStyle: 'italic' }}>
+                        Connection suggestions temporarily disabled
+                    </div>
                 </div>
 
                 <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>

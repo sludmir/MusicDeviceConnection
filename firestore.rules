@@ -27,10 +27,12 @@ service cloud.firestore {
     }
 
     function isValidProduct() {
-      return request.resource.data.keys().hasAll(['name', 'type', 'modelPath'])
+      return request.resource.data.keys().hasAll(['name', 'type', 'ownerId'])
         && request.resource.data.name is string
         && request.resource.data.type is string
-        && request.resource.data.modelPath is string;
+        && request.resource.data.ownerId is string
+        && request.resource.data.ownerId == request.auth.uid
+        && (!('modelPath' in request.resource.data) || request.resource.data.modelPath is string);
     }
 
     // Products - allow read access without authentication
@@ -38,9 +40,10 @@ service cloud.firestore {
       allow read: if true;  // Allow anyone to read products
       allow create: if isSignedIn() && isValidProduct();
       allow update: if isSignedIn() && 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['modelPath', 'lastUpdated']) ||
-        (request.auth.token.admin == true));  // Allow updating just the modelPath field if signed in
-      allow delete: if isSignedIn() && request.auth.token.admin == true;
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['modelPath', 'lastUpdated', 'updatedAt']) ||
+        (request.auth.token.admin == true) ||
+        (isOwner(resource.data.ownerId) && request.resource.data.ownerId == resource.data.ownerId));  // Allow owners to update their products
+      allow delete: if isSignedIn() && (request.auth.token.admin == true || isOwner(resource.data.ownerId));  // Allow owners or admins to delete
     }
 
     // User profiles

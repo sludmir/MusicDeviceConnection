@@ -25,12 +25,24 @@ service firebase.storage {
     match /models/{allPaths=**} {
       allow read: if true;  // Public read access
       allow write: if isSignedIn() && isValidModel();
+      allow create: if isSignedIn() && isValidModel();
+      allow update: if isSignedIn() && isValidModel();
+      allow delete: if isSignedIn();
     }
 
     // Allow public read access to textures directory
     match /textures/{allPaths=**} {
       allow read: if true;  // Public read access
       allow write: if isSignedIn() && isValidImage();
+    }
+
+    // Allow public read access to images directory (for product images)
+    match /images/{allPaths=**} {
+      allow read: if true;  // Public read access
+      allow write: if isSignedIn() && isValidImage();
+      allow create: if isSignedIn() && isValidImage();
+      allow update: if isSignedIn() && isValidImage();
+      allow delete: if isSignedIn();
     }
 
     // User profile images
