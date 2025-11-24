@@ -1935,26 +1935,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     </div>
                 )}
 
-                {/* Tooltip */}
-                {showTooltip && (
-                    <div style={{
-                        position: 'fixed',
-                        top: tooltipPosition.y,
-                        left: tooltipPosition.x,
-                        transform: 'translateX(-50%)',
-                        backgroundColor: 'rgba(10, 10, 10, 0.9)',
-                        padding: '8px 12px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        color: '#ffffff',
-                        zIndex: 1100,
-                        pointerEvents: 'none',
-                        backdropFilter: 'blur(8px)',
-                        border: '1px solid rgba(0, 162, 255, 0.2)'
-                    }}>
-                        {tooltipContent}
-                    </div>
-                )}
 
                 {/* Mobile Navigation */}
                 {isMobile && (
