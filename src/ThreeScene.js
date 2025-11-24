@@ -629,11 +629,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     }
 
     // Removed unused producerSetupSpots
-        { x: -0.8, y: 1.05, z: -0.3 }, // Extra Synth Left (was -1.5)
-        { x: 0.8, y: 1.05, z: -0.3 },  // Extra Synth Right (was 1.5)
-        { x: -1.2, y: 1.3, z: 0 },    // Left Speaker (was -2)
-        { x: 1.2, y: 1.3, z: 0 },     // Right Speaker (was 2)
-    ];
 
     const cableColors = {
         'Line1': 0xff0000,  // Pure red
