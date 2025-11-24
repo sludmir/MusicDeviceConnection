@@ -1758,12 +1758,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     }, [currentSetupType, sceneInitialized]);
 
     // Removed unused handleGhostHover function
-        setTooltipPosition({
-            x: rect.left + window.scrollX,
-            y: rect.top + window.scrollY - 30
-        });
-        setShowTooltip(true);
-    };
 
     // Add this useEffect after the initialization to check for basic setup
     useEffect(() => {
