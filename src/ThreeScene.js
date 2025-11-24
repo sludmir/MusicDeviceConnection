@@ -709,6 +709,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         return () => {
             unsubscribe();
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             const mountElement = mountRef.current; // Copy ref to avoid ESLint warning
             if (mountElement && rendererRef.current?.domElement) {
                 mountElement.removeChild(rendererRef.current.domElement);
@@ -729,8 +730,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 rendererRef.current.dispose();
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
@@ -1307,8 +1307,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             window.addEventListener('click', handleModelClick);
             return () => window.removeEventListener('click', handleModelClick);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isConnectionMapping, currentMappingDevice, selectedConnectionType]);
+    }, [isConnectionMapping, currentMappingDevice, selectedConnectionType]); // eslint-disable-line react-hooks/exhaustive-deps
 
     function createGhostPlacementSpots(scene, isBasicComplete = null) {
         if (!djTableRef.current) {
@@ -1722,8 +1721,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSetupType, sceneInitialized]);
+    }, [currentSetupType, sceneInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Removed unused handleGhostHover function
 
@@ -1842,8 +1840,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onCategoryToggle) {
             onCategoryToggle(handleCategoryToggle);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Empty dependency array to run only once - onCategoryToggle intentionally excluded
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps - Empty dependency array to run only once
 
     // Update device visibility when hidden categories change
     useEffect(() => {
