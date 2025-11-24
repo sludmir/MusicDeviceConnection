@@ -1840,7 +1840,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onCategoryToggle) {
             onCategoryToggle(handleCategoryToggle);
         }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps - Empty dependency array to run only once
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Update device visibility when hidden categories change
     useEffect(() => {
