@@ -115,13 +115,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
     // Removed unused positionModalStyle
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        zIndex: 1000,
-        width: isMobile ? '90%' : 'auto',
-        maxHeight: isMobile ? '80vh' : '300px',
-        overflowY: 'auto',
-        color: 'black'
-    };
 
     // Add these camera positions after your other constants
     const CAMERA_POSITIONS = {
