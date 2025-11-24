@@ -27,8 +27,7 @@ npm_output.log
 npm_output*.log
 firestore-debug.log
 
-# Firebase config files with sensitive data
-src/firebaseConfig.js
+# Firebase config files with sensitive data (backup files only)
 src/firebaseConfig 2.js
 
 # Service account keys (sensitive - DO NOT COMMIT)
