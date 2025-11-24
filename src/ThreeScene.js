@@ -598,6 +598,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         });
     }, [devices]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!mountRef.current) return;
 
@@ -708,9 +709,9 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         return () => {
             unsubscribe();
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            if (mountRef.current && rendererRef.current?.domElement) {
-                mountRef.current.removeChild(rendererRef.current.domElement);
+            const mountElement = mountRef.current; // Copy ref to avoid ESLint warning
+            if (mountElement && rendererRef.current?.domElement) {
+                mountElement.removeChild(rendererRef.current.domElement);
             }
             if (sceneRef.current) {
                 sceneRef.current.traverse((object) => {
