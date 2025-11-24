@@ -729,6 +729,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 rendererRef.current.dispose();
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1306,6 +1307,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             window.addEventListener('click', handleModelClick);
             return () => window.removeEventListener('click', handleModelClick);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isConnectionMapping, currentMappingDevice, selectedConnectionType]);
 
     function createGhostPlacementSpots(scene, isBasicComplete = null) {
@@ -1720,6 +1722,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentSetupType, sceneInitialized]);
 
     // Removed unused handleGhostHover function
@@ -1839,6 +1842,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onCategoryToggle) {
             onCategoryToggle(handleCategoryToggle);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Empty dependency array to run only once - onCategoryToggle intentionally excluded
 
     // Update device visibility when hidden categories change
