@@ -48,13 +48,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [lastApiCall, setLastApiCall] = useState(0);
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
-    // Product type constants
-    const PRODUCT_TYPES = {
-        MIXER: 'mixer',
-        PLAYER: 'player',
-        FX_UNIT: 'fx_unit',
-        FX_UNIT_WIDE: 'fx_unit_wide'
-    };
+    // Removed unused PRODUCT_TYPES constant
 
     // Define spot types for better organization
     const SPOT_TYPES = {
@@ -345,6 +339,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onDevicesChange) {
             onDevicesChange(placedDevicesList);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [placedDevicesList, onDevicesChange]);
 
     // Update addProductToPosition to ensure proper state updates
@@ -713,6 +708,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         return () => {
             unsubscribe();
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             if (mountRef.current && rendererRef.current?.domElement) {
                 mountRef.current.removeChild(rendererRef.current.domElement);
             }
@@ -1760,6 +1756,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 }, 100);
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sceneInitialized, placedDevicesList.length]);
 
     // Add this function
@@ -1841,7 +1838,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onCategoryToggle) {
             onCategoryToggle(handleCategoryToggle);
         }
-    }, []); // Empty dependency array to run only once
+    }, []); // Empty dependency array to run only once - onCategoryToggle intentionally excluded
 
     // Update device visibility when hidden categories change
     useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import ThreeScene from './ThreeScene';
 import SetupTimeline from './SetupTimeline';
