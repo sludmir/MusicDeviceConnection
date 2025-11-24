@@ -9,8 +9,6 @@ const ProductDashboard = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [filterSetupType, setFilterSetupType] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({});
   const [currentUser, setCurrentUser] = useState(null);

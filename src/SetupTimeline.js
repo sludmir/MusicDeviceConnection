@@ -38,7 +38,7 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
         setCategories(setupCategories[setupType] || []);
         setCompletedCategories(new Set());
         setHiddenCategories(new Set());
-    }, [setupType]);
+    }, [setupType, setupCategories]);
 
     // Handle category toggle
     const handleCategoryToggle = (categoryId) => {
@@ -71,7 +71,6 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
             const categoryDevices = currentDevices.filter(device => {
                 // Simple category matching based on device name/type
                 const deviceName = device.name.toLowerCase();
-                const deviceType = device.type?.toLowerCase() || '';
                 
                 switch (category.id) {
                     case 'players':
@@ -120,7 +119,6 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
         
         return currentDevices.filter(device => {
             const deviceName = device.name.toLowerCase();
-            const deviceType = device.type?.toLowerCase() || '';
             
             switch (categoryId) {
                 case 'players':

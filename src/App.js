@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import SearchBar from './SearchBar';
-import DeviceDisplay from './DeviceDisplay';
 import ThreeScene from './ThreeScene';
 import SetupTimeline from './SetupTimeline';
 import ProductDashboard from './ProductDashboard';
@@ -9,11 +7,10 @@ import MySets from './MySets';
 import Settings from './Settings';
 import Preferences from './Preferences';
 // import ConnectionPanel from './ConnectionPanel';
-import { v4 as uuidv4 } from 'uuid';
 import { signInWithGoogle, logout } from "./Auth";
 import { auth } from "./firebaseConfig";
-import { collection, getDocs, addDoc, doc } from "firebase/firestore";
-import { db, storage } from "./firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
 
 // Test Firebase connection
@@ -61,11 +58,9 @@ function App() {
     Producer: [],
     Musician: []
   });
-  const [device, setDevice] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarRef = useRef(null);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -125,27 +120,10 @@ function App() {
     window.setupDevices = setupDevices;
   }, [setupDevices]);
 
-  const handleHamburgerClick = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const handleClickOutside = (event) => {
-    if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-      setIsSidebarOpen(false);
-    }
-  };
-
   const handleSetupSelection = (setupType) => {
     setSelectedSetup(setupType);
     setActualDevices([]); // Reset devices when switching setup types
     setSelectedCategory(null); // Reset selected category
-  };
-
-  const addDeviceToSetup = (setupType, device) => {
-    setSetupDevices(prev => ({
-      ...prev,
-      [setupType]: [...prev[setupType], device]
-    }));
   };
 
   const handleCategorySelect = (categoryId) => {

@@ -1,5 +1,5 @@
 import { db, storage } from "./firebaseConfig";
-import { collection, addDoc, serverTimestamp, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 // Map of old filenames to new filenames

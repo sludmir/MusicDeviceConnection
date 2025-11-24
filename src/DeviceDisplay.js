@@ -1,6 +1,5 @@
 import React from 'react';
 import DeviceConnections from './DeviceConnections';
-import DeviceCanvas from './DeviceCanvas';
 
 function DeviceDisplay({ device, onAddToDeviceSetup }) {
   if (!device) {

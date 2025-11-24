@@ -2,12 +2,11 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { collection, getDocs, doc, getDoc, updateDoc, addDoc } from "firebase/firestore"; // Import Firestore methods
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore methods
 import { db } from "./firebaseConfig"; // Import Firestore
 import { auth } from "./firebaseConfig"; // Add auth import at the top
-import ProductSubmissionForm from './ProductSubmissionForm'; // Replace the old ProductForm import
 import { gsap } from 'gsap';
-import { updateAllModelPaths, isFirebaseStorageUrl, getModelPath, setProductModelPath } from './firebaseUtils'; // Add this import
+import { updateAllModelPaths } from './firebaseUtils'; // Add this import
 import ProductSuggestionForm from './ProductSuggestionForm';
 import MobileNavigation from './MobileNavigation';
 import { getConnectionSuggestions } from './chatGPTService';
@@ -24,13 +23,11 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const djTableRef = useRef(null);
     const ghostSpotsRef = useRef([]);
     const placedDevices = useRef([]);
-    const [showProductForm, setShowProductForm] = useState(false);
     const [selectedGhostIndex, setSelectedGhostIndex] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearch, setShowSearch] = useState(false);
     const [searchMode, setSearchMode] = useState(''); // 'hamburger' or 'ghost'
-    const [showPositionModal, setShowPositionModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [isConnectionMapping, setIsConnectionMapping] = useState(false);
     const [selectedConnectionType, setSelectedConnectionType] = useState(null);
@@ -117,14 +114,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         msOverflowStyle: 'none'
     };
 
-    const positionModalStyle = {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        backgroundColor: 'white',
-        padding: isMobile ? '15px' : '20px',
-        borderRadius: '8px',
+    // Removed unused positionModalStyle
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         zIndex: 1000,
         width: isMobile ? '90%' : 'auto',
@@ -149,68 +139,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         }
     };
 
-    // Function to find the best spot for a product
-    function findBestSpot(product, occupiedSpots) {
-        const productType = getProductType(product);
-        
-        // Get all available spots (not occupied)
-        const availableSpots = djSetupSpots.filter(spot => 
-            !occupiedSpots.some(occupied => 
-                occupied.x === spot.x && 
-                occupied.y === spot.y && 
-                occupied.z === spot.z
-            )
-        );
-
-        console.log('Finding spot for:', product.name, 'Type:', productType);
-        console.log('Occupied spots:', occupiedSpots);
-        console.log('Available spots:', availableSpots);
-
-        switch (productType) {
-            case PRODUCT_TYPES.MIXER:
-                // For mixers, always try to place in the middle first
-                const middleSpot = djSetupSpots.find(spot => spot.type === SPOT_TYPES.MIDDLE);
-                if (!occupiedSpots.some(occupied => 
-                    occupied.x === middleSpot.x && 
-                    occupied.y === middleSpot.y && 
-                    occupied.z === middleSpot.z
-                )) {
-                    console.log('Placing mixer in middle spot');
-                    return middleSpot;
-                }
-                break;
-
-            case PRODUCT_TYPES.PLAYER:
-                // Define player spot types in order of preference
-                const playerSpotTypes = [
-                    SPOT_TYPES.MIDDLE_LEFT,
-                    SPOT_TYPES.MIDDLE_RIGHT,
-                    SPOT_TYPES.FAR_LEFT,
-                    SPOT_TYPES.FAR_RIGHT
-                ];
-
-                // Get all occupied player spots
-                const occupiedPlayerSpots = occupiedSpots.filter(spot => 
-                    playerSpotTypes.includes(spot.type)
-                );
-
-                console.log('Occupied player spots:', occupiedPlayerSpots);
-
-                // Find the first available preferred spot
-                for (const spotType of playerSpotTypes) {
-                    const spot = availableSpots.find(s => s.type === spotType);
-                    if (spot) {
-                        console.log('Found available player spot:', spotType);
-                        return spot;
-                    }
-                }
-                break;
-        }
-
-        // If no specific spot found, return first available spot
-        console.log('No specific spot found, using first available spot');
-        return availableSpots[0];
-    }
+    // Removed unused findBestSpot function
 
     // Update getProductType to better identify mixers
     function getProductType(product) {
@@ -268,10 +197,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         setSearchQuery('');
     };
 
-    // Add this helper function to track existing connections
-    function getConnectionKey(sourceDevice, targetDevice, connection) {
-        return `${sourceDevice.id}-${targetDevice.id}-${connection.sourcePort.type}-${connection.targetPort.type}`;
-    }
+    // Removed unused getConnectionKey function
 
     // Update the updateConnections function to maintain all connections
     function updateConnections(devices) {
@@ -348,7 +274,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
         
         // Calculate arch parameters
-        const distance = startPoint.distanceTo(endPoint);
+        startPoint.distanceTo(endPoint); // Calculate distance for arch height
         const baseArchHeight = 0.6; // Increased base height for more pronounced arch
         const archVariation = (lineNumber - 2.5) * 0.08; // Increased variation
 
@@ -577,19 +503,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         }
     };
 
-    const handlePositionSelect = (positionIndex) => {
-        if (selectedProduct) {
-            addProductToPosition(selectedProduct, positionIndex);
-            setSelectedProduct(null);
-            setShowPositionModal(false);
-        }
-    };
-
-    const handleAddNewProduct = () => {
-        setShowSearch(false); // Close search UI
-        setShowProductForm(true); // Open product creation form
-        setSearchMode(''); // Reset search mode
-    };
+    // Removed unused handlePositionSelect and handleAddNewProduct functions
 
     // Function to open search from hamburger menu
     const openHamburgerSearch = () => {
@@ -721,9 +635,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         openSearch('ghost', index);
     }
 
-    const producerSetupSpots = [
-        { x: 0, y: 1.05, z: 0 },      // Middle
-        { x: 0, y: 1.05, z: -0.5 },   // In Front of Laptop (was -0.7)
+    // Removed unused producerSetupSpots
         { x: -0.8, y: 1.05, z: -0.3 }, // Extra Synth Left (was -1.5)
         { x: 0.8, y: 1.05, z: -0.3 },  // Extra Synth Right (was 1.5)
         { x: -1.2, y: 1.3, z: 0 },    // Left Speaker (was -2)
@@ -885,7 +797,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         // Compare current devices with previous devices
         let removedDevices = previousDevices;
-        let addedDevices = devices.filter(device => !previousDevices.some(prevDev => prevDev.id === device.id));
+        // Removed unused addedDevices variable
 
         const sortedDevices = [...devices].sort((a, b) => a.locationPriority - b.locationPriority);
         console.log('sorted devices: ', sortedDevices);
@@ -1045,17 +957,13 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         const tablePosition = djTableRef.current.position.clone(); // Clone the position of the DJ table
         const tableGeometry = djTableRef.current.geometry;
-        const tableWidth = tableGeometry.parameters.width;     // x dimension
         const tableHeight = tableGeometry.parameters.height;   // y dimension
-        const tableDepth = tableGeometry.parameters.depth;    // z dimension
 
-        const deviceWidth = modelSize.x;     // x dimension
         const deviceHeight = modelSize.y;   // y dimension
-        const deviceDepth = modelSize.z;
 
         console.log("Looking for location: " + device.name);
         console.log(`finding location for Device ${index}:`, device.name, 'ID:', device.id);
-        const tableSideMultiplier = ((index % 2) == 0) ? -1 : 1;
+        const tableSideMultiplier = ((index % 2) === 0) ? -1 : 1;
         const distanceMultiplier = index === 0 ? 0 : Math.floor((index - 1) / 2) + 1;
         const x = ((tablePosition.x / 2)) + (tableSideMultiplier * distanceMultiplier * distanceBetweenObjects);
         const y = tablePosition.y + (tableHeight / 2) + (deviceHeight / 2);
@@ -1081,10 +989,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         };
     }
 
-    function getDeviceId(name) {
-        const device = devices.find(device => device.name === name);
-        return device ? device.id : null;
-    }
+    // Removed unused getDeviceId function
 
     function findMatchingPorts(sourceDevice, targetDevice) {
         if (!sourceDevice || !targetDevice) return [];
@@ -1194,27 +1099,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         return connections;
     }
 
-    // Helper function to determine if two connection types are compatible
-    function isCompatibleConnection(outputType, inputType) {
-        console.log('Checking compatibility between:', outputType, 'and', inputType);
-        
-        // Define compatible connection types
-        const compatibilityMap = {
-            'Digital': ['Digital'],
-            'Line Out': ['Line In', 'Line1', 'Line2', 'Line3', 'Line4'], // Add mixer line inputs
-            'RCA': ['RCA'],
-            'Link': ['Link'],
-            'USB': ['USB'],
-            'Audio': ['Audio', 'Line In', 'Line1', 'Line2', 'Line3', 'Line4'] // Add mixer line inputs
-        };
-
-        // Get compatible types for the output
-        const compatibleTypes = compatibilityMap[outputType] || [];
-        const isCompatible = compatibleTypes.includes(inputType);
-        console.log('Compatible types for', outputType, ':', compatibleTypes);
-        console.log('Is compatible:', isCompatible);
-        return isCompatible;
-    }
+    // Removed unused isCompatibleConnection function
 
     function createClubEnvironment(scene) {
         // Clear any existing environment elements
@@ -1388,11 +1273,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         scene.add(ambientLight);
     }
 
-    // Add this function to handle connection point mapping
-    const handleConnectionPointMapping = (device) => {
-        setCurrentMappingDevice(device);
-        setIsConnectionMapping(true);
-    };
+    // Removed unused handleConnectionPointMapping function
 
     // Function to handle the actual click on the 3D model for mapping
     const handleModelClick = (event) => {
@@ -1556,6 +1437,12 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     }
                 ];
                 break;
+            default:
+                // Default spots
+                initialSpots = [
+                    { x: 0, y: 1.05, z: 0, type: 'default' }
+                ];
+                break;
         }
 
         console.log(`Creating ${initialSpots.length} ghost spots, including FX: ${isBasicSetupCompleted}`);
@@ -1563,7 +1450,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         // Create ghost squares for the selected spots
         initialSpots.forEach((position, index) => {
             const isFXSpot = position.type?.includes('fx_') || position.type === 'effects';
-            const isMiddleBack = position.type === SPOT_TYPES.MIDDLE_BACK;
             const customSize = position.size || null;
             
             // Determine geometry size based on spot type and custom size
@@ -1883,10 +1769,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         }
     }, [currentSetupType, sceneInitialized]);
 
-    // Handle tooltip display
-    const handleGhostHover = (index, position, event) => {
-        const rect = event.target.getBoundingClientRect();
-        setTooltipContent(ghostSpotsRef.current[index].userData.recommendedType);
+    // Removed unused handleGhostHover function
         setTooltipPosition({
             x: rect.left + window.scrollX,
             y: rect.top + window.scrollY - 30
