@@ -58,8 +58,6 @@ function App() {
     Producer: [],
     Musician: []
   });
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const sidebarRef = useRef(null);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);

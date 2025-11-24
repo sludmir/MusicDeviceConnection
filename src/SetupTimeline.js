@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCategory, onToggleCategory }) => {
     const [categories, setCategories] = useState([]);
     const [completedCategories, setCompletedCategories] = useState(new Set());
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
-    // Define categories for each setup type
-    const setupCategories = {
+    // Define categories for each setup type (memoized to prevent dependency issues)
+    const setupCategories = useMemo(() => ({
         DJ: [
             { id: 'players', name: 'Players', description: 'CDJs, Turntables, Controllers' },
             { id: 'mixers', name: 'Mixers', description: 'DJM Series, Xone, etc.' },
@@ -31,7 +31,7 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
             { id: 'cables', name: 'Cables', description: 'Instrument, Speaker, XLR' },
             { id: 'accessories', name: 'Accessories', description: 'Stands, Cases, Tuners' }
         ]
-    };
+    }), []);
 
     // Update categories when setup type changes
     useEffect(() => {

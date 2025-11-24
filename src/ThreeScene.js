@@ -28,7 +28,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearch, setShowSearch] = useState(false);
     const [searchMode, setSearchMode] = useState(''); // 'hamburger' or 'ghost'
-    const [selectedProduct, setSelectedProduct] = useState(null);
     const [isConnectionMapping, setIsConnectionMapping] = useState(false);
     const [selectedConnectionType, setSelectedConnectionType] = useState(null);
     const [selectedConnectionMode, setSelectedConnectionMode] = useState(null); // 'input' or 'output'
@@ -41,9 +40,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [basicSetupComplete, setBasicSetupComplete] = useState(false);
     const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
-    const [showTooltip, setShowTooltip] = useState(false);
-    const [tooltipContent, setTooltipContent] = useState('');
-    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
     const [connectionAdvice, setConnectionAdvice] = useState('');
@@ -132,46 +128,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         }
     };
 
-    // Removed unused findBestSpot function
-
-    // Update getProductType to better identify mixers
-    function getProductType(product) {
-        const name = product.name.toLowerCase();
-        
-        // Mixer detection - expanded to catch more mixer types
-        if (name.includes('mixer') || 
-            name.includes('djm') || 
-            name.includes('mix') || 
-            (product.category && product.category.toLowerCase().includes('mixer'))) {
-            console.log('Detected as MIXER:', product.name);
-            return PRODUCT_TYPES.MIXER;
-        }
-        
-        // Player detection - expanded to catch more player types
-        if (name.includes('cdj') || 
-            name.includes('player') || 
-            name.includes('turntable') || 
-            name.includes('deck') ||
-            (product.category && product.category.toLowerCase().includes('player'))) {
-            console.log('Detected as PLAYER:', product.name);
-            return PRODUCT_TYPES.PLAYER;
-        }
-        
-        // FX Unit detection (wide units like RMX-1000)
-        if (name.includes('rmx') || product.width > 0.5) {
-            console.log('Detected as FX_UNIT_WIDE:', product.name);
-            return PRODUCT_TYPES.FX_UNIT_WIDE;
-        }
-        
-        // Regular FX units
-        if (name.includes('fx') || name.includes('effect')) {
-            console.log('Detected as FX_UNIT:', product.name);
-            return PRODUCT_TYPES.FX_UNIT;
-        }
-        
-        console.log('No specific type detected for:', product.name);
-        return null;
-    }
+    // Removed unused findBestSpot and getProductType functions
 
     // Update handleProductSelect to use the new placement logic
     const handleProductSelect = (product) => {
@@ -345,6 +302,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
     // Update useEffect to watch both placedDevicesList and basicSetupComplete
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (placedDevicesList.length > 0) {
             console.log('Device list changed, current state:', {
@@ -776,6 +734,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         };
     }, []);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!sceneInitialized || !sceneRef.current || !cameraRef.current || !controlsRef.current) return;
 
@@ -821,7 +780,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
         // Update the previous devices ref to the current state of devices
         prevDevicesRef.current = devices;
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [devices]);
 
     function loadDevice(device, index, loader, scene) {
@@ -1249,6 +1208,13 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 accent2.userData.type = 'environment';
                 scene.add(accent2);
                 break;
+            default:
+                // Default environment
+                floor.material = new THREE.MeshStandardMaterial({ 
+                    color: 0x888888,
+                    roughness: 0.8
+                });
+                break;
         }
 
         // Add common elements
@@ -1337,6 +1303,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
     // Add click event listener for model mapping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (isConnectionMapping) {
             window.addEventListener('click', handleModelClick);
@@ -1745,6 +1712,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
     // Add this useEffect after your other effects
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (sceneRef.current && sceneInitialized) {
             console.log('Setup type changed to:', currentSetupType);
@@ -1760,6 +1728,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     // Removed unused handleGhostHover function
 
     // Add this useEffect after the initialization to check for basic setup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (sceneInitialized && placedDevicesList.length > 0) {
             console.log('Checking initial placed devices for basic setup:', 
@@ -1867,6 +1836,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
     // Expose the toggle function to parent (only once)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (onCategoryToggle) {
             onCategoryToggle(handleCategoryToggle);
