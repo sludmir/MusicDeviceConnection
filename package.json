@@ -36,6 +36,18 @@
     "which": "^5.0.0",
     "ws": "^8.18.1"
   },
+  "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
+    "css-select": "^5.1.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "firebase-admin": "^13.6.0",
+    "nth-check": "^2.1.1",
+    "postcss": "^8.5.3",
+    "resolve-url-loader": "^5.0.0",
+    "svgo": "^3.3.2"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "GENERATE_SOURCEMAP=false react-scripts build",
@@ -48,33 +60,10 @@
     "emulate": "firebase emulators:start"
   },
   "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "extends": ["react-app", "react-app/jest"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
-  "devDependencies": {
-    "@svgr/webpack": "^8.1.0",
-    "css-select": "^5.1.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "firebase-admin": "^13.6.0",
-    "nth-check": "^2.1.1",
-    "postcss": "^8.5.3",
-    "resolve-url-loader": "^5.0.0",
-    "svgo": "^3.3.2"
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }

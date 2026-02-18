@@ -31,7 +31,7 @@ const ProductSuggestionForm = ({ onClose, recommendedType, spotType }) => {
         // setIsLoading(false);
         
         // Create email content
-        const emailSubject = encodeURIComponent('New Product Suggestion for Music Equipment Configurator');
+        const emailSubject = encodeURIComponent('New Product Suggestion for LiveSet');
         const emailBody = encodeURIComponent(`
 Product Information:
 -------------------

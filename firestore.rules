@@ -2,28 +2,29 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
+
     function isValidSetup() {
       return request.resource.data.keys().hasAll(['name', 'ownerId', 'createdAt', 'devices'])
         && request.resource.data.name is string
         && request.resource.data.ownerId is string
+        && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.createdAt is timestamp
         && request.resource.data.devices is list;
     }
-    
+
     function isValidDevice() {
       return request.resource.data.keys().hasAll(['name', 'type', 'ownerId'])
         && request.resource.data.name is string
         && request.resource.data.type is string
-        && request.resource.data.ownerId is string;
+        && request.resource.data.ownerId is string
+        && request.resource.data.ownerId == request.auth.uid;
     }
 
     function isValidProduct() {
@@ -35,15 +36,12 @@ service cloud.firestore {
         && (!('modelPath' in request.resource.data) || request.resource.data.modelPath is string);
     }
 
-    // Products - allow read access without authentication
+    // Products
     match /products/{productId} {
-      allow read: if true;  // Allow anyone to read products
+      allow read: if true;
       allow create: if isSignedIn() && isValidProduct();
-      allow update: if isSignedIn() && 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['modelPath', 'lastUpdated', 'updatedAt']) ||
-        (request.auth.token.admin == true) ||
-        (isOwner(resource.data.ownerId) && request.resource.data.ownerId == resource.data.ownerId));  // Allow owners to update their products
-      allow delete: if isSignedIn() && (request.auth.token.admin == true || isOwner(resource.data.ownerId));  // Allow owners or admins to delete
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
     }
 
     // User profiles
@@ -52,32 +50,38 @@ service cloud.firestore {
       allow write: if isSignedIn() && isOwner(userId);
     }
 
-    // Setups
+    // Setups (saved rig configs)
     match /setups/{setupId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() 
-        && isOwner(request.resource.data.ownerId)
-        && isValidSetup();
-      allow update, delete: if isSignedIn() 
-        && isOwner(resource.data.ownerId);
+      allow create: if isSignedIn() && isValidSetup();
+      allow update, delete: if isSignedIn() && isOwner(resource.data.ownerId);
     }
 
     // Devices
     match /devices/{deviceId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() 
-        && isOwner(request.resource.data.ownerId)
-        && isValidDevice();
-      allow update, delete: if isSignedIn() 
-        && isOwner(resource.data.ownerId);
+      allow create: if isSignedIn() && isValidDevice();
+      allow update, delete: if isSignedIn() && isOwner(resource.data.ownerId);
     }
 
     // Connections
     match /connections/{connectionId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() 
-        && exists(/databases/$(database)/documents/devices/$(request.resource.data.sourceDeviceId))
-        && exists(/databases/$(database)/documents/devices/$(request.resource.data.targetDeviceId));
+      allow write: if isSignedIn();
+    }
+
+    // Clips (short-form feed videos)
+    match /clips/{clipId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+    }
+
+    // Sets (full live set references)
+    match /sets/{setId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
     }
   }
-} 
+}

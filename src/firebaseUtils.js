@@ -2,14 +2,16 @@ import { db, storage } from "./firebaseConfig";
 import { collection, addDoc, serverTimestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-// Map of old filenames to new filenames
+// Map of old filenames to new filenames (value = path relative to models/; Firebase stores all under /models)
 const MODEL_FILENAME_MAP = {
     'DJM900(v2).glb': 'DJM900NXS2.glb',
     'DJM900NXS2': 'DJM900NXS2.glb',
     'DJM-900NXS2': 'DJM900NXS2.glb',
     'RMX-1000': 'RMX1000.glb',
     'RMX1000': 'RMX1000.glb',
-    'RMX1000.glb': 'RMX1000.glb'
+    'RMX1000.glb': 'RMX1000.glb',
+    'CDJ-3000.glb': 'CDJ3000Centered (1).glb',
+    'CDJ3000.glb': 'CDJ3000Centered (1).glb'
     // Add more mappings as needed
 };
 
@@ -63,16 +65,26 @@ export const initializeDatabase = async () => {
     }
 };
 
-// Function to get Firebase Storage URL for a model
+// CDJ-3000: correct file in Firebase under /models
+const CDJ3000_STORAGE_PATHS = ['CDJ3000Centered (1).glb'];
+
+// Function to get Firebase Storage URL for a model (all models live under Firebase Storage /models folder)
 export async function getStorageModelURL(modelName) {
-    try {
-        const storageRef = ref(storage, `models/${modelName}`);
-        const url = await getDownloadURL(storageRef);
-        return url;
-    } catch (error) {
-        console.error("Error getting storage URL:", error);
-        return null;
+    const isCDJ = modelName === 'CDJ-3000.glb' || modelName === 'CDJ3000.glb';
+    const pathsToTry = isCDJ ? CDJ3000_STORAGE_PATHS : [MODEL_FILENAME_MAP[modelName] || modelName];
+    for (let i = 0; i < pathsToTry.length; i++) {
+        try {
+            const storageRef = ref(storage, `models/${pathsToTry[i]}`);
+            const url = await getDownloadURL(storageRef);
+            return url;
+        } catch (err) {
+            if (i === pathsToTry.length - 1) {
+                console.error("Error getting storage URL:", err);
+                return null;
+            }
+        }
     }
+    return null;
 }
 
 // Function to update model paths for all products

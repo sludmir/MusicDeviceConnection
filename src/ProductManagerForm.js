@@ -18,9 +18,24 @@ const ProductManagerForm = ({ onClose, editingProduct = null }) => {
   useEffect(() => {
     if (editingProduct) {
       setFormData({ ...editingProduct });
+      
+      // Normalize connection points - ensure coordinates are plain objects
+      const normalizeConnectionPoints = (points) => {
+        if (!Array.isArray(points)) return [];
+        return points.map(point => ({
+          type: point.type || '',
+          coordinate: point.coordinate ? {
+            x: typeof point.coordinate.x === 'number' ? point.coordinate.x : (point.coordinate.x || 0),
+            y: typeof point.coordinate.y === 'number' ? point.coordinate.y : (point.coordinate.y || 0),
+            z: typeof point.coordinate.z === 'number' ? point.coordinate.z : (point.coordinate.z || 0)
+          } : { x: 0, y: 0, z: 0 },
+          description: point.description || ''
+        }));
+      };
+      
       setConnectionPoints({
-        inputs: editingProduct.inputs || [],
-        outputs: editingProduct.outputs || []
+        inputs: normalizeConnectionPoints(editingProduct.inputs),
+        outputs: normalizeConnectionPoints(editingProduct.outputs)
       });
       if (editingProduct.imageUrl) {
         setPreviewImage(editingProduct.imageUrl);
@@ -117,10 +132,23 @@ const ProductManagerForm = ({ onClose, editingProduct = null }) => {
     }
 
     // Prepare product data with connection points
+    // Ensure coordinates are plain objects (not THREE.Vector3) for Firestore
+    const normalizeForFirestore = (points) => {
+      return points.map(point => ({
+        type: point.type,
+        coordinate: {
+          x: typeof point.coordinate?.x === 'number' ? point.coordinate.x : 0,
+          y: typeof point.coordinate?.y === 'number' ? point.coordinate.y : 0,
+          z: typeof point.coordinate?.z === 'number' ? point.coordinate.z : 0
+        },
+        description: point.description || ''
+      }));
+    };
+    
     const productData = {
       ...formData,
-      inputs: connectionPoints.inputs,
-      outputs: connectionPoints.outputs
+      inputs: normalizeForFirestore(connectionPoints.inputs),
+      outputs: normalizeForFirestore(connectionPoints.outputs)
     };
 
     try {

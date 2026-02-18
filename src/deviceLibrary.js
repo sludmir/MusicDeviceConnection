@@ -131,9 +131,9 @@ const deviceLibrary = {
       // { type: "Mic", coordinate: new THREE.Vector3(-0.2, 0.2, 0.5) }
     ],
     outputs: [
-      { type: "Master Out", coordinate: new THREE.Vector3(0.5, 0.2, 0.5) },
+      { type: "Master Out", coordinate: new THREE.Vector3(0.06, 0.075, -0.28) },
       { type: "Booth Out", coordinate: new THREE.Vector3(0.6, 0.2, 0.5) },
-      { type: "Rec Out", coordinate: new THREE.Vector3(0.7, 0.2, 0.5) }
+      { type: "Headphones", coordinate: new THREE.Vector3(0, 0.12, 0.15) }
     ],
     connections: [],
     price: 2299,

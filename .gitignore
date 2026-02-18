@@ -33,3 +33,14 @@ src/firebaseConfig 2.js
 # Service account keys (sensitive - DO NOT COMMIT)
 serviceAccountKey.json
 serviceAccountKey*.json
+*-debug.log
+
+# Avoid committing any backup/copy of firebase config with hardcoded keys
+**/firebaseConfig*.backup*
+**/firebaseConfig *.*
+
+# Local / one-off / noise
+start-output.log
+package-lock 2.json
+Blender files export/
+*.blend1

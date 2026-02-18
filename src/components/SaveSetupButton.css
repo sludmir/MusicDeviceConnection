@@ -1,0 +1,185 @@
+.save-setup-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(0, 162, 255, 0.2);
+  border: 1px solid rgba(0, 162, 255, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-btn:hover {
+  background: rgba(0, 162, 255, 0.3);
+  border-color: #00a2ff;
+  transform: translateY(-1px);
+}
+
+.save-setup-btn:active {
+  transform: translateY(0);
+}
+
+.save-setup-btn svg {
+  flex-shrink: 0;
+}
+
+.save-setup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.save-setup-modal {
+  background: #1a1a1a;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+  border: 1px solid #333;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.save-setup-title {
+  margin: 0 0 24px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #fff;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.save-setup-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-input {
+  padding: 12px 16px;
+  font-size: 15px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  outline: none;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: border-color 0.2s ease;
+}
+
+.save-setup-input:focus {
+  border-color: #00a2ff;
+}
+
+.save-setup-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-setup-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.save-setup-checkbox-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  cursor: pointer;
+  accent-color: #00a2ff;
+}
+
+.save-setup-checkbox-label > span:first-of-type {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.save-setup-checkbox-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 28px;
+  font-style: italic;
+}
+
+.save-setup-error {
+  padding: 12px;
+  background: rgba(255, 82, 82, 0.15);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+  border-radius: 8px;
+  color: #ff5252;
+  font-size: 14px;
+}
+
+.save-setup-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.save-setup-cancel,
+.save-setup-submit {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-cancel {
+  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.save-setup-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.save-setup-submit {
+  color: #0a0a0a;
+  background: #00a2ff;
+  border: 1px solid #00a2ff;
+}
+
+.save-setup-submit:hover:not(:disabled) {
+  background: #33b3ff;
+  border-color: #33b3ff;
+}
+
+.save-setup-cancel:disabled,
+.save-setup-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

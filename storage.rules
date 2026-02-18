@@ -20,6 +20,11 @@ service firebase.storage {
       return request.resource.contentType.matches('model/.*|application/octet-stream|image/.*')
         && request.resource.size < 50 * 1024 * 1024; // 50MB max
     }
+    
+    function isValidVideo() {
+      return request.resource.contentType.matches('video/.*')
+        && request.resource.size < 5 * 1024 * 1024 * 1024; // 5GB max (Firebase Storage limit)
+    }
 
     // Allow public read access to all files in the models directory and its subdirectories
     match /models/{allPaths=**} {
@@ -72,6 +77,24 @@ service firebase.storage {
       allow read: if isSignedIn();
       allow write: if isSignedIn() 
         && isValidImage();
+    }
+
+    // Live sets - full video uploads
+    match /sets/{allPaths=**} {
+      allow read: if isSignedIn(); // Authenticated users can read
+      allow write: if isSignedIn() && isValidVideo(); // Authenticated users can upload videos
+      allow create: if isSignedIn() && isValidVideo();
+      allow update: if isSignedIn() && isValidVideo();
+      allow delete: if isSignedIn(); // Users can delete their own uploads
+    }
+
+    // Clips - short video clips for feed (can reuse sets or be separate)
+    match /clips/{allPaths=**} {
+      allow read: if isSignedIn(); // Authenticated users can read
+      allow write: if isSignedIn() && isValidVideo();
+      allow create: if isSignedIn() && isValidVideo();
+      allow update: if isSignedIn() && isValidVideo();
+      allow delete: if isSignedIn();
     }
   }
 } 
