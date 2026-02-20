@@ -139,7 +139,7 @@ function FaveProductViewer({ product }) {
       cameraRef.current = null;
       modelRef.current = null;
     };
-  }, [product?.id, product?.name, product?.modelPath, product?.modelUrl]);
+  }, [product, product?.id, product?.name, product?.modelPath, product?.modelUrl]);
 
   if (!product) return null;
 

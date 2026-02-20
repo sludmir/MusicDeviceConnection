@@ -3439,9 +3439,9 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                                 <div>
                                     <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Purchase</span>
                                     <div style={{ marginTop: '4px' }}>
-                                        <a href="#" style={{ color: '#00a2ff', fontSize: '14px', textDecoration: 'none' }} onClick={(e) => e.preventDefault()}>
+                                        <button type="button" style={{ color: '#00a2ff', fontSize: '14px', textDecoration: 'none', background: 'none', border: 'none', padding: 0, cursor: 'default', font: 'inherit' }}>
                                             Link to purchase (coming soon)
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

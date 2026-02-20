@@ -221,7 +221,6 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const handleVideoError = useCallback(() => {
     const video = videoRef.current;
     if (video && videoURL) {
-      const src = video.src;
       video.src = '';
       video.load();
       video.src = videoURL;
@@ -593,7 +592,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   ref={timelineRef}
                   className="post-set-timeline"
                   onClick={handleTimelineClick}
-                  role="slider"
+                  role="group"
                   aria-label="Clip timeline"
                 >
                   <div className="post-set-timeline-track" />
