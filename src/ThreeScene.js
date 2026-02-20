@@ -53,6 +53,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [showMiniProfile, setShowMiniProfile] = useState(false);
     const [miniProfileDevice, setMiniProfileDevice] = useState(null);
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
+    const [cameraView, setCameraView] = useState('set');
     const [lastApiCall, setLastApiCall] = useState(0);
     const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
@@ -671,7 +672,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
         
         // Calculate arch parameters
-        const distance = startPoint.distanceTo(endPoint);
+        // const distance = startPoint.distanceTo(endPoint); // Unused but kept for potential future use
         const baseArchHeight = 0.6; // Base height for arch
         
         // Determine line number and arch variation for Line connections
@@ -765,7 +766,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
         
         // Calculate arch parameters
-        const distance = startPoint.distanceTo(endPoint);
+        // const distance = startPoint.distanceTo(endPoint); // Unused but kept for potential future use
         const baseArchHeight = 0.6;
         
         // Create the arch peak point (middle of the cable)
@@ -899,6 +900,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         if (onDevicesChangeRef.current) {
             onDevicesChangeRef.current(placedDevicesList);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- checkBasicSetupComplete, createGhostPlacementSpots, updateConnections are stable refs/functions
     }, [placedDevicesList, basicSetupComplete]);
 
     // Update addProductToPosition to ensure proper state updates
@@ -959,87 +961,91 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 }
                 return;
             }
-            
-            const loader = new GLTFLoader();
-            loader.load(
-                modelURL,
-                (gltf) => {
-                    console.log("Model loaded successfully:", product.name);
-                    const model = gltf.scene;
-                    
-                    // Scale down the RMX-1000 model even more
-                    if (product.name.includes('RMX-1000') || product.name.includes('RMX1000')) {
-                        console.log('Scaling down RMX-1000 model');
-                        model.scale.set(0.01, 0.01, 0.01); // Changed from 0.02 to 0.01 (2x smaller)
+
+            return new Promise((resolve) => {
+                const loader = new GLTFLoader();
+                loader.load(
+                    modelURL,
+                    (gltf) => {
+                        console.log("Model loaded successfully:", product.name);
+                        const model = gltf.scene;
+
+                        // Scale down the RMX-1000 model even more
+                        if (product.name.includes('RMX-1000') || product.name.includes('RMX1000')) {
+                            console.log('Scaling down RMX-1000 model');
+                            model.scale.set(0.01, 0.01, 0.01); // Changed from 0.02 to 0.01 (2x smaller)
+                        }
+
+                        // Set the model position directly to the ghost square position
+                        model.position.set(position.x, position.y, position.z);
+
+                        // Create device object with exact position, unique identifier, and which ghost spot it's on (for save/load)
+                        const spotType = ghostSpotsRef.current[positionIndex]?.userData?.type ?? null;
+                        const deviceWithPosition = {
+                            ...product,
+                            id: product.id,
+                            position: {
+                                x: position.x,
+                                y: position.y,
+                                z: position.z
+                            },
+                            inputs: product.inputs || [],
+                            outputs: product.outputs || [],
+                            uniqueId: `${product.id}-${position.x}-${position.y}-${position.z}`,
+                            modelPath: modelURL, // Ensure modelPath is set for future reference
+                            spotType,
+                            placementIndex: positionIndex
+                        };
+
+                        // Store the complete device data with the model
+                        model.userData = {
+                            productId: product.id,
+                            name: product.name,
+                            position: deviceWithPosition.position,
+                            inputs: deviceWithPosition.inputs,
+                            outputs: deviceWithPosition.outputs,
+                            uniqueId: deviceWithPosition.uniqueId
+                        };
+
+                        sceneRef.current.add(model);
+
+                        // Store device reference with uniqueId as the key
+                        devicesRef.current[deviceWithPosition.uniqueId] = {
+                            model,
+                            data: deviceWithPosition
+                        };
+
+                        // Update placedDevices array
+                        const existingDeviceIndex = placedDevices.current.findIndex(d => d.uniqueId === deviceWithPosition.uniqueId);
+                        if (existingDeviceIndex !== -1) {
+                            placedDevices.current[existingDeviceIndex] = deviceWithPosition;
+                        } else {
+                            placedDevices.current.push(deviceWithPosition);
+                        }
+
+                        console.log(`Added ${product.name} at position:`, deviceWithPosition.position);
+
+                        // Update the placed devices list
+                        updatePlacedDevicesList(deviceWithPosition, 'add');
+
+                        // Force a re-render of the scene
+                        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                            rendererRef.current.render(sceneRef.current, cameraRef.current);
+                        }
+                        resolve();
+                    },
+                    (progress) => {
+                        const percentComplete = (progress.loaded / progress.total) * 100;
+                        console.log(`Loading progress: ${percentComplete.toFixed(2)}%`);
+                    },
+                    (error) => {
+                        console.error("Error loading model:", error);
+                        console.error("Failed model URL:", modelURL);
+                        alert(`Failed to load 3D model for ${product.name}. Please check the console for details.`);
+                        resolve(); // resolve so saved-setup load loop continues
                     }
-                    
-                    // Set the model position directly to the ghost square position
-                    model.position.set(position.x, position.y, position.z);
-                    
-                    // Create device object with exact position, unique identifier, and which ghost spot it's on (for save/load)
-                    const spotType = ghostSpotsRef.current[positionIndex]?.userData?.type ?? null;
-                    const deviceWithPosition = {
-                        ...product,
-                        id: product.id,
-                        position: {
-                            x: position.x,
-                            y: position.y,
-                            z: position.z
-                        },
-                        inputs: product.inputs || [],
-                        outputs: product.outputs || [],
-                        uniqueId: `${product.id}-${position.x}-${position.y}-${position.z}`,
-                        modelPath: modelURL, // Ensure modelPath is set for future reference
-                        spotType,
-                        placementIndex: positionIndex
-                    };
-
-                    // Store the complete device data with the model
-                    model.userData = {
-                        productId: product.id,
-                        name: product.name,
-                        position: deviceWithPosition.position,
-                        inputs: deviceWithPosition.inputs,
-                        outputs: deviceWithPosition.outputs,
-                        uniqueId: deviceWithPosition.uniqueId
-                    };
-
-                    sceneRef.current.add(model);
-                    
-                    // Store device reference with uniqueId as the key
-                    devicesRef.current[deviceWithPosition.uniqueId] = {
-                        model,
-                        data: deviceWithPosition
-                    };
-
-                    // Update placedDevices array 
-                    const existingDeviceIndex = placedDevices.current.findIndex(d => d.uniqueId === deviceWithPosition.uniqueId);
-                    if (existingDeviceIndex !== -1) {
-                        placedDevices.current[existingDeviceIndex] = deviceWithPosition;
-                    } else {
-                        placedDevices.current.push(deviceWithPosition);
-                    }
-                    
-                    console.log(`Added ${product.name} at position:`, deviceWithPosition.position);
-                    
-                    // Update the placed devices list
-                    updatePlacedDevicesList(deviceWithPosition, 'add');
-
-                    // Force a re-render of the scene
-                    if (rendererRef.current && sceneRef.current && cameraRef.current) {
-                        rendererRef.current.render(sceneRef.current, cameraRef.current);
-                    }
-                },
-                (progress) => {
-                    const percentComplete = (progress.loaded / progress.total) * 100;
-                    console.log(`Loading progress: ${percentComplete.toFixed(2)}%`);
-                },
-                (error) => {
-                    console.error("Error loading model:", error);
-                    console.error("Failed model URL:", modelURL);
-                    alert(`Failed to load 3D model for ${product.name}. Please check the console for details.`);
-                }
-            );
+                );
+            });
         } catch (error) {
             console.error("Error processing model:", error);
             console.error("Product data:", product);
@@ -1506,6 +1512,13 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             // Clear placed list so we build it from scratch for this setup (avoids stale devices from previous setup)
             placedDevices.current = [];
             setPlacedDevicesList([]);
+
+            // Simulate "re-build" order: create ghost spots with FX *before* placing, so saved placementIndex/spotType match.
+            // Otherwise FX spots don't exist yet (they only appear after 2 CDJs + mixer), so FX devices land on wrong spots.
+            const isBasicCompleteFromSaved = checkBasicSetupComplete(sortedDevices);
+            createGhostPlacementSpots(scene, isBasicCompleteFromSaved);
+            if (isBasicCompleteFromSaved) setBasicSetupComplete(true);
+
             // Helper: find ghost spot index closest to saved position (for old saves without spotType/placementIndex)
             const findGhostIndexByPosition = (pos) => {
                 if (!pos || typeof pos.x !== 'number') return -1;
@@ -1524,15 +1537,15 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
             const usedSpotIndices = new Set();
 
-            // Load saved setup one-by-one via addProductToPosition, each device on its saved ghost spot
+            // Load saved setup one-by-one via addProductToPosition, each device on its saved ghost spot (await so order is stable)
             (async () => {
                 for (let i = 0; i < sortedDevices.length; i++) {
                     const device = sortedDevices[i];
                     let placementIndex = device.placementIndex;
 
                     if (placementIndex == null && device.spotType != null) {
-                        const idx = ghostSpotsRef.current.findIndex(spot => spot?.userData?.type === device.spotType);
-                        if (idx >= 0) placementIndex = idx;
+                        const foundIdx = ghostSpotsRef.current.findIndex((spot, i) => spot?.userData?.type === device.spotType && !usedSpotIndices.has(i));
+                        if (foundIdx >= 0) placementIndex = foundIdx;
                     }
                     // Old saves: no spotType/placementIndex — match by closest saved position to a ghost spot
                     if (placementIndex == null && device.position && typeof device.position.x === 'number') {
@@ -1559,11 +1572,11 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                         if (url) product = { ...product, modelPath: url };
                     }
                     if (!product.modelPath) continue;
-                    addProductToPosition(product, placementIndex);
+                    await addProductToPosition(product, placementIndex);
                 }
 
-                // Run connections several times as models load (addProductToPosition is async); ref updates when list changes
-                [500, 1000, 1500, 2000, 2500].forEach((ms, i) => {
+                // Run connections several times as models finish loading
+                [500, 1000, 1500, 2000, 2500].forEach((ms) => {
                     setTimeout(() => {
                         const list = placedDevicesListRef.current || [];
                         if (sceneRef.current && list.length > 0) {
@@ -2813,16 +2826,38 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         function handlePointerEvent(event) {
             if (!rendererRef.current?.domElement) return;
             if (event.touches && event.touches.length >= 2) return;
-            
+
             const rect = rendererRef.current.domElement.getBoundingClientRect();
-            
             const clientX = event.touches ? event.touches[0].clientX : event.clientX;
             const clientY = event.touches ? event.touches[0].clientY : event.clientY;
-            
             mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
             raycaster.setFromCamera(mouse, cameraRef.current);
+
+            // When not mapping connections, check for click on a placed device first (open product profile)
+            if (!isConnectionMapping) {
+                const deviceMeshes = Object.values(devicesRef.current).map(r => r.model).filter(Boolean);
+                if (deviceMeshes.length > 0) {
+                    const deviceHits = raycaster.intersectObjects(deviceMeshes, true);
+                    if (deviceHits.length > 0) {
+                        let obj = deviceHits[0].object;
+                        while (obj && !obj.userData?.uniqueId) obj = obj.parent;
+                        const uniqueId = obj?.userData?.uniqueId;
+                        if (uniqueId) {
+                            const ref = devicesRef.current[uniqueId];
+                            if (ref?.data && (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current))) {
+                                setShowSearch(false);
+                                setSearchMode('');
+                                setMiniProfileDevice(ref.data);
+                                setShowMiniProfile(true);
+                                setEditConnectionsMode(false);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
             const intersects = raycaster.intersectObjects(ghostSpotsRef.current);
 
             if (hoveredSquare) {
@@ -2835,7 +2870,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 hoveredSquare.material.color.setHex(hoveredSquare.userData.hoverColor);
                 hoveredSquare.material.opacity = 0.6;
 
-                // Handle click/tap (skip touchend if we were pinching)
                 if (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current)) {
                     const clickedIndex = intersects[0].object.userData.index;
                     handleGhostSquareClick(clickedIndex);
@@ -3074,6 +3108,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const moveCameraToPosition = (positionName) => {
         const position = CAMERA_POSITIONS[positionName];
         if (!position) return;
+        setCameraView(positionName);
 
         gsap.to(cameraRef.current.position, {
             x: position.position.x,
@@ -3095,6 +3130,33 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             onUpdate: () => {
                 controlsRef.current.update();
             }
+        });
+    };
+
+    // Zoom camera in close to a placed device (for product profile)
+    const moveCameraToDevice = (device) => {
+        if (!cameraRef.current || !controlsRef.current || !device?.position) return;
+        const p = device.position;
+        const tx = typeof p.x === 'number' ? p.x : 0;
+        const ty = typeof p.y === 'number' ? p.y : 1;
+        const tz = typeof p.z === 'number' ? p.z : 0;
+        const dist = 0.8;
+        const camX = tx;
+        const camY = ty + 0.15;
+        const camZ = tz + dist;
+        gsap.to(cameraRef.current.position, {
+            x: camX, y: camY, z: camZ,
+            duration: 1,
+            ease: 'power2.inOut',
+            onUpdate: () => {
+                cameraRef.current.lookAt(tx, ty, tz);
+            }
+        });
+        gsap.to(controlsRef.current.target, {
+            x: tx, y: ty, z: tz,
+            duration: 1,
+            ease: 'power2.inOut',
+            onUpdate: () => { controlsRef.current.update(); }
         });
     };
 
@@ -3236,13 +3298,14 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             const updated = placedDevicesList.find(d => d.uniqueId === miniProfileDevice.uniqueId);
             if (updated) setMiniProfileDevice(updated);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only update when list changes, not when panel/device changes
     }, [placedDevicesList]);
 
     useEffect(() => {
         if (showMiniProfile && miniProfileDevice && cameraRef.current && controlsRef.current) {
-            moveCameraToPosition('connections');
+            moveCameraToDevice(miniProfileDevice);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens so user sees cables
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens, zoom to device
     }, [showMiniProfile]);
 
     // Update device visibility when hidden categories change
@@ -3337,7 +3400,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     </div>
                 )}
 
-                {/* Mini profile: right-side panel so 3D scene and cables stay visible while editing */}
+                {/* Product profile: right-side panel with product info, purchase link, and Edit connections at bottom */}
                 {showMiniProfile && miniProfileDevice && (
                     <div className="mini-profile-panel" style={{
                         position: 'fixed',
@@ -3362,16 +3425,34 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                                 }} onClick={() => { setShowMiniProfile(false); setEditConnectionsMode(false); setMiniProfileDevice(null); }}>×</button>
                             </div>
                         </div>
-                        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+                        <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Product info: cost and link to purchase */}
+                            <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div style={{ marginBottom: '10px' }}>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cost</span>
+                                    <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
+                                        {typeof miniProfileDevice.price === 'number' && miniProfileDevice.price > 0
+                                            ? `$${Number(miniProfileDevice.price).toLocaleString()}`
+                                            : '—'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Purchase</span>
+                                    <div style={{ marginTop: '4px' }}>
+                                        <a href="#" style={{ color: '#00a2ff', fontSize: '14px', textDecoration: 'none' }} onClick={(e) => e.preventDefault()}>
+                                            Link to purchase (coming soon)
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
                             {!editConnectionsMode ? (
                                 <>
-                                    <p style={{ margin: '0 0 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Adjust where cables attach to this device (X, Y, Z). Changes appear in the scene.</p>
                                     {isDJM900Mixer(miniProfileDevice) && (() => {
                                         const outs = miniProfileDevice.outputs || [];
                                         const ins = miniProfileDevice.inputs || [];
                                         const missing = !outs.some(o => o.type && o.type.toLowerCase().includes('send')) || !ins.some(i => i.type && i.type.toLowerCase().includes('return'));
                                         return missing ? (
-                                            <div style={{ marginBottom: '16px' }}>
+                                            <div style={{ marginBottom: '4px' }}>
                                                 <button type="button" style={{
                                                     width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: '#2ecc71',
                                                     background: 'rgba(46, 204, 113, 0.2)', border: '1px solid rgba(46, 204, 113, 0.5)', borderRadius: '10px',
@@ -3379,14 +3460,15 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                                                 }} onClick={addMixerSendReturnPorts}>
                                                     Add Send &amp; Return ports to mixer
                                                 </button>
-                                                <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Adds &quot;Send Out&quot; (output) and &quot;Return In&quot; (input) for FX/Revolo cables. Then use Edit connection positions to place them.</p>
+                                                <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Adds &quot;Send Out&quot; (output) and &quot;Return In&quot; (input) for FX/Revolo cables. Then use Edit connection positions below to place them.</p>
                                             </div>
                                         ) : null;
                                     })()}
+                                    <p style={{ margin: '0 0 8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Adjust where cables attach to this device (X, Y, Z). Changes appear in the scene.</p>
                                     <button type="button" className="edit-connections-btn" style={{
                                         width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: '#00a2ff',
                                         background: 'rgba(0, 162, 255, 0.15)', border: '1px solid rgba(0, 162, 255, 0.4)', borderRadius: '10px',
-                                        cursor: 'pointer', fontFamily: 'inherit'
+                                        cursor: 'pointer', fontFamily: 'inherit', marginTop: 'auto'
                                     }} onClick={() => setEditConnectionsMode(true)}>
                                         Edit connection positions
                                     </button>
@@ -3513,12 +3595,16 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     />
                 )}
 
-                {/* Setup List Box - Only show on desktop */}
+                {/* Setup List Box - Bottom right, only on desktop */}
                 {!isMobile && (
                     <div className={`setup-list-box ${isSetupListExpanded ? 'expanded' : ''}`}
                         style={{
-                            transform: isSetupListExpanded ? 'translateY(0)' : 'translateY(calc(100% - 40px))',
-                            transition: 'transform 0.3s ease'
+                            position: 'fixed',
+                            right: 'max(24px, env(safe-area-inset-right))',
+                            bottom: 'max(100px, env(safe-area-inset-bottom))',
+                            maxHeight: isSetupListExpanded ? '70vh' : '48px',
+                            overflow: 'hidden',
+                            transition: 'max-height 0.3s ease'
                         }}>
                         <div style={{
                             display: 'flex',
@@ -3532,73 +3618,90 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                             <span style={{
                                 transform: isSetupListExpanded ? 'rotate(180deg)' : 'rotate(0)',
                                 transition: 'transform 0.3s ease'
-                            }}>▼</span>
+                            }}>▲</span>
                         </div>
                         {isSetupListExpanded && (
-                            <div className="fade-in">
-                                {placedDevicesList.map((device) => (
-                                    <div key={device.uniqueId} className="setup-list-item">
-                                        <span>{device.name}</span>
-                                        <button onClick={() => removeDevice(device.uniqueId)}>Remove</button>
-                                    </div>
-                                ))}
-                                {placedDevicesList.length === 0 && (
-                                    <div style={{ 
-                                        textAlign: 'center', 
-                                        opacity: 0.7,
-                                        padding: '12px 0'
-                                    }}>
-                                        No devices added yet
-                                    </div>
-                                )}
+                            <div className="setup-list-box-inner" style={{
+                                overflowY: 'auto',
+                                maxHeight: 'calc(70vh - 80px)',
+                                paddingRight: '4px'
+                            }}>
+                                <div className="fade-in">
+                                    {placedDevicesList.map((device) => (
+                                        <div key={device.uniqueId} className="setup-list-item">
+                                            <span>{device.name}</span>
+                                            <button onClick={() => removeDevice(device.uniqueId)}>Remove</button>
+                                        </div>
+                                    ))}
+                                    {placedDevicesList.length === 0 && (
+                                        <div style={{
+                                            textAlign: 'center',
+                                            opacity: 0.7,
+                                            padding: '12px 0'
+                                        }}>
+                                            No devices added yet
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ marginTop: '16px' }}>
+                                    <h4 style={{ color: '#89CFF0', marginBottom: '8px' }}>Connection Guide</h4>
+                                    {placedDevicesList.length < 3 ? (
+                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>
+                                            Add at least 3 devices to get connection advice
+                                        </div>
+                                    ) : hasQuotaError ? (
+                                        <div>
+                                            <div style={{ color: '#ff6b6b', marginBottom: '8px' }}>
+                                                {connectionAdvice}
+                                            </div>
+                                            <button
+                                                onClick={() => setHasQuotaError(false)}
+                                                style={{
+                                                    background: 'rgba(0, 162, 255, 0.2)',
+                                                    border: '1px solid rgba(0, 162, 255, 0.3)',
+                                                    color: '#00a2ff',
+                                                    padding: '4px 8px',
+                                                    fontSize: '12px',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Try Again
+                                            </button>
+                                        </div>
+                                    ) : isAdviceLoading ? (
+                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading connection advice...</div>
+                                    ) : (
+                                        <div style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{connectionAdvice}</div>
+                                    )}
+                                </div>
                             </div>
                         )}
-                        <div style={{ marginTop: '16px' }}>
-                          <h4 style={{ color: '#89CFF0', marginBottom: '8px' }}>Connection Guide</h4>
-                          {placedDevicesList.length < 3 ? (
-                            <div style={{ color: '#aaa', fontStyle: 'italic' }}>
-                              Add at least 3 devices to get connection advice
-                            </div>
-                          ) : hasQuotaError ? (
-                            <div>
-                              <div style={{ color: '#ff6b6b', marginBottom: '8px' }}>
-                                {connectionAdvice}
-                              </div>
-                              <button 
-                                onClick={() => setHasQuotaError(false)}
-                                style={{
-                                  background: 'rgba(0, 162, 255, 0.2)',
-                                  border: '1px solid rgba(0, 162, 255, 0.3)',
-                                  color: '#00a2ff',
-                                  padding: '4px 8px',
-                                  fontSize: '12px',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Try Again
-                              </button>
-                            </div>
-                          ) : isAdviceLoading ? (
-                            <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading connection advice...</div>
-                          ) : (
-                            <div style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{connectionAdvice}</div>
-                          )}
-                        </div>
                     </div>
                 )}
 
-                {/* Camera Controls - Only show on desktop */}
+                {/* Camera Controls - Set / Connections - Only show on desktop */}
                 {!isMobile && (
-                    <div className="camera-controls fade-in">
-                        <button 
-                            className="camera-button"
+                    <div className="camera-controls fade-in" style={{
+                        position: 'fixed',
+                        left: '20px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        zIndex: 1000
+                    }}>
+                        <button
+                            type="button"
+                            className={`camera-button ${cameraView === 'set' ? 'camera-button-active' : ''}`}
                             onClick={() => moveCameraToPosition('set')}
                         >
                             Set
                         </button>
-                        <button 
-                            className="camera-button"
+                        <button
+                            type="button"
+                            className={`camera-button ${cameraView === 'connections' ? 'camera-button-active' : ''}`}
                             onClick={() => moveCameraToPosition('connections')}
                         >
                             Connections

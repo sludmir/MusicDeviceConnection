@@ -48,6 +48,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && isOwner(userId);
+      // Followers: anyone can add/remove themselves as follower of userId
+      match /followers/{followerId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.auth.uid == followerId;
+        allow delete: if isSignedIn() && request.auth.uid == followerId;
+      }
+      // Notifications: only owner can read/update/delete; creator can create (fromUserId == auth.uid)
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      }
     }
 
     // Setups (saved rig configs)

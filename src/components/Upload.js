@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
@@ -88,10 +88,10 @@ function Upload({ onBack, onSuccess }) {
     setStep(3);
   };
 
-  const percentToTime = (p) => Math.max(0, Math.min(videoDuration, (p / 100) * videoDuration));
+  const percentToTime = useCallback((p) => Math.max(0, Math.min(videoDuration, (p / 100) * videoDuration)), [videoDuration]);
   const timeToPercent = (t) => (videoDuration > 0 ? (t / videoDuration) * 100 : 0);
 
-  const updateRange = (newStart, newEnd, seekVideo = true) => {
+  const updateRange = useCallback((newStart, newEnd, seekVideo = true) => {
     let start = newStart;
     let end = newEnd;
     if (end - start > CLIP_MAX_SEC) end = start + CLIP_MAX_SEC;
@@ -104,7 +104,7 @@ function Upload({ onBack, onSuccess }) {
     setClipStart(Number(start.toFixed(2)));
     setClipEnd(Number(end.toFixed(2)));
     if (seekVideo && videoRef.current) videoRef.current.currentTime = start;
-  };
+  }, [videoDuration, dragging]);
 
   const handleTimelineClick = (e) => {
     if (!timelineRef.current || !videoDuration) return;
@@ -137,7 +137,7 @@ function Upload({ onBack, onSuccess }) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, videoDuration]);
+  }, [dragging, videoDuration, percentToTime, updateRange]);
 
   const handleUpload = async () => {
     if (!videoFile || !title.trim()) {
@@ -197,14 +197,12 @@ function Upload({ onBack, onSuccess }) {
             clipEnd: clipEnd,
             videoURL: fullVideoURL, // In production, generate actual clip
             likes: 0,
+            likedBy: [],
             createdAt: serverTimestamp(),
             views: 0
           };
 
-          await addDoc(collection(db, 'clips'), clipData);
-          
-          // Also save full set reference
-          await addDoc(collection(db, 'sets'), {
+          const setDocRef = await addDoc(collection(db, 'sets'), {
             creatorId: userId,
             creatorName: userEmail?.split('@')[0] || 'Unknown',
             title: title.trim(),
@@ -213,6 +211,9 @@ function Upload({ onBack, onSuccess }) {
             createdAt: serverTimestamp(),
             views: 0
           });
+
+          const clipDataWithSet = { ...clipData, fullSetId: setDocRef.id };
+          await addDoc(collection(db, 'clips'), clipDataWithSet);
 
           setUploading(false);
           if (onSuccess) onSuccess();
@@ -277,6 +278,9 @@ function Upload({ onBack, onSuccess }) {
                   onClick={handleTimelineClick}
                   role="slider"
                   aria-label="Video timeline"
+                  aria-valuenow={clipStart}
+                  aria-valuemin={0}
+                  aria-valuemax={videoDuration || 100}
                 >
                   <div className="clip-timeline-track" />
                   <div

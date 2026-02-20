@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import PostSetModal from './PostSetModal';
 import './HubLandingPage.css';
 
-function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
+function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, theme = 'light' }) {
   const [savedSetups, setSavedSetups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSetupSelection, setShowSetupSelection] = useState(false);
+  const [showPostSetModal, setShowPostSetModal] = useState(false);
 
   useEffect(() => {
     loadSavedSetups();
@@ -55,6 +57,19 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
     return d.toLocaleDateString();
   };
 
+  const handleDeleteSetup = async (e, setup) => {
+    e.stopPropagation();
+    if (!auth.currentUser || setup.ownerId !== auth.currentUser.uid) return;
+    if (!window.confirm(`Delete "${setup.name || 'Untitled Setup'}"? This can't be undone.`)) return;
+    try {
+      await deleteDoc(doc(db, 'setups', setup.id));
+      setSavedSetups((prev) => prev.filter((s) => s.id !== setup.id));
+    } catch (err) {
+      console.error('Error deleting setup:', err);
+      alert('Failed to delete setup. Please try again.');
+    }
+  };
+
   return (
     <div className="hub-landing-page">
       {/* Liquid glass background */}
@@ -97,19 +112,33 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
         <section className="hub-hero hub-hero-glass">
           <div className="hub-hero-bg" />
           <div className="hub-hero-inner">
+            <img src={theme === 'dark' ? '/liveset-logo-dark.png' : '/liveset-logo.png'} alt="LiveSet" className="hub-hero-logo" />
             <h1 className="hub-hero-title">Your setup, your way</h1>
             <p className="hub-hero-subtitle">
               Design, save, and share your ideal rig. Start from scratch or pick up where you left off.
             </p>
-            <button
-              type="button"
-              className="hub-build-btn"
-              onClick={handleBuildMySet}
-            >
-              Build my set
-            </button>
+            <div className="hub-hero-buttons">
+              <button
+                type="button"
+                className="hub-build-btn"
+                onClick={handleBuildMySet}
+              >
+                Build my set
+              </button>
+              <button
+                type="button"
+                className="hub-post-set-btn"
+                onClick={() => setShowPostSetModal(true)}
+              >
+                Post my set
+              </button>
+            </div>
           </div>
         </section>
+
+        {showPostSetModal && (
+          <PostSetModal onClose={() => setShowPostSetModal(false)} theme={theme} />
+        )}
 
         {/* Main grid: Recent setups + sidebar */}
         <div className="hub-main">
@@ -127,18 +156,28 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
             ) : (
               <div className="hub-setups-grid">
                 {savedSetups.slice(0, 6).map((setup) => (
-                  <button
-                    key={setup.id}
-                    type="button"
-                    className="hub-setup-card"
-                    onClick={() => onSetupSelect && onSetupSelect(setup)}
-                  >
-                    <span className="hub-setup-card-type">{setup.setupType || 'DJ'}</span>
-                    <span className="hub-setup-card-name">{setup.name || 'Untitled Setup'}</span>
-                    <span className="hub-setup-card-meta">
-                      {setup.devices?.length || 0} devices · {formatDate(setup.createdAt)}
-                    </span>
-                  </button>
+                  <div key={setup.id} className="hub-setup-card-wrapper">
+                    <button
+                      type="button"
+                      className="hub-setup-card"
+                      onClick={() => onSetupSelect && onSetupSelect(setup)}
+                    >
+                      <span className="hub-setup-card-type">{setup.setupType || 'DJ'}</span>
+                      <span className="hub-setup-card-name">{setup.name || 'Untitled Setup'}</span>
+                      <span className="hub-setup-card-meta">
+                        {setup.devices?.length || 0} devices · {formatDate(setup.createdAt)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="hub-setup-card-delete"
+                      onClick={(e) => handleDeleteSetup(e, setup)}
+                      title="Delete setup"
+                      aria-label="Delete setup"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

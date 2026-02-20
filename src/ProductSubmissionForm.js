@@ -25,6 +25,7 @@ function ProductSubmissionForm({ onClose }) {
         'Line2',
         'Line3',
         'Line4',
+        'MIDI',
         'RCA',
         'USB',
         'Audio'

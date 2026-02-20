@@ -5,8 +5,8 @@ import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
-import { findProductByName, prepareProductForSetup, canAddProductToSetup } from './utils/productSearch';
-import { getRecommendedPosition } from './utils/devicePlacement';
+// Unused imports - kept for potential future use
+// import { findProductByName, prepareProductForSetup, canAddProductToSetup } from './utils/productSearch';
 import SetupTimelineImport from './SetupTimeline';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
@@ -17,6 +17,8 @@ import SaveSetupButtonImport from './components/SaveSetupButton';
 import FeedImport from './components/Feed';
 import UploadImport from './components/Upload';
 import ProfileImport from './components/Profile';
+import UserSearchImport from './components/UserSearch';
+import NotificationsImport from './components/Notifications';
 
 const ThreeScene = lazy(() =>
   import('./ThreeScene').then((m) => {
@@ -35,6 +37,8 @@ const HubLandingPage = unwrap(HubLandingPageImport);
 const Feed = unwrap(FeedImport);
 const Upload = unwrap(UploadImport);
 const Profile = unwrap(ProfileImport);
+const UserSearch = unwrap(UserSearchImport);
+const Notifications = unwrap(NotificationsImport);
 
 function isValidComponent(C) {
   return typeof C === 'function' || (C && typeof C === 'object' && typeof C.$$typeof === 'symbol');
@@ -50,6 +54,8 @@ const APP_COMPONENTS = [
   ['Feed', Feed],
   ['Upload', Upload],
   ['Profile', Profile],
+  ['UserSearch', UserSearch],
+  ['Notifications', Notifications],
 ];
 const INVALID_COMPONENTS = APP_COMPONENTS.filter(([, C]) => !isValidComponent(C)).map(([name]) => name);
 
@@ -108,6 +114,23 @@ function App() {
   const [showProductDashboard, setShowProductDashboard] = useState(false);
   const [currentView, setCurrentView] = useState(null); // 'mySets', 'settings', 'preferences', 'productDashboard', 'feed', 'upload', 'profile'
   const [profileUserId, setProfileUserId] = useState(null);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('livet-set-theme') || 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  // Apply theme to document and persist
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('livet-set-theme', theme);
+    } catch (_) {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
   // Handle authentication state changes
   useEffect(() => {
@@ -173,11 +196,12 @@ function App() {
     window.setupDevices = setupDevices;
   }, [setupDevices]);
 
-  const handleSetupSelection = (setupType) => {
-    setSelectedSetup(setupType);
-    setActualDevices([]); // Reset devices when switching setup types
-    setSelectedCategory(null); // Reset selected category
-  };
+  // Unused - kept for potential future use
+  // const handleSetupSelection = (setupType) => {
+  //   setSelectedSetup(setupType);
+  //   setActualDevices([]); // Reset devices when switching setup types
+  //   setSelectedCategory(null); // Reset selected category
+  // };
 
   const handleCategorySelect = (categoryId) => {
     setSelectedCategory(categoryId);
@@ -233,11 +257,29 @@ function App() {
     setCurrentView('feed');
   };
 
+  const handleSearch = () => {
+    closeProfileDropdown();
+    setCurrentView('search');
+  };
+
+  const handleNotifications = () => {
+    closeProfileDropdown();
+    setCurrentView('notifications');
+  };
+
+  const handleMyProfile = () => {
+    closeProfileDropdown();
+    setProfileUserId(null);
+    setCurrentView('profile');
+  };
+
   const handleBackToMain = () => {
     setCurrentView(null);
   };
 
+  // Unused - kept for potential future use
   // Handle adding a device from search
+  /*
   const handleAddDevice = async (searchQuery) => {
     if (!selectedSetup) {
       alert('Please select a setup type first');
@@ -292,8 +334,11 @@ function App() {
       alert('Failed to add device. Please try again.');
     }
   };
+  */
 
+  // Unused - kept for potential future use
   // Get spot configuration for setup type
+  /*
   const getSpotConfigForSetup = (setupType) => {
     // This matches the spot configuration in ThreeScene.js
     const djSetupSpots = [
@@ -332,6 +377,7 @@ function App() {
         return djSetupSpots;
     }
   };
+  */
 
   // Handle setup selection from landing page
   const handleSetupSelectFromLanding = (setup) => {
@@ -410,43 +456,63 @@ function App() {
 
   return (
     <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header className="App-header" style={{ padding: '20px' }}>
-        <h1 
+      <header className="App-header">
+        <div className="App-header-left">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            title={theme === 'light' ? 'Dark mode' : 'Light mode'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
+        <div
+          className="App-header-center"
           onClick={() => {
             setSelectedSetup(null);
             setSelectedCategory(null);
             setActualDevices([]);
             setCurrentView(null);
-          }} 
-          style={{ 
-            cursor: 'pointer', 
-            transition: 'opacity 0.2s ease',
-            userSelect: 'none'
           }}
-          onMouseEnter={(e) => e.target.style.opacity = '0.7'}
-          onMouseLeave={(e) => e.target.style.opacity = '1'}
+          style={{
+            cursor: 'pointer',
+            transition: 'opacity 0.2s ease',
+            userSelect: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '7px'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          role="button"
+          aria-label="LiveSet home"
         >
-          LiveSet
-        </h1>
+          <img src={theme === 'dark' ? '/liveset-logo-dark.png' : '/liveset-logo.png'} alt="LiveSet" style={{ height: '64px', width: 'auto', display: 'block' }} />
+        </div>
+        <div className="App-header-right">
         {user ? (
           <div className="profile-dropdown-container" style={{ position: 'relative' }}>
             <div 
+              className="header-profile-trigger"
               onClick={toggleProfileDropdown}
               style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: '12px', 
+                gap: '8px', 
                 cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: '6px',
+                padding: '5px 8px',
+                borderRadius: '5px',
                 transition: 'background-color 0.2s ease'
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProfileDropdown(); } }}
             >
               <div style={{ 
-                width: '32px', 
-                height: '32px', 
+                width: '22px', 
+                height: '22px', 
                 borderRadius: '50%', 
                 backgroundColor: '#00a2ff',
                 display: 'flex',
@@ -454,15 +520,15 @@ function App() {
                 justifyContent: 'center',
                 color: 'white',
                 fontWeight: 'bold',
-                fontSize: '14px'
+                fontSize: '10px'
               }}>
                 {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: '500' }}>
                   {user.displayName || 'User'}
                 </p>
-                <p style={{ margin: 0, fontSize: '12px', opacity: 0.7 }}>
+                <p style={{ margin: 0, fontSize: '8px', opacity: 0.7 }}>
                   {user.email}
                 </p>
               </div>
@@ -475,21 +541,18 @@ function App() {
             </div>
             
             {isProfileDropdownOpen && (
-              <div style={{
+              <div className="profile-dropdown-menu" style={{
                 position: 'absolute',
                 top: '100%',
                 right: 0,
-                backgroundColor: '#1a1a1a',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                 minWidth: '200px',
                 zIndex: 1000,
                 marginTop: '4px'
               }}>
                 <div style={{ padding: '8px 0' }}>
                   <div 
-                    onClick={handleFeed}
+                    className="profile-dropdown-item"
+                    onClick={handleSearch}
                     style={{
                       padding: '12px 16px',
                       cursor: 'pointer',
@@ -498,114 +561,95 @@ function App() {
                       gap: '12px',
                       transition: 'background-color 0.2s ease'
                     }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    <span style={{ fontSize: '16px' }}>🔍</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Search users</div>
+                      <div className="profile-dropdown-item-sub">Find people to follow</div>
+                    </div>
+                  </div>
+                  <div 
+                    className="profile-dropdown-item"
+                    onClick={handleNotifications}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
+                  >
+                    <span style={{ fontSize: '16px' }}>🔔</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Notifications</div>
+                      <div className="profile-dropdown-item-sub">Recent activity</div>
+                    </div>
+                  </div>
+                  <div 
+                    className="profile-dropdown-item"
+                    onClick={handleFeed}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>📱</span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Feed</div>
-                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Discover live sets</div>
+                      <div className="profile-dropdown-item-sub">Discover live sets</div>
                     </div>
                   </div>
-                  
                   <div 
+                    className="profile-dropdown-item"
+                    onClick={handleMyProfile}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
+                  >
+                    <span style={{ fontSize: '16px' }}>👤</span>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500' }}>My Profile</div>
+                      <div className="profile-dropdown-item-sub">View your profile & setups</div>
+                    </div>
+                  </div>
+                  <div 
+                    className="profile-dropdown-item"
                     onClick={handleMySets}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>🎧</span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>My Sets</div>
-                      <div style={{ fontSize: '12px', opacity: 0.7 }}>View saved setups</div>
+                      <div className="profile-dropdown-item-sub">View saved setups</div>
                     </div>
                   </div>
-                  
                   <div 
+                    className="profile-dropdown-item"
                     onClick={handleSettings}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>⚙️</span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Settings</div>
-                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Manage profile</div>
+                      <div className="profile-dropdown-item-sub">Manage profile</div>
                     </div>
                   </div>
-                  
                   <div 
+                    className="profile-dropdown-item"
                     onClick={handlePreferences}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>🎛️</span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Preferences</div>
-                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Budget & options</div>
+                      <div className="profile-dropdown-item-sub">Budget & options</div>
                     </div>
                   </div>
-                  
                   <div 
+                    className="profile-dropdown-item"
                     onClick={handleProductManagement}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>📦</span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Product Management</div>
-                      <div style={{ fontSize: '12px', opacity: 0.7 }}>Manage products & prices</div>
+                      <div className="profile-dropdown-item-sub">Manage products & prices</div>
                     </div>
                   </div>
-                  
-                  <div style={{ 
-                    height: '1px', 
-                    backgroundColor: '#333', 
-                    margin: '8px 0' 
-                  }}></div>
-                  
+                  <div className="profile-dropdown-divider" />
                   <div 
+                    className="profile-dropdown-item"
                     onClick={logout}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
                     <span style={{ fontSize: '16px' }}>🚪</span>
                     <div>
@@ -617,8 +661,9 @@ function App() {
             )}
           </div>
         ) : (
-          <button onClick={signInWithGoogle}>Sign In with Google</button>
+          <button type="button" className="sign-in-btn" onClick={signInWithGoogle}>Sign In with Google</button>
         )}
+        </div>
       </header>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -647,6 +692,7 @@ function App() {
               setCurrentView('profile');
             }}
             onUploadClick={() => setCurrentView('upload')}
+            theme={theme}
           />
         ) : currentView === 'upload' ? (
           <Upload 
@@ -662,12 +708,33 @@ function App() {
               setCurrentView('feed');
               setProfileUserId(null);
             }}
+            onSetupSelect={(setup) => {
+              handleSetupSelectFromLanding(setup);
+              setCurrentView(null);
+            }}
+          />
+        ) : currentView === 'search' ? (
+          <UserSearch
+            onBack={() => setCurrentView('feed')}
+            onProfileClick={(userId) => {
+              setProfileUserId(userId);
+              setCurrentView('profile');
+            }}
+          />
+        ) : currentView === 'notifications' ? (
+          <Notifications
+            onBack={() => setCurrentView('feed')}
+            onProfileClick={(userId) => {
+              setProfileUserId(userId);
+              setCurrentView('profile');
+            }}
           />
         ) : user && !selectedSetup ? (
           <HubLandingPage
             onSetupSelect={handleSetupSelectFromLanding}
             onNewSetup={handleNewSetupFromLanding}
             onFeedClick={() => setCurrentView('feed')}
+            theme={theme}
           />
         ) : user && selectedSetup ? (
           <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>

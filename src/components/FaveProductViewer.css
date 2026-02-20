@@ -1,0 +1,19 @@
+.fave-product-viewer-wrap {
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0c0c12;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fave-product-viewer {
+  width: 100%;
+  display: block;
+}
+
+.fave-product-viewer canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}

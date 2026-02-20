@@ -156,6 +156,7 @@ export const CONNECTION_TYPES = {
   "USB-C": { type: "digital", color: "usb_c", description: "USB-C connection" },
   "Ethernet": { type: "digital", color: "ethernet", description: "Ethernet/LAN connection" },
   "Link": { type: "digital", color: "link", description: "Pioneer Link connection" },
+  "MIDI": { type: "digital", color: "midi", description: "MIDI connection" },
   
   // Media connections
   "SD": { type: "media", color: "sd", description: "SD card slot" },

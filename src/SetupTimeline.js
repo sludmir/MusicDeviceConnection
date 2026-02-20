@@ -8,28 +8,28 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
     // Define categories for each setup type (memoized to prevent dependency issues)
     const setupCategories = useMemo(() => ({
         DJ: [
-            { id: 'players', name: 'Players', description: 'CDJs, Turntables, Controllers' },
-            { id: 'mixers', name: 'Mixers', description: 'DJM Series, Xone, etc.' },
-            { id: 'effects', name: 'Effects', description: 'RMX, SP-1, etc.' },
-            { id: 'speakers', name: 'Speakers', description: 'Monitors, PA Systems' },
-            { id: 'cables', name: 'Cables', description: 'RCA, XLR, Ethernet' },
-            { id: 'accessories', name: 'Accessories', description: 'Headphones, Cases' }
+            { id: 'players', name: 'Players', description: 'CDJs, Turntables, Controllers', icon: '🎧' },
+            { id: 'mixers', name: 'Mixers', description: 'DJM Series, Xone, etc.', icon: '🎛️' },
+            { id: 'effects', name: 'Effects', description: 'RMX, SP-1, etc.', icon: '🎚️' },
+            { id: 'speakers', name: 'Speakers', description: 'Monitors, PA Systems', icon: '🔊' },
+            { id: 'cables', name: 'Cables', description: 'RCA, XLR, Ethernet', icon: '🔌' },
+            { id: 'accessories', name: 'Accessories', description: 'Headphones, Cases', icon: '🎧' }
         ],
         Producer: [
-            { id: 'audio-interface', name: 'Audio Interface', description: 'Focusrite, PreSonus, etc.' },
-            { id: 'synthesizers', name: 'Synthesizers', description: 'Moog, Korg, Sequential' },
-            { id: 'controllers', name: 'Controllers', description: 'MIDI, Pad Controllers' },
-            { id: 'monitors', name: 'Monitors', description: 'Studio Monitors, Subwoofers' },
-            { id: 'microphones', name: 'Microphones', description: 'Condenser, Dynamic, USB' },
-            { id: 'software', name: 'Software', description: 'DAW, Plugins, Samples' }
+            { id: 'audio-interface', name: 'Audio Interface', description: 'Focusrite, PreSonus, etc.', icon: '🎤' },
+            { id: 'synthesizers', name: 'Synthesizers', description: 'Moog, Korg, Sequential', icon: '🎹' },
+            { id: 'controllers', name: 'Controllers', description: 'MIDI, Pad Controllers', icon: '🎮' },
+            { id: 'monitors', name: 'Monitors', description: 'Studio Monitors, Subwoofers', icon: '🔊' },
+            { id: 'microphones', name: 'Microphones', description: 'Condenser, Dynamic, USB', icon: '🎤' },
+            { id: 'software', name: 'Software', description: 'DAW, Plugins, Samples', icon: '💻' }
         ],
         Musician: [
-            { id: 'instruments', name: 'Instruments', description: 'Guitars, Basses, Keyboards' },
-            { id: 'amplifiers', name: 'Amplifiers', description: 'Guitar Amps, Bass Amps' },
-            { id: 'effects', name: 'Effects', description: 'Pedals, Rack Units' },
-            { id: 'microphones', name: 'Microphones', description: 'Vocal, Instrument' },
-            { id: 'cables', name: 'Cables', description: 'Instrument, Speaker, XLR' },
-            { id: 'accessories', name: 'Accessories', description: 'Stands, Cases, Tuners' }
+            { id: 'instruments', name: 'Instruments', description: 'Guitars, Basses, Keyboards', icon: '🎸' },
+            { id: 'amplifiers', name: 'Amplifiers', description: 'Guitar Amps, Bass Amps', icon: '🔊' },
+            { id: 'effects', name: 'Effects', description: 'Pedals, Rack Units', icon: '🎚️' },
+            { id: 'microphones', name: 'Microphones', description: 'Vocal, Instrument', icon: '🎤' },
+            { id: 'cables', name: 'Cables', description: 'Instrument, Speaker, XLR', icon: '🔌' },
+            { id: 'accessories', name: 'Accessories', description: 'Stands, Cases, Tuners', icon: '🎧' }
         ]
     }), []);
 
@@ -156,77 +156,111 @@ const SetupTimeline = ({ setupType, currentDevices, onCategorySelect, selectedCa
     };
 
     return (
-        <div         style={{
-            position: 'fixed',
-            bottom: 0, // Back to bottom position
-            left: 0,
-            right: '45%', // Stretch slightly further right to fit all categories
-            backgroundColor: '#1a1a1a',
-            borderTop: '1px solid #333',
-            padding: '12px 20px',
-            zIndex: 1000,
-            overflowX: 'auto',
-            overflowY: 'hidden'
-        }}>
+        <div
+            className="setup-timeline-bar"
+            style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: 'rgba(12, 12, 18, 0.95)',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                padding: '16px 24px',
+                zIndex: 1000,
+                backdropFilter: 'blur(12px)',
+                boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.3)'
+            }}
+        >
             <div style={{
                 display: 'flex',
-                gap: '12px',
-                minWidth: 'max-content',
-                alignItems: 'center'
+                flexWrap: 'wrap',
+                gap: '14px',
+                justifyContent: 'center',
+                alignItems: 'center',
+                maxWidth: '100%',
+                margin: '0 auto'
             }}>
-                {categories.map((category, index) => {
+                {categories.map((category) => {
                     const isCompleted = completedCategories.has(category.id);
                     const isSelected = selectedCategory === category.id;
+                    const isHidden = hiddenCategories.has(category.id);
                     const count = getCategoryCount(category.id);
-                    
+                    const icon = category.icon || '•';
+
                     return (
-                        <div
+                        <button
                             key={category.id}
-                            onClick={() => handleCategoryToggle(category.id)}
+                            type="button"
+                            onClick={() => {
+                                handleCategoryToggle(category.id);
+                                if (onCategorySelect) onCategorySelect(category.id);
+                            }}
+                            className="setup-timeline-category-btn"
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
-                                padding: '8px 12px',
-                                backgroundColor: isSelected ? '#00a2ff' : isCompleted ? '#2d5a2d' : '#2a2a2a',
-                                borderRadius: '8px',
+                                gap: '10px',
+                                padding: '12px 18px',
+                                backgroundColor: isSelected
+                                    ? 'rgba(0, 162, 255, 0.25)'
+                                    : isCompleted
+                                        ? 'rgba(45, 90, 45, 0.4)'
+                                        : 'rgba(255, 255, 255, 0.06)',
+                                borderRadius: '12px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
-                                border: isSelected ? '2px solid #00a2ff' : '2px solid transparent',
-                                minWidth: '120px',
+                                border: isSelected
+                                    ? '1px solid rgba(0, 162, 255, 0.6)'
+                                    : '1px solid rgba(255, 255, 255, 0.1)',
+                                minWidth: '130px',
                                 justifyContent: 'center',
-                                opacity: hiddenCategories.has(category.id) ? 0.5 : 1
+                                opacity: isHidden ? 0.5 : 1,
+                                color: '#fff',
+                                fontFamily: 'inherit',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                boxShadow: isSelected ? '0 0 20px rgba(0, 162, 255, 0.15)' : 'none',
+                                outline: 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (isHidden) return;
+                                e.currentTarget.style.backgroundColor = isSelected
+                                    ? 'rgba(0, 162, 255, 0.35)'
+                                    : isCompleted
+                                        ? 'rgba(45, 90, 45, 0.55)'
+                                        : 'rgba(255, 255, 255, 0.12)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = isSelected
+                                    ? 'rgba(0, 162, 255, 0.25)'
+                                    : isCompleted
+                                        ? 'rgba(45, 90, 45, 0.4)'
+                                        : 'rgba(255, 255, 255, 0.06)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = isSelected ? '0 0 20px rgba(0, 162, 255, 0.15)' : 'none';
                             }}
                         >
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    marginBottom: '2px'
-                                }}>
+                            <span style={{ fontSize: '18px', lineHeight: 1 }} aria-hidden>{icon}</span>
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ marginBottom: count > 0 ? '2px' : 0 }}>
                                     {category.name}
                                 </div>
                                 {count > 0 && (
                                     <div style={{
-                                        color: isCompleted ? '#4ade80' : '#00a2ff',
-                                        fontSize: '12px',
+                                        color: isCompleted ? '#4ade80' : 'rgba(0, 162, 255, 0.9)',
+                                        fontSize: '11px',
                                         fontWeight: '500'
                                     }}>
-                                        {count} selected
+                                        {count} in setup
                                     </div>
                                 )}
                             </div>
                             {isCompleted && (
-                                <div style={{
-                                    color: '#4ade80',
-                                    fontSize: '16px',
-                                    marginLeft: '4px'
-                                }}>
-                                    ✓
-                                </div>
+                                <span style={{ color: '#4ade80', fontSize: '14px', marginLeft: '2px' }}>✓</span>
                             )}
-                        </div>
+                        </button>
                     );
                 })}
             </div>

@@ -1,0 +1,12 @@
+[
+    {
+      "origin": [
+        "http://localhost:3000", 
+        "http://localhost:3001",
+        "https://connectmyset.web.app",
+        "https://connectmyset.com"
+      ],
+      "method": ["GET"],
+      "maxAgeSeconds": 3600
+    }
+  ]

@@ -272,13 +272,82 @@
 }
 
 .setup-selection-content {
-  background-color: #1a1a1a;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 24px;
   padding: 40px;
   max-width: 600px;
   width: 90%;
-  border: 1px solid #333;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   text-align: center;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.setup-title {
+  margin: 0 0 28px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #fff;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* DJ / Producer / Musician option buttons */
+.setup-buttons-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.setup-buttons-glass {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.setup-option {
+  flex: 1;
+  min-width: 140px;
+  max-width: 180px;
+  padding: 20px 28px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.setup-option:hover {
+  background: rgba(0, 162, 255, 0.2);
+  border-color: rgba(0, 162, 255, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 162, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.setup-option:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.setup-option:focus-visible {
+  outline: 2px solid rgba(0, 162, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.setup-option-text {
+  display: block;
+  letter-spacing: 0.02em;
 }
 
 @media (max-width: 768px) {

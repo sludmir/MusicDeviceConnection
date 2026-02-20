@@ -1,54 +1,88 @@
-/* iPhone (15/16) viewport width for clip display; 9:16 vertical video */
+/* ========== Variables ========== */
 :root {
   --feed-iphone-max-width: 393px;
   --feed-aspect-ratio: 9 / 16;
+  /* Instagram-inspired */
+  --feed-bg: #000000;
+  --feed-card-bg: #262626;
+  --feed-card-bg-web: #1a1a1a;
+  --feed-border: #363636;
+  --feed-text: #f5f5f5;
+  --feed-text-secondary: #a8a8a8;
+  --feed-accent: #0095f6;
+  --feed-accent-hover: #1877f2;
+  --feed-like: #ed4956;
+  --feed-header-height: 56px;
+  --feed-desktop-max-width: 470px;
+  --feed-card-radius: 12px;
+  --feed-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
+/* ========== Base container ========== */
 .feed-container {
   width: 100%;
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, #0c0c12 0%, #0f0f18 35%, #08080e 100%);
-  color: #fff;
+  background: var(--feed-bg);
+  color: var(--feed-text);
   overflow: hidden;
 }
 
+/* ========== Header ========== */
 .feed-header {
   flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: rgba(10, 10, 18, 0.9);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  height: var(--feed-header-height);
+  padding: 0 16px;
+  background: var(--feed-bg);
+  border-bottom: 1px solid var(--feed-border);
+}
+
+.feed-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feed-header-logo {
+  height: 38px;
+  width: auto;
+  display: block;
 }
 
 .feed-header h1 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .feed-upload-btn {
-  padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(0, 162, 255, 0.9) 0%, rgba(80, 120, 255, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 8px 16px;
+  background: var(--feed-accent);
+  border: none;
   border-radius: 8px;
   color: #fff;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
   font-family: inherit;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, opacity 0.2s ease;
 }
 
 .feed-upload-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 162, 255, 0.3);
+  background: var(--feed-accent-hover);
 }
 
+.feed-upload-btn:active {
+  opacity: 0.9;
+}
+
+/* ========== Scroll area ========== */
 .feed-scroll {
   flex: 1;
   min-height: 0;
@@ -60,9 +94,9 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* ========== Feed item (shared) ========== */
 .feed-item {
   width: 100%;
-  height: 100%;
   min-height: 100%;
   flex-shrink: 0;
   scroll-snap-align: start;
@@ -72,9 +106,10 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 0;
 }
 
-/* iPhone-sized clip: 9:16, fits inside item height so snap position stays correct */
+/* ========== Video wrapper ========== */
 .feed-video-wrapper {
   position: relative;
   height: 100%;
@@ -100,16 +135,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--feed-text-secondary);
+  font-size: 0.875rem;
 }
 
+/* ========== Overlay (mobile Reels-style) ========== */
 .feed-item-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 70%);
-  padding: 12px 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 60%);
+  padding: 16px 12px 24px 16px;
+  pointer-events: none;
+}
+
+.feed-item-overlay .feed-item-info {
+  pointer-events: auto;
 }
 
 .feed-item-info {
@@ -122,7 +164,7 @@
 .feed-creator-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
   flex: 1;
   min-width: 0;
@@ -133,23 +175,25 @@
   height: 40px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(0, 162, 255, 0.8), rgba(120, 80, 255, 0.8));
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
   font-size: 1rem;
+  border: 2px solid transparent;
+  box-sizing: border-box;
 }
 
 .feed-creator-name {
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   margin-bottom: 2px;
 }
 
 .feed-clip-title {
-  font-size: 0.8rem;
-  opacity: 0.85;
+  font-size: 0.8125rem;
+  color: var(--feed-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -158,36 +202,49 @@
 .feed-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   flex-shrink: 0;
 }
 
 .feed-action-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
   color: #fff;
   cursor: pointer;
-  font-size: 0.75rem;
-  transition: background 0.2s ease;
+  font-size: 0.8125rem;
   font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s ease;
 }
 
 .feed-action-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  opacity: 0.8;
 }
 
 .feed-action-btn.liked {
-  background: rgba(255, 0, 0, 0.2);
-  border-color: rgba(255, 0, 0, 0.4);
+  color: var(--feed-like);
 }
 
+.feed-action-btn .feed-action-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+/* ========== Desktop-only card meta (hidden on mobile) ========== */
+.feed-item-meta {
+  display: none;
+}
+
+/* ========== Loading & empty ========== */
 .feed-loading,
 .feed-load-more {
   padding: 24px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--feed-text-secondary);
   font-size: 0.875rem;
 }
 
@@ -202,8 +259,9 @@
 }
 
 .feed-empty-icon {
-  font-size: 2.5rem;
-  margin-bottom: 12px;
+  font-size: 3rem;
+  margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .feed-empty h2 {
@@ -213,18 +271,185 @@
 }
 
 .feed-empty p {
-  margin: 0 0 16px 0;
-  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 20px 0;
+  color: var(--feed-text-secondary);
   font-size: 0.875rem;
 }
 
 .feed-load-more button {
-  padding: 8px 16px;
+  padding: 10px 20px;
   font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  font-weight: 600;
+  background: var(--feed-accent);
+  border: none;
+  border-radius: 8px;
   color: #fff;
   cursor: pointer;
   font-family: inherit;
+  transition: background 0.2s ease;
+}
+
+.feed-load-more button:hover {
+  background: var(--feed-accent-hover);
+}
+
+/* ============================================================
+   MOBILE: Reels-style full-screen vertical scroll
+   ============================================================ */
+@media (max-width: 767px) {
+  .feed-item {
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .feed-video-wrapper {
+    max-width: min(100%, var(--feed-iphone-max-width));
+  }
+
+  .feed-actions {
+    gap: 20px;
+  }
+
+  .feed-action-btn .feed-action-icon {
+    font-size: 1.75rem;
+  }
+}
+
+/* ============================================================
+   WEB: Instagram feed – centered card column
+   ============================================================ */
+@media (min-width: 768px) {
+  .feed-container {
+    background: var(--feed-card-bg-web);
+    align-items: center;
+  }
+
+  .feed-header {
+    width: 100%;
+    max-width: var(--feed-desktop-max-width);
+    margin: 0 auto;
+    border-bottom: 1px solid var(--feed-border);
+    border-radius: 0;
+  }
+
+  .feed-scroll {
+    width: 100%;
+    max-width: var(--feed-desktop-max-width);
+    margin: 0 auto;
+    scroll-snap-type: none;
+    padding: 0 0 24px 0;
+  }
+
+  .feed-item {
+    min-height: 0;
+    height: auto;
+    padding: 12px 0;
+    scroll-snap-align: none;
+    scroll-snap-stop: auto;
+    display: block;
+    background: var(--feed-card-bg);
+    border: 1px solid var(--feed-border);
+    border-radius: var(--feed-card-radius);
+    margin: 0 auto 12px auto;
+    box-shadow: var(--feed-shadow);
+    overflow: hidden;
+  }
+
+  .feed-item:first-of-type {
+    margin-top: 12px;
+  }
+
+  .feed-video-wrapper {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: var(--feed-aspect-ratio);
+    margin: 0;
+    border-radius: 0;
+  }
+
+  /* Hide mobile overlay on web */
+  .feed-item-overlay {
+    display: none;
+  }
+
+  /* Show card meta on web */
+  .feed-item-meta {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .feed-item-meta .feed-meta-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .feed-item-meta .feed-creator-info {
+    cursor: pointer;
+  }
+
+  .feed-item-meta .feed-creator-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
+  }
+
+  .feed-item-meta .feed-creator-name {
+    font-size: 0.875rem;
+  }
+
+  .feed-item-meta .feed-clip-title {
+    font-size: 0.75rem;
+    margin-top: 0;
+  }
+
+  .feed-item-meta .feed-more-btn {
+    background: none;
+    border: none;
+    color: var(--feed-text);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .feed-item-meta .feed-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .feed-item-meta .feed-actions-row .feed-action-btn {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .feed-item-meta .feed-actions-row .feed-action-icon {
+    font-size: 1.25rem;
+  }
+
+  .feed-item-meta .feed-caption {
+    font-size: 0.875rem;
+    color: var(--feed-text);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .feed-item-meta .feed-caption .feed-creator-name-inline {
+    font-weight: 600;
+    margin-right: 4px;
+  }
+
+  .feed-item-meta-header {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--feed-border);
+  }
+
+  .feed-item-meta-footer {
+    padding-top: 8px;
+  }
 }
