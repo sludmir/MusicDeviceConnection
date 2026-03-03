@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { IoArrowBack } from 'react-icons/io5';
 import './Notifications.css';
 
 function Notifications({ onBack, onProfileClick }) {
@@ -67,7 +68,7 @@ function Notifications({ onBack, onProfileClick }) {
       <div className="notifications-header">
         {onBack && (
           <button type="button" className="notifications-back" onClick={onBack}>
-            ← Back
+            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
           </button>
         )}
         <h1>Notifications</h1>

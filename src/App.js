@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import './App.css';
+import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline } from 'react-icons/md';
+import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { signInWithGoogle, logout } from "./Auth";
 import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -15,6 +17,7 @@ import PreferencesImport from './Preferences';
 import HubLandingPageImport from './components/HubLandingPage';
 import SaveSetupButtonImport from './components/SaveSetupButton';
 import FeedImport from './components/Feed';
+import PostSetModalImport from './components/PostSetModal';
 import UploadImport from './components/Upload';
 import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
@@ -35,6 +38,7 @@ const Settings = unwrap(SettingsImport);
 const Preferences = unwrap(PreferencesImport);
 const HubLandingPage = unwrap(HubLandingPageImport);
 const Feed = unwrap(FeedImport);
+const PostSetModal = unwrap(PostSetModalImport);
 const Upload = unwrap(UploadImport);
 const Profile = unwrap(ProfileImport);
 const UserSearch = unwrap(UserSearchImport);
@@ -112,6 +116,7 @@ function App() {
   const [threeSceneToggleFunction, setThreeSceneToggleFunction] = useState(null);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [showProductDashboard, setShowProductDashboard] = useState(false);
+  const [showFeedPostSetModal, setShowFeedPostSetModal] = useState(false);
   const [currentView, setCurrentView] = useState(null); // 'mySets', 'settings', 'preferences', 'productDashboard', 'feed', 'upload', 'profile'
   const [profileUserId, setProfileUserId] = useState(null);
   const [theme, setTheme] = useState(() => {
@@ -465,7 +470,7 @@ function App() {
             aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
             title={theme === 'light' ? 'Dark mode' : 'Light mode'}
           >
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? <MdDarkMode size={20} /> : <MdLightMode size={20} />}
           </button>
         </div>
         <div
@@ -536,7 +541,7 @@ function App() {
                 transform: isProfileDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s ease'
               }}>
-                ▼
+                <FiChevronDown size={14} />
               </div>
             </div>
             
@@ -562,7 +567,7 @@ function App() {
                       transition: 'background-color 0.2s ease'
                     }}
                   >
-                    <span style={{ fontSize: '16px' }}>🔍</span>
+                    <FiSearch size={18} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Search users</div>
                       <div className="profile-dropdown-item-sub">Find people to follow</div>
@@ -573,7 +578,7 @@ function App() {
                     onClick={handleNotifications}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>🔔</span>
+                    <MdNotificationsNone size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Notifications</div>
                       <div className="profile-dropdown-item-sub">Recent activity</div>
@@ -584,7 +589,7 @@ function App() {
                     onClick={handleFeed}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>📱</span>
+                    <MdPlayCircleOutline size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Feed</div>
                       <div className="profile-dropdown-item-sub">Discover live sets</div>
@@ -595,7 +600,7 @@ function App() {
                     onClick={handleMyProfile}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>👤</span>
+                    <MdPerson size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>My Profile</div>
                       <div className="profile-dropdown-item-sub">View your profile & setups</div>
@@ -606,7 +611,7 @@ function App() {
                     onClick={handleMySets}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>🎧</span>
+                    <MdHeadphones size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>My Sets</div>
                       <div className="profile-dropdown-item-sub">View saved setups</div>
@@ -617,7 +622,7 @@ function App() {
                     onClick={handleSettings}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>⚙️</span>
+                    <MdSettings size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Settings</div>
                       <div className="profile-dropdown-item-sub">Manage profile</div>
@@ -628,7 +633,7 @@ function App() {
                     onClick={handlePreferences}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>🎛️</span>
+                    <MdTune size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Preferences</div>
                       <div className="profile-dropdown-item-sub">Budget & options</div>
@@ -639,7 +644,7 @@ function App() {
                     onClick={handleProductManagement}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>📦</span>
+                    <MdInventory2 size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Product Management</div>
                       <div className="profile-dropdown-item-sub">Manage products & prices</div>
@@ -651,7 +656,7 @@ function App() {
                     onClick={logout}
                     style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
                   >
-                    <span style={{ fontSize: '16px' }}>🚪</span>
+                    <MdLogout size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Sign Out</div>
                     </div>
@@ -691,7 +696,7 @@ function App() {
               setProfileUserId(userId);
               setCurrentView('profile');
             }}
-            onUploadClick={() => setCurrentView('upload')}
+            onUploadClick={() => setShowFeedPostSetModal(true)}
             theme={theme}
           />
         ) : currentView === 'upload' ? (
@@ -769,6 +774,17 @@ function App() {
       {/* Product Dashboard Modal */}
       {showProductDashboard && (
         <ProductDashboard onClose={() => setShowProductDashboard(false)} />
+      )}
+
+      {/* Post Set Modal (from Feed — post full set + clips to feed) */}
+      {showFeedPostSetModal && (
+        <PostSetModal
+          theme={theme}
+          onClose={() => setShowFeedPostSetModal(false)}
+          onSuccess={() => {
+            setShowFeedPostSetModal(false);
+          }}
+        />
       )}
     </div>
   );

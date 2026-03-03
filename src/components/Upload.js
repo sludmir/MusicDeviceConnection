@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
+import { IoArrowBack } from 'react-icons/io5';
+import { MdVideoLibrary } from 'react-icons/md';
 import './Upload.css';
 
 const CLIP_MIN_SEC = 3;
@@ -230,7 +232,7 @@ function Upload({ onBack, onSuccess }) {
   return (
     <div className="upload-container">
       <div className="upload-header">
-        <button className="upload-back-btn" onClick={onBack}>← Back</button>
+        <button className="upload-back-btn" onClick={onBack}><IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back</button>
         <h1>Upload Live Set</h1>
       </div>
       
@@ -246,7 +248,7 @@ function Upload({ onBack, onSuccess }) {
                 style={{ display: 'none' }}
               />
               <label htmlFor="video-upload" className="upload-label">
-                <div className="upload-icon">📹</div>
+                <div className="upload-icon"><MdVideoLibrary size={64} /></div>
                 <div className="upload-text">Click to select video file</div>
                 <div className="upload-hint">MP4, MOV, or other video formats</div>
                 <div className="upload-hint" style={{ marginTop: '8px', fontSize: '12px', opacity: 0.7 }}>

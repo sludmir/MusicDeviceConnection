@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { IoArrowBack } from 'react-icons/io5';
+import { FiArrowRight } from 'react-icons/fi';
+import { MdDelete } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
 import './Profile.css';
 
@@ -16,6 +19,8 @@ function Profile({ userId, onBack, onSetupSelect }) {
   const [followers, setFollowers] = useState(0);
   const [faveSaving, setFaveSaving] = useState(false);
   const [faveProduct, setFaveProduct] = useState(null);
+  const [setToDelete, setSetToDelete] = useState(null);
+  const [deletingSet, setDeletingSet] = useState(false);
   const currentUserId = auth.currentUser?.uid;
   const isOwnProfile = currentUserId && currentUserId === userId;
 
@@ -201,6 +206,38 @@ function Profile({ userId, onBack, onSetupSelect }) {
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  const handleDeleteSetClick = (e, set) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOwnProfile) setSetToDelete(set);
+  };
+
+  const handleConfirmDeleteSet = async () => {
+    if (!setToDelete || !isOwnProfile || setToDelete.creatorId !== currentUserId) {
+      setSetToDelete(null);
+      return;
+    }
+    setDeletingSet(true);
+    try {
+      const clipsRef = collection(db, 'clips');
+      const q = query(clipsRef, where('fullSetId', '==', setToDelete.id));
+      const clipsSnap = await getDocs(q);
+      const batch = clipsSnap.docs.map((d) => deleteDoc(doc(db, 'clips', d.id)));
+      await Promise.all(batch);
+      await deleteDoc(doc(db, 'sets', setToDelete.id));
+      setSets((prev) => prev.filter((s) => s.id !== setToDelete.id));
+    } catch (err) {
+      console.error('Error deleting set:', err);
+    } finally {
+      setDeletingSet(false);
+      setSetToDelete(null);
+    }
+  };
+
+  const handleCancelDeleteSet = () => {
+    setSetToDelete(null);
+  };
+
   const handleFaveChange = async (productId) => {
     if (!currentUserId || currentUserId !== userId) return;
     const product = products.find((p) => p.id === productId);
@@ -232,7 +269,7 @@ function Profile({ userId, onBack, onSetupSelect }) {
     <div className="profile-container">
       <div className="profile-header">
         {onBack && (
-          <button className="profile-back-btn" onClick={onBack}>← Back</button>
+          <button className="profile-back-btn" onClick={onBack}><IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back</button>
         )}
         <h1>Profile</h1>
       </div>
@@ -311,31 +348,43 @@ function Profile({ userId, onBack, onSetupSelect }) {
             ) : (
               <div className="profile-sets-grid">
                 {sets.map((set) => (
-                  <a
-                    key={set.id}
-                    className="profile-set-card"
-                    href={set.videoURL || '#'}
-                    target={set.videoURL ? '_blank' : undefined}
-                    rel={set.videoURL ? 'noopener noreferrer' : undefined}
-                    onClick={(e) => { if (!set.videoURL) e.preventDefault(); }}
-                  >
-                    {set.videoURL ? (
-                      <video
-                        src={set.videoURL}
-                        className="profile-set-thumbnail"
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      <div className="profile-set-placeholder">No preview</div>
+                  <div key={set.id} className="profile-set-card-wrap">
+                    <a
+                      className="profile-set-card"
+                      href={set.videoURL || '#'}
+                      target={set.videoURL ? '_blank' : undefined}
+                      rel={set.videoURL ? 'noopener noreferrer' : undefined}
+                      onClick={(e) => { if (!set.videoURL) e.preventDefault(); }}
+                    >
+                      {set.videoURL ? (
+                        <video
+                          src={set.videoURL}
+                          className="profile-set-thumbnail"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        <div className="profile-set-placeholder">No preview</div>
+                      )}
+                      <div className="profile-set-info">
+                        <div className="profile-set-title">{set.title || 'Untitled Set'}</div>
+                        <div className="profile-set-date">{formatDate(set.createdAt)}</div>
+                        {set.videoURL && <div className="profile-set-link-hint">Watch full set <FiArrowRight size={14} style={{ verticalAlign: 'middle' }} /></div>}
+                      </div>
+                    </a>
+                    {isOwnProfile && (
+                      <button
+                        type="button"
+                        className="profile-set-delete-btn"
+                        onClick={(e) => handleDeleteSetClick(e, set)}
+                        aria-label="Remove this set"
+                        title="Remove this set from your profile"
+                      >
+                        <MdDelete size={20} />
+                      </button>
                     )}
-                    <div className="profile-set-info">
-                      <div className="profile-set-title">{set.title || 'Untitled Set'}</div>
-                      <div className="profile-set-date">{formatDate(set.createdAt)}</div>
-                      {set.videoURL && <div className="profile-set-link-hint">Watch full set →</div>}
-                    </div>
-                  </a>
+                  </div>
                 ))}
               </div>
             )}
@@ -374,6 +423,26 @@ function Profile({ userId, onBack, onSetupSelect }) {
             ) : (
               !isOwnProfile && <div className="profile-empty profile-fave-empty">No fave product set</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete set confirm */}
+      {setToDelete && (
+        <div className="profile-delete-set-overlay" onClick={handleCancelDeleteSet}>
+          <div className="profile-delete-set-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="profile-delete-set-title">Remove this live set?</h3>
+            <p className="profile-delete-set-message">
+              This set will be removed from your profile and its clips will be removed from the feed. The video file will not be deleted from storage.
+            </p>
+            <div className="profile-delete-set-actions">
+              <button type="button" className="profile-delete-set-cancel" onClick={handleCancelDeleteSet} disabled={deletingSet}>
+                Cancel
+              </button>
+              <button type="button" className="profile-delete-set-confirm" onClick={handleConfirmDeleteSet} disabled={deletingSet}>
+                {deletingSet ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
           </div>
         </div>
       )}

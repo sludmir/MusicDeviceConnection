@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { MdDelete } from 'react-icons/md';
 import PostSetModal from './PostSetModal';
 import './HubLandingPage.css';
 
@@ -137,7 +138,11 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, theme = 'light
         </section>
 
         {showPostSetModal && (
-          <PostSetModal onClose={() => setShowPostSetModal(false)} theme={theme} />
+          <PostSetModal
+            onClose={() => setShowPostSetModal(false)}
+            onSuccess={() => setShowPostSetModal(false)}
+            theme={theme}
+          />
         )}
 
         {/* Main grid: Recent setups + sidebar */}
@@ -175,7 +180,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, theme = 'light
                       title="Delete setup"
                       aria-label="Delete setup"
                     >
-                      🗑
+                      <MdDelete size={18} />
                     </button>
                   </div>
                 ))}

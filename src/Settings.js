@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from './firebaseConfig';
 import { updateProfile } from 'firebase/auth';
+import { IoArrowBack } from 'react-icons/io5';
 
 function Settings({ onBack }) {
   const [user, setUser] = useState(null);
@@ -75,7 +76,7 @@ function Settings({ onBack }) {
             onMouseEnter={(e) => e.target.style.backgroundColor = '#444'}
             onMouseLeave={(e) => e.target.style.backgroundColor = '#333'}
           >
-            ← Back
+            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
           </button>
         </div>
 

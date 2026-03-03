@@ -79,13 +79,15 @@ service firebase.storage {
         && isValidImage();
     }
 
-    // Live sets - full video uploads
+    // Live sets - full video uploads (5 min–90 min sets, typically 50MB–1.5GB)
+    // Read must be public: <video src="downloadURL"> requests don't send Firebase auth, so
+    // allow read: if true lets feed/profile video playback work. Write stays restricted.
     match /sets/{allPaths=**} {
-      allow read: if isSignedIn(); // Authenticated users can read
-      allow write: if isSignedIn() && isValidVideo(); // Authenticated users can upload videos
+      allow read: if true;  // Download URLs are loaded by browser without auth token
+      allow write: if isSignedIn() && isValidVideo();
       allow create: if isSignedIn() && isValidVideo();
       allow update: if isSignedIn() && isValidVideo();
-      allow delete: if isSignedIn(); // Users can delete their own uploads
+      allow delete: if isSignedIn();
     }
 
     // Clips - short video clips for feed (can reuse sets or be separate)

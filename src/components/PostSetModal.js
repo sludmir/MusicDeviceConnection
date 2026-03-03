@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { IoArrowBack } from 'react-icons/io5';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
@@ -6,8 +7,10 @@ import './PostSetModal.css';
 
 const PIXELS_PER_SECOND = 80;
 const WAVEFORM_HEIGHT = 80;
-const CLIP_MIN_SEC = 3;
-const CLIP_MAX_SEC = 30;
+const SET_MIN_SEC = 5 * 60;   // 5 min – full set minimum
+const SET_MAX_SEC = 90 * 60;  // 1 hr 30 min – full set maximum
+const CLIP_MIN_SEC = 10;      // 10 sec – clip minimum
+const CLIP_MAX_SEC = 60;      // 1 min – clip maximum
 const MAX_AUDIO_SIZE_MB = 100;
 const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
 
@@ -30,8 +33,9 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const [waveformReady, setWaveformReady] = useState(false);
   const [error, setError] = useState(null);
   const [audioSource, setAudioSource] = useState('video');
-  const [clipStart, setClipStart] = useState(0);
-  const [clipEnd, setClipEnd] = useState(30);
+  const [numClips, setNumClips] = useState(1);
+  const [clipRanges, setClipRanges] = useState([{ start: 0, end: 10 }]);
+  const [activeClipIndex, setActiveClipIndex] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [dragging, setDragging] = useState(null);
   const [title, setTitle] = useState('');
@@ -45,12 +49,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const waveformWrapRef = useRef(null);
   const audioContextRef = useRef(null);
   const timelineRef = useRef(null);
-  const clipStartRef = useRef(clipStart);
-  const clipEndRef = useRef(clipEnd);
   const step2VideoRef = useRef(null);
   const audioInputRef = useRef(null);
-  clipStartRef.current = clipStart;
-  clipEndRef.current = clipEnd;
+  const clipRangesRef = useRef(clipRanges);
+  clipRangesRef.current = clipRanges;
 
   const isDark = theme === 'dark';
   const useTrackAudio = audioSource === 'track';
@@ -264,14 +266,20 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     el.scrollLeft = Math.max(0, sec * PIXELS_PER_SECOND);
   };
 
+  const handleStep1VideoLoaded = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const dur = v.duration;
+    if (dur && !Number.isNaN(dur)) setVideoDuration(dur);
+  }, []);
+
   const handleStep2VideoLoaded = useCallback(() => {
     const v = step2VideoRef.current;
     if (!v) return;
     const dur = v.duration;
     setVideoDuration(dur);
-    const end = Math.min(CLIP_MAX_SEC, dur);
-    setClipEnd(end);
-    setClipStart(0);
+    const end = Math.min(CLIP_MAX_SEC, Math.max(CLIP_MIN_SEC, dur));
+    setClipRanges([{ start: 0, end }]);
   }, []);
 
   const percentToTime = useCallback((p) => Math.max(0, Math.min(videoDuration, (p / 100) * videoDuration)), [videoDuration]);
@@ -287,10 +295,14 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     }
     start = Math.max(0, Math.min(videoDuration - CLIP_MIN_SEC, start));
     end = Math.max(CLIP_MIN_SEC, Math.min(videoDuration, end));
-    setClipStart(Number(start.toFixed(2)));
-    setClipEnd(Number(end.toFixed(2)));
+    const i = activeClipIndex;
+    setClipRanges((prev) => {
+      const next = [...prev];
+      next[i] = { start: Number(start.toFixed(2)), end: Number(end.toFixed(2)) };
+      return next;
+    });
     if (seekVideo && step2VideoRef.current) step2VideoRef.current.currentTime = start;
-  }, [videoDuration, dragging]);
+  }, [videoDuration, dragging, activeClipIndex]);
 
   const handleTimelineClick = (e) => {
     if (!timelineRef.current || !videoDuration) return;
@@ -311,8 +323,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       const rect = timelineRef.current.getBoundingClientRect();
       const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const t = percentToTime(p * 100);
-      const start = clipStartRef.current;
-      const end = clipEndRef.current;
+      const ranges = clipRangesRef.current;
+      const i = activeClipIndex;
+      const start = (ranges[i] || {}).start ?? 0;
+      const end = (ranges[i] || {}).end ?? 0;
       if (dragging === 'start') updateClipRange(t, end, true);
       else updateClipRange(start, t, false);
     };
@@ -323,11 +337,25 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, videoDuration, percentToTime, updateClipRange]);
+  }, [dragging, videoDuration, percentToTime, updateClipRange, activeClipIndex]);
 
   const handleNext = () => {
     if (!videoURL) return;
     setError(null);
+    const dur = videoRef.current?.duration ?? videoDuration;
+    if (!dur || Number.isNaN(dur)) {
+      setError('Load the video first (wait for it to load)');
+      return;
+    }
+    if (dur < SET_MIN_SEC) {
+      setError(`Set must be at least ${SET_MIN_SEC / 60} minutes. Yours is ${(dur / 60).toFixed(1)} min.`);
+      return;
+    }
+    if (dur > SET_MAX_SEC) {
+      setError(`Set must be at most ${SET_MAX_SEC / 60} minutes (1 hr 30 min). Yours is ${(dur / 60).toFixed(1)} min.`);
+      return;
+    }
+    setVideoDuration(dur);
     setStep(2);
   };
 
@@ -336,15 +364,37 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     setStep(1);
   };
 
+  const handleNumClipsChange = (n) => {
+    setNumClips(n);
+    setClipRanges((prev) => {
+      const next = prev.slice(0, n);
+      const dur = videoDuration || 0;
+      while (next.length < n) {
+        const last = next[next.length - 1];
+        const start = last
+          ? Math.min(last.end + 30, Math.max(0, dur - CLIP_MIN_SEC))
+          : 0;
+        const end = Math.min(start + CLIP_MIN_SEC, dur || start + CLIP_MIN_SEC);
+        next.push({ start: Number(start.toFixed(2)), end: Number(Math.max(start + CLIP_MIN_SEC, end).toFixed(2)) });
+      }
+      return next;
+    });
+    setActiveClipIndex((prev) => Math.min(prev, n - 1));
+  };
+
   const handlePost = async () => {
-    const duration = clipEnd - clipStart;
-    if (duration < CLIP_MIN_SEC) {
-      setError(`Clip must be at least ${CLIP_MIN_SEC} seconds`);
-      return;
-    }
-    if (duration > CLIP_MAX_SEC) {
-      setError(`Clip must be at most ${CLIP_MAX_SEC} seconds`);
-      return;
+    const rangesToPost = clipRanges.slice(0, numClips);
+    for (let i = 0; i < rangesToPost.length; i++) {
+      const r = rangesToPost[i];
+      const duration = (r?.end ?? 0) - (r?.start ?? 0);
+      if (duration < CLIP_MIN_SEC) {
+        setError(`Clip ${i + 1} must be at least ${CLIP_MIN_SEC} seconds`);
+        return;
+      }
+      if (duration > CLIP_MAX_SEC) {
+        setError(`Clip ${i + 1} must be at most ${CLIP_MAX_SEC} seconds (1 min)`);
+        return;
+      }
     }
     if (!auth.currentUser) {
       setError('Please sign in to post');
@@ -375,15 +425,26 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
           setError(err?.message || 'Upload failed');
           setUploading(false);
         },
-        async () => {
+        () => {
+          const run = async () => {
+          const done = (success) => {
+            setUploading(false);
+            if (success) {
+              // Defer close so user sees 100% and React can flush state
+              setTimeout(() => {
+                onSuccess?.();
+                onClose?.();
+              }, 150);
+            }
+          };
           try {
             const fullVideoURL = await getDownloadURL(uploadTask.snapshot.ref);
             let audioTrackURL = null;
             if (audioFile) {
               const audioName = (audioFile.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
-              const audioRef = ref(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
-              await uploadBytes(audioRef, audioFile);
-              audioTrackURL = await getDownloadURL(audioRef);
+              const audioStorageRef = ref(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
+              await uploadBytes(audioStorageRef, audioFile);
+              audioTrackURL = await getDownloadURL(audioStorageRef);
             }
 
             const setData = {
@@ -392,6 +453,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
               title: (title || 'Untitled Set').trim(),
               description: '',
               videoURL: fullVideoURL,
+              durationSeconds: videoDuration,
               createdAt: serverTimestamp(),
               views: 0,
             };
@@ -401,34 +463,44 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
             }
             const setDocRef = await addDoc(collection(db, 'sets'), setData);
 
-            const clipData = {
+            const baseClipData = {
               creatorId: userId,
               creatorName,
               title: (title || 'Untitled Set').trim(),
               description: '',
               fullVideoURL,
-              clipStart,
-              clipEnd,
               videoURL: fullVideoURL,
               fullSetId: setDocRef.id,
               likes: 0,
               likedBy: [],
-              createdAt: serverTimestamp(),
               views: 0,
             };
             if (audioTrackURL != null) {
-              clipData.audioTrackURL = audioTrackURL;
-              clipData.audioOffsetSeconds = offsetSeconds;
+              baseClipData.audioTrackURL = audioTrackURL;
+              baseClipData.audioOffsetSeconds = offsetSeconds;
             }
-            await addDoc(collection(db, 'clips'), clipData);
-            setUploading(false);
-            if (onSuccess) onSuccess();
-            if (onClose) onClose();
+
+            for (const r of rangesToPost) {
+              const clipData = {
+                ...baseClipData,
+                clipStart: r.start,
+                clipEnd: r.end,
+                createdAt: serverTimestamp(),
+              };
+              await addDoc(collection(db, 'clips'), clipData);
+            }
+            done(true);
           } catch (e) {
             console.error('Error saving set/clip:', e);
-            setError(e?.message || 'Failed to save');
-            setUploading(false);
+            setError(e?.message || e?.code || String(e) || 'Failed to save');
+            done(false);
           }
+          };
+          run().catch((e) => {
+            console.error('Post-set completion error:', e);
+            setError(e?.message || e?.code || String(e) || 'Failed to save');
+            setUploading(false);
+          });
         }
       );
     } catch (e) {
@@ -468,8 +540,9 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                     onPlay={handleVideoPlay}
                     onPause={handleVideoPause}
                     onError={handleVideoError}
+                    onLoadedMetadata={handleStep1VideoLoaded}
                   />
-                  <p className="post-set-video-label">Video loaded. Add optional audio below to sync.</p>
+                  <p className="post-set-video-label">Video loaded. Full set must be 5 min – 1 hr 30 min. Add optional audio below to sync.</p>
                 </div>
               )}
             </div>
@@ -565,7 +638,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
             {videoURL && (
               <div className="post-set-actions">
                 <button type="button" className="post-set-next-btn" onClick={handleNext}>
-                  Next — Select 30s clip
+                  Next — Select clip(s) for feed (10s–1 min each)
                 </button>
               </div>
             )}
@@ -575,9 +648,36 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         {step === 2 && videoURL && (
           <>
             <div className="post-set-section">
-              <button type="button" className="post-set-back-btn" onClick={handleBack}>← Back</button>
-              <h3 className="post-set-section-title">Select your 30 second clip</h3>
-              <p className="post-set-hint">Choose the segment that will appear in the feed. The full set will be on your profile.</p>
+              <button type="button" className="post-set-back-btn" onClick={handleBack}><IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back</button>
+              <h3 className="post-set-section-title">Select clip(s) for the feed</h3>
+              <p className="post-set-hint">Choose 1–3 segments (10 sec – 1 min each) that will appear in the feed. The full set will be on your profile.</p>
+              <div className="post-set-num-clips">
+                <span className="post-set-num-clips-label">Number of clips:</span>
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`post-set-num-clip-btn ${numClips === n ? 'active' : ''}`}
+                    onClick={() => handleNumClipsChange(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {numClips > 1 && (
+                <div className="post-set-clip-tabs">
+                  {Array.from({ length: numClips }, (_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`post-set-clip-tab ${activeClipIndex === i ? 'active' : ''}`}
+                      onClick={() => setActiveClipIndex(i)}
+                    >
+                      Clip {i + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="post-set-clip-preview-wrap">
                 <video
                   ref={step2VideoRef}
@@ -588,6 +688,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                 />
               </div>
               <div className="post-set-timeline-wrap">
+                {numClips > 1 && <p className="post-set-timeline-clip-label">Clip {activeClipIndex + 1} range</p>}
                 <div
                   ref={timelineRef}
                   className="post-set-timeline"
@@ -599,29 +700,29 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   <div
                     className="post-set-timeline-range"
                     style={{
-                      left: `${timeToPercent(clipStart)}%`,
-                      width: `${timeToPercent(clipEnd) - timeToPercent(clipStart)}%`,
+                      left: `${timeToPercent((clipRanges[activeClipIndex] || {}).start ?? 0)}%`,
+                      width: `${timeToPercent((clipRanges[activeClipIndex] || {}).end ?? 0) - timeToPercent((clipRanges[activeClipIndex] || {}).start ?? 0)}%`,
                     }}
                   />
                   <div
                     className="post-set-timeline-thumb post-set-timeline-thumb-start"
-                    style={{ left: `${timeToPercent(clipStart)}%` }}
+                    style={{ left: `${timeToPercent((clipRanges[activeClipIndex] || {}).start ?? 0)}%` }}
                     onMouseDown={handleThumbMouseDown('start')}
                     role="button"
                     aria-label="Clip start"
                   />
                   <div
                     className="post-set-timeline-thumb post-set-timeline-thumb-end"
-                    style={{ left: `${timeToPercent(clipEnd)}%` }}
+                    style={{ left: `${timeToPercent((clipRanges[activeClipIndex] || {}).end ?? 0)}%` }}
                     onMouseDown={handleThumbMouseDown('end')}
                     role="button"
                     aria-label="Clip end"
                   />
                 </div>
                 <div className="post-set-timeline-labels">
-                  <span>{clipStart.toFixed(1)}s</span>
-                  <span className="post-set-timeline-dur">{(clipEnd - clipStart).toFixed(1)}s / max {CLIP_MAX_SEC}s</span>
-                  <span>{clipEnd.toFixed(1)}s</span>
+                  <span>{((clipRanges[activeClipIndex] || {}).start ?? 0).toFixed(1)}s</span>
+                  <span className="post-set-timeline-dur">{(((clipRanges[activeClipIndex] || {}).end ?? 0) - ((clipRanges[activeClipIndex] || {}).start ?? 0)).toFixed(1)}s / 10s–{CLIP_MAX_SEC}s</span>
+                  <span>{((clipRanges[activeClipIndex] || {}).end ?? 0).toFixed(1)}s</span>
                 </div>
               </div>
               <div className="post-set-title-row">
@@ -644,7 +745,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                 </div>
               ) : (
                 <button type="button" className="post-set-post-btn" onClick={handlePost}>
-                  Post — Full set to profile, 30s clip to feed
+                  Post — Full set to profile, {numClips} clip{numClips > 1 ? 's' : ''} to feed
                 </button>
               )}
             </div>

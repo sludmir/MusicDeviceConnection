@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { productManager, PRODUCT_CATEGORIES } from './productManager';
 import ProductManagerForm from './ProductManagerForm';
 import { auth } from './firebaseConfig';
+import { IoArrowBack } from 'react-icons/io5';
+import { MdSync, MdPerson, MdAdminPanelSettings, MdEdit, MdDelete } from 'react-icons/md';
 import './ProductDashboard.css';
 
 const ProductDashboard = ({ onClose }) => {
@@ -144,7 +146,7 @@ const ProductDashboard = ({ onClose }) => {
             onMouseEnter={(e) => e.target.style.backgroundColor = '#444'}
             onMouseLeave={(e) => e.target.style.backgroundColor = '#333'}
           >
-            ← Back
+            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
           </button>
         </div>
 
@@ -235,17 +237,17 @@ const ProductDashboard = ({ onClose }) => {
                             <div key={`${setupType}-${product.id}`} className="product-card">
                               {isMultiCompatible && (
                                 <div className="multi-compatible-badge" title="Compatible with multiple setup types">
-                                  🔄 Multi-compatible
+                                  <MdSync size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Multi-compatible
                                 </div>
                               )}
                               {isOwner && (
                                 <div className="owner-badge" title="You created this product">
-                                  👤 Your Product
+                                  <MdPerson size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Your Product
                                 </div>
                               )}
                               {isAdmin && !isOwner && (
                                 <div className="admin-badge" title="Admin - You can manage this product">
-                                  ⚡ Admin
+                                  <MdAdminPanelSettings size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Admin
                                 </div>
                               )}
                               <div className="product-header">
@@ -263,7 +265,7 @@ const ProductDashboard = ({ onClose }) => {
                                       onClick={() => setEditingProduct(product)}
                                       title={isAdmin ? "Edit Product (Admin)" : "Edit Product"}
                                     >
-                                      ✏️
+                                      <MdEdit size={18} />
                                     </button>
                                   )}
                                   {canDelete && (
@@ -272,7 +274,7 @@ const ProductDashboard = ({ onClose }) => {
                                       onClick={() => handleDeleteProduct(product.id, product.name)}
                                       title={isAdmin ? "Delete Product (Admin)" : "Delete Product"}
                                     >
-                                      🗑️
+                                      <MdDelete size={18} />
                                     </button>
                                   )}
                                   {!canEdit && !canDelete && (

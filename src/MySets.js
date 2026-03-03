@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
+import { MdDelete } from 'react-icons/md';
 import './components/HubLandingPage.css';
 
 function MySets({ onBack, onSelectSetup }) {
@@ -94,7 +95,7 @@ function MySets({ onBack, onSelectSetup }) {
                 title="Delete setup"
                 aria-label="Delete setup"
               >
-                🗑
+                <MdDelete size={18} />
               </button>
             </div>
           ))}

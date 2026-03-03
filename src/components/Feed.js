@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-// import { getStorage, ref, getDownloadURL } from 'firebase/storage'; // Unused imports
+import { FaHeart, FaRegHeart } from 'react-icons/fa';
+import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete } from 'react-icons/md';
 import './Feed.css';
 
 function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
@@ -12,10 +13,12 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [likedClips, setLikedClips] = useState(new Set());
   const [videoErrors, setVideoErrors] = useState(new Set());
+  const [clipToDelete, setClipToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
-  // const storage = getStorage(); // Unused
+  const currentUserId = auth.currentUser?.uid;
 
   useEffect(() => {
     loadClips();
@@ -133,9 +136,14 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
 
     const start = Number(clip.clipStart) ?? 0;
     const offset = Number(clip.audioOffsetSeconds) || 0;
+    const targetTime = start + offset;
 
-    audioEl.src = clip.audioTrackURL;
-    audioEl.currentTime = start + offset;
+    const syncAudioToVideo = () => {
+      const a = feedAudioRef.current;
+      if (a && vid) {
+        a.currentTime = vid.currentTime + offset;
+      }
+    };
 
     const onPlay = () => {
       const a = feedAudioRef.current;
@@ -144,24 +152,45 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
         a.play().catch(() => {});
       }
     };
-    const onTimeUpdate = () => {
-      if (vid && feedAudioRef.current) {
-        feedAudioRef.current.currentTime = vid.currentTime + offset;
+    const onTimeUpdate = syncAudioToVideo;
+
+    const onAudioReady = () => {
+      const a = feedAudioRef.current;
+      if (!a || a.src !== clip.audioTrackURL) return;
+      a.currentTime = targetTime;
+      if (vid && !vid.paused) {
+        a.currentTime = vid.currentTime + offset;
+        a.play().catch(() => {});
       }
     };
+
+    const needNewSrc = audioEl.src !== clip.audioTrackURL;
+    if (needNewSrc) {
+      audioEl.src = clip.audioTrackURL;
+      audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
+      audioEl.addEventListener('canplay', onAudioReady, { once: true });
+    } else {
+      audioEl.currentTime = targetTime;
+      if (vid && !vid.paused) {
+        audioEl.currentTime = vid.currentTime + offset;
+        audioEl.play().catch(() => {});
+      }
+    }
 
     vid.addEventListener('play', onPlay);
     vid.addEventListener('timeupdate', onTimeUpdate);
     if (!vid.paused) {
-      audioEl.currentTime = vid.currentTime + offset;
+      syncAudioToVideo();
       audioEl.play().catch(() => {});
     }
 
     return () => {
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('timeupdate', onTimeUpdate);
+      audioEl.removeEventListener('loadedmetadata', onAudioReady);
+      audioEl.removeEventListener('canplay', onAudioReady);
       audioEl.pause();
-      audioEl.removeAttribute('src');
+      // Don't remove src when switching clips — same track URL would reload and lose seek
     };
   }, [currentIndex, clips]);
 
@@ -193,9 +222,12 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
         allClips.push({ id: docSnap.id, ...docSnap.data() });
       });
 
+      // Only show clips that come from a posted full-length set (have fullSetId)
+      const clipsFromSets = allClips.filter((clip) => clip.fullSetId);
+
       // Prioritize clips from followed users
-      const followedClips = allClips.filter(clip => following.includes(clip.creatorId));
-      const suggestedClips = allClips.filter(clip => !following.includes(clip.creatorId));
+      const followedClips = clipsFromSets.filter(clip => following.includes(clip.creatorId));
+      const suggestedClips = clipsFromSets.filter(clip => !following.includes(clip.creatorId));
       const sortedClips = [...followedClips, ...suggestedClips].slice(0, 10);
 
       if (sortedClips.length < 10) setHasMore(false);
@@ -257,6 +289,54 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     }
   };
 
+  const handleVideoClick = (index) => {
+    const v = videoRefs.current[index];
+    if (!v) return;
+    if (v.paused) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  };
+
+  const handleDeleteClick = (e, clip) => {
+    e.stopPropagation();
+    if (currentUserId && clip.creatorId === currentUserId) {
+      setClipToDelete(clip);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!clipToDelete || !currentUserId || clipToDelete.creatorId !== currentUserId) {
+      setClipToDelete(null);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'clips', clipToDelete.id));
+      const idx = clips.findIndex((c) => c.id === clipToDelete.id);
+      setClips((prev) => prev.filter((c) => c.id !== clipToDelete.id));
+      setLikedClips((prev) => { const next = new Set(prev); next.delete(clipToDelete.id); return next; });
+      setVideoErrors((prev) => { const next = new Set(prev); next.delete(clipToDelete.id); return next; });
+      const newLength = clips.length - 1;
+      if (newLength > 0 && idx >= 0) {
+        const newIndex = idx <= currentIndex ? Math.max(0, currentIndex - 1) : currentIndex;
+        setCurrentIndex(Math.min(newIndex, newLength - 1));
+      } else {
+        setCurrentIndex(0);
+      }
+    } catch (err) {
+      console.error('Error deleting clip:', err);
+    } finally {
+      setDeleting(false);
+      setClipToDelete(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setClipToDelete(null);
+  };
+
   return (
     <div className="feed-container">
       <div className="feed-header">
@@ -272,7 +352,7 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
       <div className="feed-scroll" ref={feedRef}>
         {clips.length === 0 && !loading ? (
           <div className="feed-empty">
-            <div className="feed-empty-icon">📱</div>
+            <div className="feed-empty-icon"><MdPlayCircleOutline size={48} /></div>
             <h2>No clips yet</h2>
             <p>Be the first to upload a live set!</p>
             <button className="feed-upload-btn" onClick={onUploadClick}>
@@ -294,10 +374,30 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                     <div className="feed-clip-title">{clip.title || 'Untitled'} · Full set on profile</div>
                   </div>
                 </div>
-                <button type="button" className="feed-more-btn" aria-label="More options">⋯</button>
+                <div className="feed-header-actions">
+                  {currentUserId && clip.creatorId === currentUserId && (
+                    <button
+                      type="button"
+                      className="feed-delete-clip-btn"
+                      onClick={(e) => handleDeleteClick(e, clip)}
+                      aria-label="Delete clip"
+                      title="Delete this clip from the feed"
+                    >
+                      <MdDelete size={20} />
+                    </button>
+                  )}
+                  <button type="button" className="feed-more-btn" aria-label="More options"><MdMoreVert size={20} /></button>
+                </div>
               </div>
             </div>
-            <div className="feed-video-wrapper">
+            <div
+              className="feed-video-wrapper"
+              onClick={() => handleVideoClick(index)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVideoClick(index); } }}
+              aria-label="Toggle play / pause"
+            >
               {videoErrors.has(clip.id) ? (
                 <div className="feed-video-placeholder">Video unavailable</div>
               ) : clip.videoURL ? (
@@ -324,7 +424,7 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
               {/* Mobile: overlay with creator + actions */}
               <div className="feed-item-overlay">
                 <div className="feed-item-info">
-                  <div className="feed-creator-info" onClick={() => handleProfileClick(clip.creatorId)}>
+                  <div className="feed-creator-info" onClick={(e) => { e.stopPropagation(); handleProfileClick(clip.creatorId); }}>
                     <div className="feed-creator-avatar">
                       {clip.creatorName?.[0]?.toUpperCase() || 'U'}
                     </div>
@@ -334,17 +434,29 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                     </div>
                   </div>
                   <div className="feed-actions">
+                    {currentUserId && clip.creatorId === currentUserId && (
+                      <button
+                        type="button"
+                        className="feed-action-btn feed-delete-clip-btn-overlay"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(e, clip); }}
+                        aria-label="Delete clip"
+                        title="Delete this clip"
+                      >
+                        <span className="feed-action-icon"><MdDelete size={18} /></span>
+                        <span>Delete</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`feed-action-btn ${likedClips.has(clip.id) ? 'liked' : ''}`}
-                      onClick={() => handleLike(clip.id)}
+                      onClick={(e) => { e.stopPropagation(); handleLike(clip.id); }}
                       aria-label={likedClips.has(clip.id) ? 'Unlike' : 'Like'}
                     >
-                      <span className="feed-action-icon">{likedClips.has(clip.id) ? '❤️' : '🤍'}</span>
+                      <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
                       <span>{clip.likes || 0}</span>
                     </button>
-                    <button type="button" className="feed-action-btn" aria-label="Comment">💬</button>
-                    <button type="button" className="feed-action-btn" aria-label="Share">📤</button>
+                    <button type="button" className="feed-action-btn" aria-label="Comment" onClick={(e) => e.stopPropagation()}><MdComment size={18} /></button>
+                    <button type="button" className="feed-action-btn" aria-label="Share" onClick={(e) => e.stopPropagation()}><MdShare size={18} /></button>
                   </div>
                 </div>
               </div>
@@ -358,15 +470,15 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                   onClick={() => handleLike(clip.id)}
                   aria-label={likedClips.has(clip.id) ? 'Unlike' : 'Like'}
                 >
-                  <span className="feed-action-icon">{likedClips.has(clip.id) ? '❤️' : '🤍'}</span>
+                  <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
                   <span>{clip.likes || 0}</span>
                 </button>
                 <button type="button" className="feed-action-btn" aria-label="Comment">
-                  <span className="feed-action-icon">💬</span>
+                  <span className="feed-action-icon"><MdComment size={18} /></span>
                   <span>Comment</span>
                 </button>
                 <button type="button" className="feed-action-btn" aria-label="Share">
-                  <span className="feed-action-icon">📤</span>
+                  <span className="feed-action-icon"><MdShare size={18} /></span>
                   <span>Share</span>
                 </button>
               </div>
@@ -385,6 +497,26 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
           </div>
         )}
       </div>
+
+      {/* Delete clip confirm */}
+      {clipToDelete && (
+        <div className="feed-delete-overlay" onClick={handleCancelDelete}>
+          <div className="feed-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="feed-delete-title">Delete this clip?</h3>
+            <p className="feed-delete-message">
+              This clip will be removed from the feed. Your full set will stay on your profile.
+            </p>
+            <div className="feed-delete-actions">
+              <button type="button" className="feed-delete-cancel" onClick={handleCancelDelete} disabled={deleting}>
+                Cancel
+              </button>
+              <button type="button" className="feed-delete-confirm" onClick={handleConfirmDelete} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

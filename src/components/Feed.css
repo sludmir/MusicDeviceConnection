@@ -119,6 +119,7 @@
   margin: 0 auto;
   background: #000;
   overflow: hidden;
+  cursor: pointer;
   flex-shrink: 0;
   min-height: 0;
 }
@@ -230,7 +231,8 @@
 }
 
 .feed-action-btn .feed-action-icon {
-  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
 }
 
@@ -259,8 +261,11 @@
 }
 
 .feed-empty-icon {
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 16px;
+  color: var(--text-secondary, rgba(255,255,255,0.6));
   opacity: 0.6;
 }
 
@@ -291,6 +296,123 @@
 
 .feed-load-more button:hover {
   background: var(--feed-accent-hover);
+}
+
+/* Header actions (delete + more) */
+.feed-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.feed-delete-clip-btn,
+.feed-item-meta .feed-delete-clip-btn {
+  background: none;
+  border: none;
+  color: var(--feed-text-secondary);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.feed-delete-clip-btn:hover,
+.feed-item-meta .feed-delete-clip-btn:hover {
+  color: var(--feed-like);
+}
+
+.feed-delete-clip-btn-overlay {
+  color: var(--feed-text-secondary);
+}
+
+.feed-delete-clip-btn-overlay:hover {
+  color: var(--feed-like);
+}
+
+/* Delete clip confirm modal */
+.feed-delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.feed-delete-modal {
+  background: var(--feed-card-bg, #262626);
+  border: 1px solid var(--feed-border, #363636);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.feed-delete-title {
+  margin: 0 0 12px 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--feed-text);
+}
+
+.feed-delete-message {
+  margin: 0 0 20px 0;
+  font-size: 0.875rem;
+  color: var(--feed-text-secondary);
+  line-height: 1.5;
+}
+
+.feed-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.feed-delete-cancel {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--feed-border);
+  border-radius: 8px;
+  color: var(--feed-text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.feed-delete-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.feed-delete-confirm {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--feed-like);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.feed-delete-confirm:hover:not(:disabled) {
+  background: #c73e4a;
+}
+
+.feed-delete-confirm:disabled,
+.feed-delete-cancel:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* ============================================================

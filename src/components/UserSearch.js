@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { IoArrowBack } from 'react-icons/io5';
 import './UserSearch.css';
 
 function UserSearch({ onBack, onProfileClick }) {
@@ -62,7 +63,7 @@ function UserSearch({ onBack, onProfileClick }) {
       <div className="user-search-header">
         {onBack && (
           <button type="button" className="user-search-back" onClick={onBack}>
-            ← Back
+            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
           </button>
         )}
         <h1>Search users</h1>
