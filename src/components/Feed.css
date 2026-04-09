@@ -30,35 +30,36 @@
   overflow: hidden;
 }
 
-/* ========== Header ========== */
-.feed-header {
-  flex-shrink: 0;
+/* ========== Upload FAB (top-right) ========== */
+.feed-upload-fab {
+  position: fixed;
+  top: 100px;
+  right: 16px;
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--feed-accent);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: var(--feed-header-height);
-  padding: 0 16px;
-  background: var(--feed-bg);
-  border-bottom: 1px solid var(--feed-border);
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
-.feed-header-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.feed-upload-fab:hover {
+  background: var(--feed-accent-hover);
+  transform: scale(1.08);
 }
 
-.feed-header-logo {
-  height: 38px;
-  width: auto;
-  display: block;
-}
-
-.feed-header h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.feed-upload-fab:active {
+  transform: scale(0.95);
 }
 
 .feed-upload-btn {
@@ -415,6 +416,138 @@
   cursor: not-allowed;
 }
 
+/* ========== Ghost pause overlay ========== */
+.feed-pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  pointer-events: none;
+  animation: feedPauseIn 0.2s ease-out forwards;
+}
+
+.feed-pause-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+@keyframes feedPauseIn {
+  0% { opacity: 0; transform: scale(0.7); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ========== Emoji action icon ========== */
+.feed-action-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* ========== Caption badge ========== */
+.feed-caption-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: var(--feed-accent);
+  opacity: 0.85;
+}
+
+/* ========== Full Set Modal ========== */
+.feed-fullset-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+  animation: feedFadeIn 0.2s ease-out;
+}
+
+@keyframes feedFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.feed-fullset-modal {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.feed-fullset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.feed-fullset-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-fullset-close {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.feed-fullset-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.feed-fullset-video-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.feed-fullset-video {
+  width: 100%;
+  max-height: calc(90vh - 72px);
+  display: block;
+  outline: none;
+}
+
+.feed-creator-avatar-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
+}
+
 /* ============================================================
    MOBILE: Reels-style full-screen vertical scroll
    ============================================================ */
@@ -445,14 +578,6 @@
   .feed-container {
     background: var(--feed-card-bg-web);
     align-items: center;
-  }
-
-  .feed-header {
-    width: 100%;
-    max-width: var(--feed-desktop-max-width);
-    margin: 0 auto;
-    border-bottom: 1px solid var(--feed-border);
-    border-radius: 0;
   }
 
   .feed-scroll {

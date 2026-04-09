@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { IoArrowBack } from 'react-icons/io5';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
 import './PostSetModal.css';
@@ -41,6 +41,9 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [savedSetups, setSavedSetups] = useState([]);
+  const [selectedSetupId, setSelectedSetupId] = useState('');
+  const [loadingSetups, setLoadingSetups] = useState(false);
 
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -56,6 +59,32 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
 
   const isDark = theme === 'dark';
   const useTrackAudio = audioSource === 'track';
+
+  useEffect(() => {
+    if (step !== 2 || !auth.currentUser) return;
+    let cancelled = false;
+    const fetchSetups = async () => {
+      setLoadingSetups(true);
+      try {
+        const q = query(
+          collection(db, 'setups'),
+          where('ownerId', '==', auth.currentUser.uid),
+          orderBy('updatedAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        const list = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+        setSavedSetups(list);
+      } catch (err) {
+        console.error('Error fetching setups:', err);
+      } finally {
+        if (!cancelled) setLoadingSetups(false);
+      }
+    };
+    fetchSetups();
+    return () => { cancelled = true; };
+  }, [step]);
 
   const videoURLRef = useRef(null);
   const audioURLRef = useRef(null);
@@ -404,6 +433,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       setError('Missing video file');
       return;
     }
+    if (!selectedSetupId) {
+      setError('Please link a saved setup so viewers can copy your gear');
+      return;
+    }
 
     setUploading(true);
     setError(null);
@@ -447,6 +480,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
               audioTrackURL = await getDownloadURL(audioStorageRef);
             }
 
+            const linkedSetup = savedSetups.find(s => s.id === selectedSetupId);
             const setData = {
               creatorId: userId,
               creatorName,
@@ -457,6 +491,11 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
               createdAt: serverTimestamp(),
               views: 0,
             };
+            if (selectedSetupId && linkedSetup) {
+              setData.setupId = selectedSetupId;
+              setData.setupName = linkedSetup.name || '';
+              setData.setupType = linkedSetup.setupType || 'DJ';
+            }
             if (audioTrackURL != null) {
               setData.audioTrackURL = audioTrackURL;
               setData.audioOffsetSeconds = offsetSeconds;
@@ -475,6 +514,11 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
               likedBy: [],
               views: 0,
             };
+            if (selectedSetupId && linkedSetup) {
+              baseClipData.setupId = selectedSetupId;
+              baseClipData.setupName = linkedSetup.name || '';
+              baseClipData.setupType = linkedSetup.setupType || 'DJ';
+            }
             if (audioTrackURL != null) {
               baseClipData.audioTrackURL = audioTrackURL;
               baseClipData.audioOffsetSeconds = offsetSeconds;
@@ -736,6 +780,41 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   maxLength={100}
                 />
               </div>
+
+              <div className="post-set-setup-row">
+                <label className="post-set-setup-label">Link a setup (required)</label>
+                <p className="post-set-hint" style={{ marginTop: 0 }}>
+                  Let viewers copy your gear setup from the clip.
+                </p>
+                {loadingSetups ? (
+                  <div className="post-set-setup-loading">Loading setups…</div>
+                ) : savedSetups.length === 0 ? (
+                  <div className="post-set-setup-empty">
+                    No saved setups yet. Save a setup first from the scene view.
+                  </div>
+                ) : (
+                  <div className="post-set-setup-list">
+                    {savedSetups.map((setup) => (
+                      <button
+                        key={setup.id}
+                        type="button"
+                        className={`post-set-setup-option ${selectedSetupId === setup.id ? 'active' : ''}`}
+                        onClick={() => setSelectedSetupId(prev => prev === setup.id ? '' : setup.id)}
+                      >
+                        <span className="post-set-setup-option-icon">
+                          {setup.setupType === 'DJ' ? '🎧' : setup.setupType === 'Producer' ? '🎹' : '🎸'}
+                        </span>
+                        <span className="post-set-setup-option-name">{setup.name || 'Untitled'}</span>
+                        <span className="post-set-setup-option-type">{setup.setupType || 'DJ'}</span>
+                        <span className="post-set-setup-option-devices">
+                          {(setup.devices || []).length} device{(setup.devices || []).length !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {uploading ? (
                 <div className="post-set-progress">
                   <div className="post-set-progress-bar">

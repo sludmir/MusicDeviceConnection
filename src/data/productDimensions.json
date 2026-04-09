@@ -1,0 +1,425 @@
+{
+  "meta": {
+    "units": "mm",
+    "dimension_format": "width x depth x height (as viewed from above, height = vertical)",
+    "notes": "For guitars, width = body width, depth = total length (headstock to strap button), height = body thickness. For SM58, width = grip diameter, depth = total length, height = grip diameter. All values are approximate manufacturer specs."
+  },
+  "scene": {
+    "table_width_mm": 2400,
+    "table_depth_mm": 560,
+    "table_height_mm": 900,
+    "scene_table_width_units": 6,
+    "scene_unit_mm": 400
+  },
+  "products": [
+    {
+      "id": "liveset-001",
+      "name": "Laptop (MacBook Pro 16\")",
+      "category": "dj_club",
+      "width_mm": 356,
+      "depth_mm": 248,
+      "height_mm": 17,
+      "max_dimension_mm": 356,
+      "match_keys": ["laptop", "macbook", "macbookpro"]
+    },
+    {
+      "id": "liveset-002",
+      "name": "Allen & Heath Xone:96",
+      "category": "dj_club",
+      "width_mm": 320,
+      "depth_mm": 412,
+      "height_mm": 108,
+      "max_dimension_mm": 412,
+      "match_keys": ["xone96", "xone:96"]
+    },
+    {
+      "id": "liveset-003",
+      "name": "Pioneer DJS-1000",
+      "category": "dj_club",
+      "width_mm": 306,
+      "depth_mm": 338,
+      "height_mm": 73,
+      "max_dimension_mm": 338,
+      "match_keys": ["djs1000", "djs-1000"]
+    },
+    {
+      "id": "liveset-004",
+      "name": "Pioneer DDJ-1000",
+      "category": "dj_club",
+      "width_mm": 722,
+      "depth_mm": 334,
+      "height_mm": 72,
+      "max_dimension_mm": 722,
+      "match_keys": ["ddj1000", "ddj-1000"]
+    },
+    {
+      "id": "liveset-005",
+      "name": "Technics SL-1210 MK7",
+      "category": "dj_club",
+      "width_mm": 453,
+      "depth_mm": 353,
+      "height_mm": 171,
+      "max_dimension_mm": 453,
+      "match_keys": ["sl1210", "sl-1210", "sl1210mk7", "technics"]
+    },
+    {
+      "id": "liveset-006",
+      "name": "Native Instruments Traktor Kontrol S4 MK3",
+      "category": "dj_club",
+      "width_mm": 527,
+      "depth_mm": 314,
+      "height_mm": 46,
+      "max_dimension_mm": 527,
+      "match_keys": ["kontrols4", "kontrols4mk3", "traktors4"]
+    },
+    {
+      "id": "liveset-007",
+      "name": "Rane MP2015",
+      "category": "dj_club",
+      "width_mm": 318,
+      "depth_mm": 413,
+      "height_mm": 99,
+      "max_dimension_mm": 413,
+      "match_keys": ["mp2015", "ranemp2015"]
+    },
+    {
+      "id": "liveset-008",
+      "name": "Ableton Push 3",
+      "category": "dj_club",
+      "width_mm": 375,
+      "depth_mm": 303,
+      "height_mm": 47,
+      "max_dimension_mm": 375,
+      "match_keys": ["push3", "abletonpush3", "abletonpush"]
+    },
+    {
+      "id": "liveset-009",
+      "name": "Moog Minimoog Model D",
+      "category": "synths_keyboards",
+      "width_mm": 603,
+      "depth_mm": 410,
+      "height_mm": 142,
+      "max_dimension_mm": 603,
+      "match_keys": ["minimoog", "minimoogmodeld", "moogmodeld"]
+    },
+    {
+      "id": "liveset-010",
+      "name": "Roland TB-303",
+      "category": "synths_keyboards",
+      "width_mm": 305,
+      "depth_mm": 175,
+      "height_mm": 57,
+      "max_dimension_mm": 305,
+      "match_keys": ["tb303", "tb-303"]
+    },
+    {
+      "id": "liveset-011",
+      "name": "Korg Minilogue XD",
+      "category": "synths_keyboards",
+      "width_mm": 500,
+      "depth_mm": 300,
+      "height_mm": 85,
+      "max_dimension_mm": 500,
+      "match_keys": ["miniloguexd", "minilogue"]
+    },
+    {
+      "id": "liveset-012",
+      "name": "Sequential Prophet-6",
+      "category": "synths_keyboards",
+      "width_mm": 632,
+      "depth_mm": 314,
+      "height_mm": 110,
+      "max_dimension_mm": 632,
+      "match_keys": ["prophet6", "prophet-6"]
+    },
+    {
+      "id": "liveset-013",
+      "name": "Roland Juno-106",
+      "category": "synths_keyboards",
+      "width_mm": 970,
+      "depth_mm": 300,
+      "height_mm": 80,
+      "max_dimension_mm": 970,
+      "match_keys": ["juno106", "juno-106"]
+    },
+    {
+      "id": "liveset-014",
+      "name": "Arturia MiniFreak",
+      "category": "synths_keyboards",
+      "width_mm": 528,
+      "depth_mm": 278,
+      "height_mm": 60,
+      "max_dimension_mm": 528,
+      "match_keys": ["minifreak"]
+    },
+    {
+      "id": "liveset-015",
+      "name": "Roland TR-909",
+      "category": "drum_machines",
+      "width_mm": 480,
+      "depth_mm": 300,
+      "height_mm": 70,
+      "max_dimension_mm": 480,
+      "match_keys": ["tr909", "tr-909"]
+    },
+    {
+      "id": "liveset-016",
+      "name": "Roland TR-808",
+      "category": "drum_machines",
+      "width_mm": 500,
+      "depth_mm": 300,
+      "height_mm": 90,
+      "max_dimension_mm": 500,
+      "match_keys": ["tr808", "tr-808"]
+    },
+    {
+      "id": "liveset-017",
+      "name": "Elektron Digitakt",
+      "category": "drum_machines",
+      "width_mm": 215,
+      "depth_mm": 176,
+      "height_mm": 63,
+      "max_dimension_mm": 215,
+      "match_keys": ["digitakt"]
+    },
+    {
+      "id": "liveset-018",
+      "name": "Boss RE-201 Space Echo",
+      "category": "effects_pedals",
+      "width_mm": 430,
+      "depth_mm": 180,
+      "height_mm": 120,
+      "max_dimension_mm": 430,
+      "match_keys": ["re201", "re-201", "spaceecho"]
+    },
+    {
+      "id": "liveset-019",
+      "name": "Strymon BigSky",
+      "category": "effects_pedals",
+      "width_mm": 170,
+      "depth_mm": 140,
+      "height_mm": 50,
+      "max_dimension_mm": 170,
+      "match_keys": ["bigsky"]
+    },
+    {
+      "id": "liveset-020",
+      "name": "Eventide H9",
+      "category": "effects_pedals",
+      "width_mm": 120,
+      "depth_mm": 120,
+      "height_mm": 62,
+      "max_dimension_mm": 120,
+      "match_keys": ["h9", "eventideh9"]
+    },
+    {
+      "id": "liveset-021",
+      "name": "Fender Stratocaster",
+      "category": "guitars",
+      "width_mm": 318,
+      "depth_mm": 998,
+      "height_mm": 45,
+      "max_dimension_mm": 998,
+      "match_keys": ["stratocaster", "strat"]
+    },
+    {
+      "id": "liveset-022",
+      "name": "Gibson Les Paul Standard",
+      "category": "guitars",
+      "width_mm": 340,
+      "depth_mm": 990,
+      "height_mm": 55,
+      "max_dimension_mm": 990,
+      "match_keys": ["lespaul", "lespaulstandard"]
+    },
+    {
+      "id": "liveset-023",
+      "name": "Shure SM58",
+      "category": "live_sound",
+      "width_mm": 51,
+      "depth_mm": 162,
+      "height_mm": 51,
+      "max_dimension_mm": 162,
+      "match_keys": ["sm58"]
+    },
+    {
+      "id": "liveset-024",
+      "name": "Universal Audio Apollo Twin",
+      "category": "live_sound",
+      "width_mm": 163,
+      "depth_mm": 163,
+      "height_mm": 47,
+      "max_dimension_mm": 163,
+      "match_keys": ["apollotwin"]
+    },
+    {
+      "id": "liveset-025",
+      "name": "Teenage Engineering OP-1 Field",
+      "category": "live_sound",
+      "width_mm": 282,
+      "depth_mm": 102,
+      "height_mm": 14,
+      "max_dimension_mm": 282,
+      "match_keys": ["op1", "op-1", "op1field", "op-1field"]
+    },
+    {
+      "id": "liveset-026",
+      "name": "Pioneer CDJ-3000",
+      "category": "dj_club",
+      "width_mm": 330,
+      "depth_mm": 411,
+      "height_mm": 116,
+      "max_dimension_mm": 411,
+      "match_keys": ["cdj3000", "cdj-3000"]
+    },
+    {
+      "id": "liveset-027",
+      "name": "Pioneer CDJ-2000NXS2",
+      "category": "dj_club",
+      "width_mm": 320,
+      "depth_mm": 406,
+      "height_mm": 106,
+      "max_dimension_mm": 406,
+      "match_keys": ["cdj2000nxs2", "cdj-2000nxs2", "cdj2000"]
+    },
+    {
+      "id": "liveset-028",
+      "name": "Pioneer DJM-900NXS2",
+      "category": "dj_club",
+      "width_mm": 326,
+      "depth_mm": 411,
+      "height_mm": 108,
+      "max_dimension_mm": 411,
+      "match_keys": ["djm900nxs2", "djm-900nxs2", "djm900"]
+    },
+    {
+      "id": "liveset-029",
+      "name": "Pioneer DJM-V10",
+      "category": "dj_club",
+      "width_mm": 410,
+      "depth_mm": 511,
+      "height_mm": 123,
+      "max_dimension_mm": 511,
+      "match_keys": ["djmv10", "djm-v10"]
+    },
+    {
+      "id": "liveset-030",
+      "name": "Pioneer RMX-1000",
+      "category": "dj_club",
+      "width_mm": 306,
+      "depth_mm": 338,
+      "height_mm": 82,
+      "max_dimension_mm": 338,
+      "match_keys": ["rmx1000", "rmx-1000"]
+    },
+    {
+      "id": "liveset-031",
+      "name": "Pioneer DJM-A9",
+      "category": "dj_club",
+      "width_mm": 326,
+      "depth_mm": 411,
+      "height_mm": 108,
+      "max_dimension_mm": 411,
+      "match_keys": ["djma9", "djm-a9"]
+    },
+    {
+      "id": "liveset-032",
+      "name": "Pioneer CDJ-3000-W",
+      "category": "dj_club",
+      "width_mm": 330,
+      "depth_mm": 411,
+      "height_mm": 116,
+      "max_dimension_mm": 411,
+      "match_keys": ["cdj3000w", "cdj-3000-w", "cdj3000white"]
+    },
+    {
+      "id": "liveset-033",
+      "name": "Allen & Heath Xone:92",
+      "category": "dj_club",
+      "width_mm": 320,
+      "depth_mm": 358,
+      "height_mm": 99,
+      "max_dimension_mm": 358,
+      "match_keys": ["xone92", "xone:92"]
+    },
+    {
+      "id": "liveset-034",
+      "name": "Pioneer DDJ-FLX10",
+      "category": "dj_club",
+      "width_mm": 726,
+      "depth_mm": 332,
+      "height_mm": 72,
+      "max_dimension_mm": 726,
+      "match_keys": ["ddjflx10", "ddj-flx10"]
+    },
+    {
+      "id": "liveset-035",
+      "name": "Pioneer XDJ-XZ",
+      "category": "dj_club",
+      "width_mm": 874,
+      "depth_mm": 336,
+      "height_mm": 101,
+      "max_dimension_mm": 874,
+      "match_keys": ["xdjxz", "xdj-xz"]
+    },
+    {
+      "id": "liveset-036",
+      "name": "Pioneer SP-16",
+      "category": "dj_club",
+      "width_mm": 306,
+      "depth_mm": 253,
+      "height_mm": 68,
+      "max_dimension_mm": 306,
+      "match_keys": ["sp16", "sp-16", "toraiz-sp16"]
+    },
+    {
+      "id": "liveset-037",
+      "name": "Pioneer DDJ-400",
+      "category": "dj_club",
+      "width_mm": 482,
+      "depth_mm": 272,
+      "height_mm": 59,
+      "max_dimension_mm": 482,
+      "match_keys": ["ddj400", "ddj-400"]
+    },
+    {
+      "id": "liveset-038",
+      "name": "Bose L1 Pro16",
+      "category": "speakers",
+      "width_mm": 330,
+      "depth_mm": 380,
+      "height_mm": 2030,
+      "max_dimension_mm": 2030,
+      "match_keys": ["l1pro16", "l1pro", "l1-pro16", "l1-pro", "bosel1", "bose l1"]
+    },
+    {
+      "id": "liveset-039",
+      "name": "Bose L1 Pro8",
+      "category": "speakers",
+      "width_mm": 330,
+      "depth_mm": 380,
+      "height_mm": 1524,
+      "max_dimension_mm": 1524,
+      "match_keys": ["l1pro8", "l1-pro8"]
+    },
+    {
+      "id": "liveset-040",
+      "name": "Bose L1 Pro32",
+      "category": "speakers",
+      "width_mm": 330,
+      "depth_mm": 380,
+      "height_mm": 2100,
+      "max_dimension_mm": 2100,
+      "match_keys": ["l1pro32", "l1-pro32"]
+    }
+  ],
+  "categories": {
+    "dj_club": "DJ / Club Gear",
+    "synths_keyboards": "Synths / Keyboards",
+    "drum_machines": "Drum Machines",
+    "effects_pedals": "Effects / Pedals",
+    "guitars": "Guitars",
+    "live_sound": "Live Sound / Misc",
+    "speakers": "Speakers / PA"
+  }
+}

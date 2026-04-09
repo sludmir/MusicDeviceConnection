@@ -583,3 +583,86 @@
 .post-set-post-btn:active {
   transform: scale(0.99);
 }
+
+/* ========== Setup selector ========== */
+.post-set-setup-row {
+  margin-bottom: 20px;
+}
+
+.post-set-setup-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(26, 26, 26, 0.7));
+  margin-bottom: 4px;
+}
+
+.post-set-setup-loading,
+.post-set-setup-empty {
+  font-size: 13px;
+  color: var(--text-muted, rgba(26, 26, 26, 0.55));
+  padding: 12px 0;
+}
+
+.post-set-setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.post-set-setup-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid var(--border-strong, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a1a);
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.post-set-setup-option:hover {
+  border-color: rgba(0, 162, 255, 0.4);
+  background: rgba(0, 162, 255, 0.04);
+}
+
+.post-set-setup-option.active {
+  border-color: rgba(0, 100, 200, 0.7);
+  background: rgba(0, 162, 255, 0.1);
+}
+
+.post-set-setup-option-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.post-set-setup-option-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-set-setup-option-type {
+  font-size: 12px;
+  color: var(--text-muted, rgba(26, 26, 26, 0.55));
+  background: var(--dropdown-hover, rgba(0, 0, 0, 0.05));
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.post-set-setup-option-devices {
+  font-size: 12px;
+  color: var(--text-secondary, rgba(26, 26, 26, 0.6));
+  flex-shrink: 0;
+}

@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
-import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete } from 'react-icons/md';
+import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo } from 'react-icons/md';
 import './Feed.css';
 
-function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
+const PRELOAD_WINDOW = 2;
+const AUDIO_DRIFT_THRESHOLD = 0.3;
+
+function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastDoc, setLastDoc] = useState(null);
@@ -15,15 +18,28 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
   const [videoErrors, setVideoErrors] = useState(new Set());
   const [clipToDelete, setClipToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [pausedOverlay, setPausedOverlay] = useState(null);
+  const [fullSetClip, setFullSetClip] = useState(null);
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
+  const pauseTimerRef = useRef(null);
+  const fullSetVideoRef = useRef(null);
   const currentUserId = auth.currentUser?.uid;
 
   useEffect(() => {
     loadClips();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadClips only runs on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const ref = pauseTimerRef;
+    return () => {
+      if (ref.current) clearTimeout(ref.current);
+    };
+  }, []);
+
+  // ── Scroll-based autoplay ──────────────────────────────────────────
 
   useEffect(() => {
     const container = feedRef.current;
@@ -32,18 +48,20 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     const updateActiveVideo = (index) => {
       if (index === currentIndex || index < 0 || index >= clips.length) return;
       setCurrentIndex(index);
+      setPausedOverlay(null);
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       const clip = clips[index];
       const start = Number(clip?.clipStart) ?? 0;
       Object.values(videoRefs.current).forEach((vid, idx) => {
-        if (vid) {
-          if (idx !== index) vid.pause();
-          else {
-            vid.currentTime = start;
-            vid.play().catch(() => {});
-          }
+        if (!vid) return;
+        if (idx !== index) {
+          vid.pause();
+        } else {
+          vid.currentTime = start;
+          vid.play().catch(() => {});
         }
       });
-    }
+    };
 
     const handleScroll = () => {
       const h = container.clientHeight;
@@ -87,40 +105,68 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     };
   }, [currentIndex, clips.length, clips]);
 
-  const setupClipSegmentLoop = (videoEl, clip) => {
+  // ── Clip segment loop ─────────────────────────────────────────────
+
+  const setupClipSegmentLoop = useCallback((videoEl, clip) => {
     if (!videoEl || !clip?.videoURL) return () => {};
     const start = Number(clip.clipStart) ?? 0;
     const end = Number(clip.clipEnd) ?? 0;
     const useSegment = end > start && end - start > 0;
 
-    const onTimeUpdate = () => {
+    let rafId = null;
+
+    const checkLoop = () => {
       if (!useSegment) return;
       const endSec = end > 0 ? end : (videoEl.duration || 0);
-      if (videoEl.duration && videoEl.currentTime >= endSec - 0.15) {
+      if (videoEl.duration && videoEl.currentTime >= endSec - 0.05) {
         videoEl.currentTime = start;
+        if (videoEl.paused) videoEl.play().catch(() => {});
       }
     };
+
+    const onTimeUpdate = () => checkLoop();
+
+    const tick = () => {
+      checkLoop();
+      rafId = requestAnimationFrame(tick);
+    };
+
+    const onPlay = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(tick);
+    };
+    const onPause = () => {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    };
+
     const onLoadedMetadata = () => {
       videoEl.currentTime = start;
     };
 
     videoEl.addEventListener('timeupdate', onTimeUpdate);
     videoEl.addEventListener('loadedmetadata', onLoadedMetadata);
+    videoEl.addEventListener('play', onPlay);
+    videoEl.addEventListener('pause', onPause);
     if (videoEl.readyState >= 1) videoEl.currentTime = start;
+    if (!videoEl.paused) { rafId = requestAnimationFrame(tick); }
 
     return () => {
       videoEl.removeEventListener('timeupdate', onTimeUpdate);
       videoEl.removeEventListener('loadedmetadata', onLoadedMetadata);
+      videoEl.removeEventListener('play', onPlay);
+      videoEl.removeEventListener('pause', onPause);
+      if (rafId) cancelAnimationFrame(rafId);
     };
-  };
+  }, []);
 
   useEffect(() => {
     const vid = videoRefs.current[currentIndex];
     const clip = clips[currentIndex];
     if (!vid || !clip) return;
-    const cleanup = setupClipSegmentLoop(vid, clip);
-    return cleanup;
-  }, [currentIndex, clips]);
+    return setupClipSegmentLoop(vid, clip);
+  }, [currentIndex, clips, setupClipSegmentLoop]);
+
+  // ── Audio sync (drift-tolerant) ───────────────────────────────────
 
   useEffect(() => {
     const vid = videoRefs.current[currentIndex];
@@ -138,10 +184,13 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     const offset = Number(clip.audioOffsetSeconds) || 0;
     const targetTime = start + offset;
 
-    const syncAudioToVideo = () => {
+    const syncAudio = () => {
       const a = feedAudioRef.current;
-      if (a && vid) {
-        a.currentTime = vid.currentTime + offset;
+      if (!a || !vid) return;
+      const expected = vid.currentTime + offset;
+      const drift = Math.abs(a.currentTime - expected);
+      if (drift > AUDIO_DRIFT_THRESHOLD) {
+        a.currentTime = expected;
       }
     };
 
@@ -152,7 +201,13 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
         a.play().catch(() => {});
       }
     };
-    const onTimeUpdate = syncAudioToVideo;
+
+    const onPause = () => {
+      const a = feedAudioRef.current;
+      if (a) a.pause();
+    };
+
+    const onTimeUpdate = syncAudio;
 
     const onAudioReady = () => {
       const a = feedAudioRef.current;
@@ -178,21 +233,24 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     }
 
     vid.addEventListener('play', onPlay);
+    vid.addEventListener('pause', onPause);
     vid.addEventListener('timeupdate', onTimeUpdate);
     if (!vid.paused) {
-      syncAudioToVideo();
+      syncAudio();
       audioEl.play().catch(() => {});
     }
 
     return () => {
       vid.removeEventListener('play', onPlay);
+      vid.removeEventListener('pause', onPause);
       vid.removeEventListener('timeupdate', onTimeUpdate);
       audioEl.removeEventListener('loadedmetadata', onAudioReady);
       audioEl.removeEventListener('canplay', onAudioReady);
       audioEl.pause();
-      // Don't remove src when switching clips — same track URL would reload and lose seek
     };
   }, [currentIndex, clips]);
+
+  // ── Data loading ──────────────────────────────────────────────────
 
   const loadClips = async () => {
     if (!auth.currentUser) return;
@@ -200,7 +258,6 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
       setLoading(true);
       const userId = auth.currentUser.uid;
       
-      // Get user's following list
       let following = [];
       try {
         const userRef = doc(db, 'users', userId);
@@ -222,10 +279,7 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
         allClips.push({ id: docSnap.id, ...docSnap.data() });
       });
 
-      // Only show clips that come from a posted full-length set (have fullSetId)
       const clipsFromSets = allClips.filter((clip) => clip.fullSetId);
-
-      // Prioritize clips from followed users
       const followedClips = clipsFromSets.filter(clip => following.includes(clip.creatorId));
       const suggestedClips = clipsFromSets.filter(clip => !following.includes(clip.creatorId));
       const sortedClips = [...followedClips, ...suggestedClips].slice(0, 10);
@@ -246,6 +300,8 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
       setLoading(false);
     }
   };
+
+  // ── Interactions ──────────────────────────────────────────────────
 
   const handleLike = async (clipId) => {
     if (!auth.currentUser) return;
@@ -284,19 +340,45 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
   };
 
   const handleProfileClick = async (userId) => {
-    if (onProfileClick) {
-      onProfileClick(userId);
-    }
+    if (onProfileClick) onProfileClick(userId);
   };
 
   const handleVideoClick = (index) => {
     const v = videoRefs.current[index];
     if (!v) return;
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+
     if (v.paused) {
       v.play().catch(() => {});
+      setPausedOverlay(null);
     } else {
       v.pause();
+      setPausedOverlay(index);
     }
+  };
+
+  const handleCopySetup = (clip) => {
+    if (!clip.setupId || !onCopySetup) return;
+    onCopySetup(clip.setupId);
+  };
+
+  const handleWatchFullSet = (clip) => {
+    if (!clip.fullSetId) return;
+    const v = videoRefs.current[currentIndex];
+    if (v && !v.paused) v.pause();
+    if (feedAudioRef.current) feedAudioRef.current.pause();
+    setFullSetClip(clip);
+  };
+
+  const closeFullSetModal = () => {
+    if (fullSetVideoRef.current) {
+      fullSetVideoRef.current.pause();
+      fullSetVideoRef.current.removeAttribute('src');
+      fullSetVideoRef.current.load();
+    }
+    setFullSetClip(null);
+    const v = videoRefs.current[currentIndex];
+    if (v) v.play().catch(() => {});
   };
 
   const handleDeleteClick = (e, clip) => {
@@ -337,17 +419,49 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
     setClipToDelete(null);
   };
 
+  // ── Render helpers ────────────────────────────────────────────────
+
+  const renderCopySetupBtn = (clip, variant = 'overlay') => {
+    if (!clip.setupId) return null;
+    const cls = variant === 'overlay' ? 'feed-action-btn' : 'feed-action-btn feed-action-btn-row';
+    return (
+      <button
+        type="button"
+        className={cls}
+        onClick={(e) => { e.stopPropagation(); handleCopySetup(clip); }}
+        aria-label="Copy setup"
+        title="View & copy this setup"
+      >
+        <span className="feed-action-icon feed-action-emoji">🎛️</span>
+        <span>{variant === 'row' ? 'Copy Setup' : ''}</span>
+      </button>
+    );
+  };
+
+  const renderFullSetBtn = (clip, variant = 'overlay') => {
+    if (!clip.fullSetId) return null;
+    const cls = variant === 'overlay' ? 'feed-action-btn' : 'feed-action-btn feed-action-btn-row';
+    return (
+      <button
+        type="button"
+        className={cls}
+        onClick={(e) => { e.stopPropagation(); handleWatchFullSet(clip); }}
+        aria-label="Watch full set"
+        title="Watch the full LiveSet"
+      >
+        <span className="feed-action-icon"><MdOndemandVideo size={20} /></span>
+        <span>{variant === 'row' ? 'Full Set' : ''}</span>
+      </button>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────
+
   return (
     <div className="feed-container">
-      <div className="feed-header">
-        <div className="feed-header-brand">
-          <img src={theme === 'dark' ? '/liveset-logo-dark.png' : '/liveset-logo.png'} alt="LiveSet" className="feed-header-logo" />
-          <h1>Clips</h1>
-        </div>
-        <button className="feed-upload-btn" onClick={onUploadClick}>
-          Upload Set
-        </button>
-      </div>
+      <button className="feed-upload-fab" onClick={onUploadClick} aria-label="Upload Set" title="Upload Set">
+        +
+      </button>
       <audio ref={feedAudioRef} style={{ display: 'none' }} />
       <div className="feed-scroll" ref={feedRef}>
         {clips.length === 0 && !loading ? (
@@ -360,7 +474,11 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
             </button>
           </div>
         ) : (
-          clips.map((clip, index) => (
+          clips.map((clip, index) => {
+          const isNear = Math.abs(index - currentIndex) <= PRELOAD_WINDOW;
+          const isCurrent = index === currentIndex;
+
+          return (
           <div key={clip.id} className="feed-item">
             {/* Desktop: creator row above video */}
             <div className="feed-item-meta feed-item-meta-header">
@@ -371,7 +489,7 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                   </div>
                   <div>
                     <div className="feed-creator-name">{clip.creatorName || 'Unknown'}</div>
-                    <div className="feed-clip-title">{clip.title || 'Untitled'} · Full set on profile</div>
+                    <div className="feed-clip-title">{clip.title || 'Untitled'}</div>
                   </div>
                 </div>
                 <div className="feed-header-actions">
@@ -390,6 +508,8 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                 </div>
               </div>
             </div>
+
+            {/* Video */}
             <div
               className="feed-video-wrapper"
               onClick={() => handleVideoClick(index)}
@@ -403,17 +523,23 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
               ) : clip.videoURL ? (
                 <video
                   ref={el => { videoRefs.current[index] = el; }}
-                  src={clip.videoURL}
+                  src={isNear ? clip.videoURL : undefined}
                   className="feed-video"
-                  muted={index !== currentIndex || !!clip.audioTrackURL}
+                  preload={isCurrent || Math.abs(index - currentIndex) <= 1 ? 'auto' : 'metadata'}
+                  muted={!isCurrent || !!clip.audioTrackURL}
                   playsInline
                   onLoadedMetadata={(e) => {
                     const v = e.target;
                     const start = Number(clip.clipStart) ?? 0;
                     const end = Number(clip.clipEnd) ?? 0;
                     if (end > start) v.currentTime = start;
-                    if (index === currentIndex) v.play().catch(() => {});
                   }}
+                  onCanPlay={(e) => {
+                    if (isCurrent && e.target.paused && pausedOverlay !== index) {
+                      e.target.play().catch(() => {});
+                    }
+                  }}
+                  onWaiting={() => {}}
                   onError={() => {
                     setVideoErrors(prev => new Set(prev).add(clip.id));
                   }}
@@ -421,6 +547,16 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
               ) : (
                 <div className="feed-video-placeholder">Loading video...</div>
               )}
+
+              {/* Ghost pause overlay */}
+              {pausedOverlay === index && (
+                <div className="feed-pause-overlay" key={`pause-${index}`}>
+                  <div className="feed-pause-icon">
+                    <MdPlayArrow size={64} />
+                  </div>
+                </div>
+              )}
+
               {/* Mobile: overlay with creator + actions */}
               <div className="feed-item-overlay">
                 <div className="feed-item-info">
@@ -430,7 +566,7 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                     </div>
                     <div>
                       <div className="feed-creator-name">{clip.creatorName || 'Unknown'}</div>
-                      <div className="feed-clip-title">{clip.title || 'Untitled'} · Full set on profile</div>
+                      <div className="feed-clip-title">{clip.title || 'Untitled'}</div>
                     </div>
                   </div>
                   <div className="feed-actions">
@@ -443,7 +579,6 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                         title="Delete this clip"
                       >
                         <span className="feed-action-icon"><MdDelete size={18} /></span>
-                        <span>Delete</span>
                       </button>
                     )}
                     <button
@@ -455,12 +590,15 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                       <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
                       <span>{clip.likes || 0}</span>
                     </button>
+                    {renderCopySetupBtn(clip, 'overlay')}
+                    {renderFullSetBtn(clip, 'overlay')}
                     <button type="button" className="feed-action-btn" aria-label="Comment" onClick={(e) => e.stopPropagation()}><MdComment size={18} /></button>
                     <button type="button" className="feed-action-btn" aria-label="Share" onClick={(e) => e.stopPropagation()}><MdShare size={18} /></button>
                   </div>
                 </div>
               </div>
             </div>
+
             {/* Desktop: actions + caption below video */}
             <div className="feed-item-meta feed-item-meta-footer">
               <div className="feed-actions-row">
@@ -473,6 +611,8 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
                   <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
                   <span>{clip.likes || 0}</span>
                 </button>
+                {renderCopySetupBtn(clip, 'row')}
+                {renderFullSetBtn(clip, 'row')}
                 <button type="button" className="feed-action-btn" aria-label="Comment">
                   <span className="feed-action-icon"><MdComment size={18} /></span>
                   <span>Comment</span>
@@ -484,11 +624,13 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
               </div>
               <p className="feed-caption">
                 <span className="feed-creator-name-inline">{clip.creatorName || 'Unknown'}</span>
-                {clip.title || 'Untitled'} · Full set on profile
+                {clip.title || 'Untitled'}
+                {clip.setupId && <span className="feed-caption-badge">🎛️ Setup linked</span>}
               </p>
             </div>
           </div>
-          ))
+          );
+          })
         )}
         {loading && <div className="feed-loading">Loading...</div>}
         {hasMore && !loading && (
@@ -497,6 +639,45 @@ function Feed({ onProfileClick, onUploadClick, theme = 'light' }) {
           </div>
         )}
       </div>
+
+      {/* Full Set Modal */}
+      {fullSetClip && (
+        <div className="feed-fullset-overlay" onClick={closeFullSetModal}>
+          <div className="feed-fullset-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="feed-fullset-header">
+              <div className="feed-fullset-info">
+                <div
+                  className="feed-creator-info"
+                  onClick={() => { closeFullSetModal(); handleProfileClick(fullSetClip.creatorId); }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="feed-creator-avatar feed-creator-avatar-sm">
+                    {fullSetClip.creatorName?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <div>
+                    <div className="feed-creator-name">{fullSetClip.creatorName || 'Unknown'}</div>
+                    <div className="feed-clip-title">{fullSetClip.title || 'Full LiveSet'}</div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="feed-fullset-close" onClick={closeFullSetModal} aria-label="Close">
+                <MdClose size={24} />
+              </button>
+            </div>
+            <div className="feed-fullset-video-wrap">
+              <video
+                ref={fullSetVideoRef}
+                src={fullSetClip.fullVideoURL || fullSetClip.videoURL}
+                className="feed-fullset-video"
+                controls
+                autoPlay
+                playsInline
+                preload="auto"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete clip confirm */}
       {clipToDelete && (

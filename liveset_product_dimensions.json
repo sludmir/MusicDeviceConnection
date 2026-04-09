@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "units": "mm",
+    "dimension_format": "width x depth x height (as viewed from above, height = vertical)",
+    "notes": "For guitars, width = body width, depth = total length (headstock to strap button), height = body thickness. For SM58, width = grip diameter, depth = total length, height = grip diameter. All values are approximate manufacturer specs — verify any critical dimensions before production use.",
+    "scaling_tip": "Use max_dimension_mm to normalize all products relative to the largest item (Juno-106 at 970mm). Divide each product's max_dimension_mm by 970 to get a 0–1 scale factor."
+  },
+  "products": [
+    {
+      "id": "liveset-001",
+      "name": "Laptop (MacBook Pro 16\")",
+      "category": "dj_club",
+      "width_mm": 356,
+      "depth_mm": 248,
+      "height_mm": 17,
+      "max_dimension_mm": 356
+    },
+    {
+      "id": "liveset-002",
+      "name": "Allen & Heath Xone:96",
+      "category": "dj_club",
+      "width_mm": 320,
+      "depth_mm": 412,
+      "height_mm": 108,
+      "max_dimension_mm": 412
+    },
+    {
+      "id": "liveset-003",
+      "name": "Pioneer DJS-1000",
+      "category": "dj_club",
+      "width_mm": 306,
+      "depth_mm": 338,
+      "height_mm": 73,
+      "max_dimension_mm": 338
+    },
+    {
+      "id": "liveset-004",
+      "name": "Pioneer DDJ-1000",
+      "category": "dj_club",
+      "width_mm": 722,
+      "depth_mm": 334,
+      "height_mm": 72,
+      "max_dimension_mm": 722
+    },
+    {
+      "id": "liveset-005",
+      "name": "Technics SL-1210 MK7",
+      "category": "dj_club",
+      "width_mm": 453,
+      "depth_mm": 353,
+      "height_mm": 171,
+      "max_dimension_mm": 453
+    },
+    {
+      "id": "liveset-006",
+      "name": "Native Instruments Traktor Kontrol S4 MK3",
+      "category": "dj_club",
+      "width_mm": 527,
+      "depth_mm": 314,
+      "height_mm": 46,
+      "max_dimension_mm": 527
+    },
+    {
+      "id": "liveset-007",
+      "name": "Rane MP2015",
+      "category": "dj_club",
+      "width_mm": 318,
+      "depth_mm": 413,
+      "height_mm": 99,
+      "max_dimension_mm": 413
+    },
+    {
+      "id": "liveset-008",
+      "name": "Ableton Push 3",
+      "category": "dj_club",
+      "width_mm": 375,
+      "depth_mm": 303,
+      "height_mm": 47,
+      "max_dimension_mm": 375
+    },
+    {
+      "id": "liveset-009",
+      "name": "Moog Minimoog Model D",
+      "category": "synths_keyboards",
+      "width_mm": 603,
+      "depth_mm": 410,
+      "height_mm": 142,
+      "max_dimension_mm": 603
+    },
+    {
+      "id": "liveset-010",
+      "name": "Roland TB-303",
+      "category": "synths_keyboards",
+      "width_mm": 305,
+      "depth_mm": 175,
+      "height_mm": 57,
+      "max_dimension_mm": 305
+    },
+    {
+      "id": "liveset-011",
+      "name": "Korg Minilogue XD",
+      "category": "synths_keyboards",
+      "width_mm": 500,
+      "depth_mm": 300,
+      "height_mm": 85,
+      "max_dimension_mm": 500
+    },
+    {
+      "id": "liveset-012",
+      "name": "Sequential Prophet-6",
+      "category": "synths_keyboards",
+      "width_mm": 632,
+      "depth_mm": 314,
+      "height_mm": 110,
+      "max_dimension_mm": 632
+    },
+    {
+      "id": "liveset-013",
+      "name": "Roland Juno-106",
+      "category": "synths_keyboards",
+      "width_mm": 970,
+      "depth_mm": 300,
+      "height_mm": 80,
+      "max_dimension_mm": 970
+    },
+    {
+      "id": "liveset-014",
+      "name": "Arturia MiniFreak",
+      "category": "synths_keyboards",
+      "width_mm": 528,
+      "depth_mm": 278,
+      "height_mm": 60,
+      "max_dimension_mm": 528
+    },
+    {
+      "id": "liveset-015",
+      "name": "Roland TR-909",
+      "category": "drum_machines",
+      "width_mm": 480,
+      "depth_mm": 300,
+      "height_mm": 70,
+      "max_dimension_mm": 480
+    },
+    {
+      "id": "liveset-016",
+      "name": "Roland TR-808",
+      "category": "drum_machines",
+      "width_mm": 500,
+      "depth_mm": 300,
+      "height_mm": 90,
+      "max_dimension_mm": 500
+    },
+    {
+      "id": "liveset-017",
+      "name": "Elektron Digitakt",
+      "category": "drum_machines",
+      "width_mm": 215,
+      "depth_mm": 176,
+      "height_mm": 63,
+      "max_dimension_mm": 215
+    },
+    {
+      "id": "liveset-018",
+      "name": "Boss RE-201 Space Echo",
+      "category": "effects_pedals",
+      "width_mm": 430,
+      "depth_mm": 180,
+      "height_mm": 120,
+      "max_dimension_mm": 430
+    },
+    {
+      "id": "liveset-019",
+      "name": "Strymon BigSky",
+      "category": "effects_pedals",
+      "width_mm": 170,
+      "depth_mm": 140,
+      "height_mm": 50,
+      "max_dimension_mm": 170
+    },
+    {
+      "id": "liveset-020",
+      "name": "Eventide H9",
+      "category": "effects_pedals",
+      "width_mm": 120,
+      "depth_mm": 120,
+      "height_mm": 62,
+      "max_dimension_mm": 120
+    },
+    {
+      "id": "liveset-021",
+      "name": "Fender Stratocaster",
+      "category": "guitars",
+      "width_mm": 318,
+      "depth_mm": 998,
+      "height_mm": 45,
+      "max_dimension_mm": 998
+    },
+    {
+      "id": "liveset-022",
+      "name": "Gibson Les Paul Standard",
+      "category": "guitars",
+      "width_mm": 340,
+      "depth_mm": 990,
+      "height_mm": 55,
+      "max_dimension_mm": 990
+    },
+    {
+      "id": "liveset-023",
+      "name": "Shure SM58",
+      "category": "live_sound",
+      "width_mm": 51,
+      "depth_mm": 162,
+      "height_mm": 51,
+      "max_dimension_mm": 162
+    },
+    {
+      "id": "liveset-024",
+      "name": "Universal Audio Apollo Twin",
+      "category": "live_sound",
+      "width_mm": 163,
+      "depth_mm": 163,
+      "height_mm": 47,
+      "max_dimension_mm": 163
+    },
+    {
+      "id": "liveset-025",
+      "name": "Teenage Engineering OP-1 Field",
+      "category": "live_sound",
+      "width_mm": 282,
+      "depth_mm": 102,
+      "height_mm": 14,
+      "max_dimension_mm": 282
+    }
+  ],
+  "categories": {
+    "dj_club": "DJ / Club Gear",
+    "synths_keyboards": "Synths / Keyboards",
+    "drum_machines": "Drum Machines",
+    "effects_pedals": "Effects / Pedals",
+    "guitars": "Guitars",
+    "live_sound": "Live Sound / Misc"
+  }
+}

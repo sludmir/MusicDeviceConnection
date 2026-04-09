@@ -9,8 +9,10 @@ import { auth } from "./firebaseConfig"; // Add auth import at the top
 import { gsap } from 'gsap';
 import { updateAllModelPaths, getStorageModelURL } from './firebaseUtils'; // Add this import
 import ProductSuggestionForm from './ProductSuggestionForm';
+import ModelPreviewPanel from './ModelPreviewPanel';
 import MobileNavigation from './MobileNavigation';
 import { getConnectionSuggestions } from './chatGPTService';
+import { computeAutoScale } from './dimensionScaler';
 
 function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCategoryToggle }) {
     const mountRef = useRef(null);
@@ -55,7 +57,9 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
     const [cameraView, setCameraView] = useState('set');
     const [lastApiCall, setLastApiCall] = useState(0);
-    const [hiddenCategories, setHiddenCategories] = useState(new Set());
+    const [highlightedCategory, setHighlightedCategory] = useState(null);
+    const [suggestionModelFile, setSuggestionModelFile] = useState(null);
+    const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
 
     // Removed unused PRODUCT_TYPES constant
 
@@ -74,24 +78,49 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         FX_RIGHT: 'fx_right',
         FX_FRONT: 'fx_front',
         SPEAKER_LEFT: 'speaker_left',
-        SPEAKER_RIGHT: 'speaker_right'
+        SPEAKER_RIGHT: 'speaker_right',
+        DESK_CENTER: 'desk_center',
+        DESK_LEFT: 'desk_left',
+        DESK_RIGHT: 'desk_right',
+        RACK_LEFT_1: 'rack_left_1',
+        RACK_LEFT_2: 'rack_left_2',
+        RACK_LEFT_3: 'rack_left_3',
+        RACK_LEFT_4: 'rack_left_4',
+        RACK_RIGHT_1: 'rack_right_1',
+        RACK_RIGHT_2: 'rack_right_2',
+        RACK_RIGHT_3: 'rack_right_3',
+        RACK_RIGHT_4: 'rack_right_4',
+        MONITOR_LEFT: 'monitor_left',
+        MONITOR_RIGHT: 'monitor_right',
+        STAGE_CENTER: 'stage_center',
+        STAGE_LEFT: 'stage_left',
+        STAGE_RIGHT: 'stage_right',
+        STAGE_BACK_LEFT: 'stage_back_left',
+        STAGE_BACK_CENTER: 'stage_back_center',
+        STAGE_BACK_RIGHT: 'stage_back_right',
+        PEDAL_1: 'pedal_1',
+        PEDAL_2: 'pedal_2',
+        PEDAL_3: 'pedal_3',
+        PEDAL_4: 'pedal_4',
+        AMP_LEFT: 'amp_left',
+        AMP_RIGHT: 'amp_right'
     };
 
     const djSetupSpots = [
-        { x: 0, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE },           // Middle (Mixer)
-        { x: -0.8, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT },   // Middle Left (Player)
-        { x: 0.8, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT },   // Middle Right (Player)
-        { x: -1.6, y: 1.05, z: 0, type: SPOT_TYPES.FAR_LEFT },      // Far Left (Player)
-        { x: 1.6, y: 1.05, z: 0, type: SPOT_TYPES.FAR_RIGHT },      // Far Right (Player)
-        { x: -0.4, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT_INNER },  // Between Middle and Left
-        { x: 0.4, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT_INNER },  // Between Middle and Right
-        { x: 0, y: 1.05, z: -0.2, type: SPOT_TYPES.MIDDLE_BACK },   // Behind Middle
-        { x: 0, y: 1.5, z: -0.5, type: SPOT_TYPES.FX_TOP },        // FX Top (moved from z: -0.3 to z: -0.5)
-        { x: -0.4, y: 1.05, z: -0.3, type: SPOT_TYPES.FX_LEFT },    // FX Left
-        { x: 0.4, y: 1.05, z: -0.3, type: SPOT_TYPES.FX_RIGHT },    // FX Right
-        { x: 0, y: 1.05, z: 0.3, type: SPOT_TYPES.FX_FRONT },       // FX Front (Wide units)
-        { x: 3.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_LEFT, size: { width: 0.4, depth: 0.4 } },  // Left Speaker (on floor)
-        { x: -3.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_RIGHT, size: { width: 0.4, depth: 0.4 } }   // Right Speaker (on floor)
+        { x: 0, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE },             // Middle (Mixer)
+        { x: -1.15, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT },    // Middle Left (Player)
+        { x: 1.15, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT },    // Middle Right (Player)
+        { x: -2.3, y: 1.05, z: 0, type: SPOT_TYPES.FAR_LEFT },        // Far Left (Player)
+        { x: 2.3, y: 1.05, z: 0, type: SPOT_TYPES.FAR_RIGHT },        // Far Right (Player)
+        { x: -0.58, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT_INNER },   // Between Mixer and Left CDJ
+        { x: 0.58, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT_INNER },   // Between Mixer and Right CDJ
+        { x: 0, y: 1.05, z: -0.5, type: SPOT_TYPES.MIDDLE_BACK },     // Behind Mixer
+        { x: 0, y: 1.5, z: -0.6, type: SPOT_TYPES.FX_TOP },           // FX Top (elevated, behind)
+        { x: -0.58, y: 1.05, z: -0.5, type: SPOT_TYPES.FX_LEFT },     // FX Left (behind, between mixer & CDJ)
+        { x: 0.58, y: 1.05, z: -0.5, type: SPOT_TYPES.FX_RIGHT },     // FX Right (behind, between mixer & CDJ)
+        { x: 0, y: 1.05, z: 0.45, type: SPOT_TYPES.FX_FRONT },        // FX Front (Wide units, in front of deck)
+        { x: 4.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_LEFT, size: { width: 0.5, depth: 0.5 } },
+        { x: -4.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_RIGHT, size: { width: 0.5, depth: 0.5 } }
     ];
 
     // Add searchModalStyle and positionModalStyle definitions
@@ -105,8 +134,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         borderRadius: '8px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         zIndex: 1000,
-        width: isMobile ? '90%' : '400px',
-        maxWidth: '500px',
+        width: isMobile ? '90%' : '580px',
+        maxWidth: '680px',
         maxHeight: isMobile ? '80vh' : '90vh',
         overflowY: 'auto',
         color: '#ffffff',
@@ -729,6 +758,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             connectionKey: connectionKey,
             sourceDevice: sourceDevice.id,
             targetDevice: targetDevice.id,
+            sourceDeviceUniqueId: sourceDevice.uniqueId || null,
+            targetDeviceUniqueId: targetDevice.uniqueId || null,
             sourcePort: connection.sourcePort.type,
             targetPort: connection.targetPort.type,
             connectionType: connection.type
@@ -804,6 +835,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         line.userData = {
             connectionKey: connectionKey,
             sourceDevice: sourceDevice.id,
+            sourceDeviceUniqueId: sourceDevice.uniqueId || null,
             targetType: 'ghost_speaker',
             sourcePort: sourcePort.type,
             cableType: 'XLR'
@@ -970,13 +1002,14 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                         console.log("Model loaded successfully:", product.name);
                         const model = gltf.scene;
 
-                        // Scale down the RMX-1000 model even more
-                        if (product.name.includes('RMX-1000') || product.name.includes('RMX1000')) {
-                            console.log('Scaling down RMX-1000 model');
-                            model.scale.set(0.01, 0.01, 0.01); // Changed from 0.02 to 0.01 (2x smaller)
-                        }
+                        const bbox = new THREE.Box3().setFromObject(model);
+                        const bboxSize = bbox.getSize(new THREE.Vector3());
+                        const autoScale = computeAutoScale(product.name, bboxSize);
+                        const manualMultiplier = product.modelScale || 1.0;
+                        const finalScale = autoScale !== null ? autoScale * manualMultiplier : manualMultiplier;
+                        model.scale.setScalar(finalScale);
+                        console.log(`Scale for ${product.name}: auto=${autoScale}, manual=${manualMultiplier}, final=${finalScale}`);
 
-                        // Set the model position directly to the ghost square position
                         model.position.set(position.x, position.y, position.z);
 
                         // Create device object with exact position, unique identifier, and which ghost spot it's on (for save/load)
@@ -1096,7 +1129,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
             console.log(`Found ${products.length} products in Firestore:`, products);
             setSearchResults(products);
-            setFilteredResults(products);
+            const sorted = sortProductsByRecommendation(products, selectedGhostIndex);
+            setFilteredResults(sorted);
             setError(null);
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -1120,47 +1154,93 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             return nameMatch || categoryMatch || descriptionMatch;
         });
 
-        // Get the recommended type for the current ghost spot
-        const currentSpot = ghostSpotsRef.current[selectedGhostIndex];
-        const recommendedType = currentSpot?.userData?.recommendedType;
-        
-        // Sort filtered results to put recommended products first
-        const sortedResults = filtered.sort((a, b) => {
-            const aIsRecommended = isProductRecommended(a, recommendedType);
-            const bIsRecommended = isProductRecommended(b, recommendedType);
-            
-            if (aIsRecommended && !bIsRecommended) return -1;
-            if (!aIsRecommended && bIsRecommended) return 1;
-            return 0;
-        });
-        
+        const sortedResults = sortProductsByRecommendation(filtered, selectedGhostIndex);
         console.log("Filtered and sorted results:", sortedResults);
         setFilteredResults(sortedResults);
     };
 
-    // Add helper function to check if a product matches the recommended type
     const isProductRecommended = (product, recommendedType) => {
-        if (!recommendedType || !product) return false;
-        
-        const productName = product.name?.toLowerCase() || '';
-        const productCategory = product.category?.toLowerCase() || '';
-        
+        if (!recommendedType || !product || recommendedType === 'Any Device' || recommendedType === 'Instrument or Effects') return false;
+
+        const n = (product.name || '').toLowerCase();
+        const sub = (product.subcategory || '').toLowerCase();
+        const t = (product.type || '').toLowerCase();
+
         switch (recommendedType) {
             case 'Player (CDJ)':
-                return productName.includes('cdj') || 
-                       productName.includes('player') ||
-                       productCategory.includes('player');
+                return n.includes('cdj') || n.includes('player') || n.includes('turntable') || t.includes('player') || sub.includes('player');
             case 'Mixer (DJM)':
-                return productName.includes('djm') || 
-                       productName.includes('mixer') ||
-                       productCategory.includes('mixer');
+                return n.includes('djm') || n.includes('mixer') || n.includes('xone') || t.includes('mixer') || sub.includes('mixer');
             case 'RMX-1000':
-                return productName.includes('rmx') ||
-                       productName === 'rmx-1000' ||
-                       (productCategory.includes('fx') && productName.includes('1000'));
+                return n.includes('rmx') || n.includes('sp-1') || t.includes('fx') || sub.includes('effect');
+            case 'Speaker':
+                return n.includes('speaker') || n.includes('monitor') || n.includes('pa ') || t.includes('speaker') || sub.includes('speaker');
+            case 'Audio Interface':
+                return n.includes('interface') || n.includes('focusrite') || n.includes('scarlett') || n.includes('presonus') || n.includes('apollo') || t.includes('interface') || sub.includes('audio-interface');
+            case 'Controller / Synth':
+                return n.includes('controller') || n.includes('synth') || n.includes('midi') || n.includes('keyboard') || n.includes('launchpad') || n.includes('push') || t.includes('controller') || sub.includes('controller') || sub.includes('synthesizer');
+            case 'Rack Unit / Processor':
+                return n.includes('rack') || n.includes('processor') || n.includes('compressor') || n.includes('eq') || n.includes('preamp') || n.includes('reverb') || t.includes('rack') || sub.includes('effect');
+            case 'Studio Monitor':
+                return n.includes('monitor') || n.includes('speaker') || n.includes('genelec') || n.includes('yamaha hs') || n.includes('krk') || n.includes('adam') || t.includes('monitor') || sub.includes('monitor');
+            case 'Instrument / Mic':
+                return n.includes('guitar') || n.includes('bass') || n.includes('mic') || n.includes('vocal') || n.includes('drum') || sub.includes('instrument') || sub.includes('microphone');
+            case 'Guitar / Bass':
+                return n.includes('guitar') || n.includes('bass') || n.includes('strat') || n.includes('tele') || n.includes('les paul') || n.includes('fender') || n.includes('gibson') || sub.includes('instrument');
+            case 'Keyboard / Instrument':
+                return n.includes('keyboard') || n.includes('piano') || n.includes('synth') || n.includes('organ') || n.includes('rhodes') || sub.includes('synthesizer') || sub.includes('instrument');
+            case 'Drums / Instrument':
+                return n.includes('drum') || n.includes('percussion') || n.includes('cymbal') || n.includes('snare') || n.includes('kick') || sub.includes('instrument');
+            case 'Effects Pedal':
+                return n.includes('pedal') || n.includes('stomp') || n.includes('overdrive') || n.includes('distortion') || n.includes('delay') || n.includes('reverb') || n.includes('chorus') || n.includes('wah') || t.includes('pedal') || sub.includes('effect');
+            case 'Amplifier / Monitor':
+                return n.includes('amp') || n.includes('amplifier') || n.includes('combo') || n.includes('head') || n.includes('cabinet') || n.includes('monitor') || t.includes('amp') || sub.includes('amplifier');
             default:
                 return false;
         }
+    };
+
+    const isBrainProduct = (product) => {
+        const n = (product.name || '').toLowerCase();
+        const t = (product.type || '').toLowerCase();
+        if (currentSetupType === 'DJ') {
+            return n.includes('mixer') || n.includes('djm') || n.includes('xone') || n.includes('laptop') || t.includes('mixer');
+        }
+        if (currentSetupType === 'Producer') {
+            return n.includes('interface') || n.includes('laptop') || n.includes('console') || n.includes('focusrite') || n.includes('scarlett') || n.includes('apollo') || t.includes('interface');
+        }
+        return false;
+    };
+
+    const setupHasBrain = () => {
+        const devices = placedDevicesListRef.current || [];
+        return devices.some(d => {
+            const n = (d.name || '').toLowerCase();
+            if (currentSetupType === 'DJ') return n.includes('mixer') || n.includes('djm') || n.includes('xone') || n.includes('laptop');
+            if (currentSetupType === 'Producer') return n.includes('interface') || n.includes('laptop') || n.includes('console') || n.includes('focusrite') || n.includes('scarlett');
+            return false;
+        });
+    };
+
+    const sortProductsByRecommendation = (products, ghostIndex) => {
+        const spot = ghostSpotsRef.current[ghostIndex];
+        const recType = spot?.userData?.recommendedType;
+        const hasBrain = setupHasBrain();
+        const needsBrain = !hasBrain && (currentSetupType === 'DJ' || currentSetupType === 'Producer');
+
+        return [...products].sort((a, b) => {
+            if (needsBrain) {
+                const aB = isBrainProduct(a);
+                const bB = isBrainProduct(b);
+                if (aB && !bB) return -1;
+                if (!aB && bB) return 1;
+            }
+            const aR = isProductRecommended(a, recType);
+            const bR = isProductRecommended(b, recType);
+            if (aR && !bR) return -1;
+            if (!aR && bR) return 1;
+            return 0;
+        });
     };
 
     // Update openSearch to properly handle Firebase fetching
@@ -1630,43 +1710,36 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     console.log('GLTF loaded successfully:', device.name, index);
                     const model = gltf.scene;
 
-                    // Compute the bounding box of the model AFTER it is loaded
                     const box = new THREE.Box3().setFromObject(model);
+                    const rawSize = new THREE.Vector3();
+                    box.getSize(rawSize);
 
-                    // Get the size (width, height, depth) of the model's bounding box
-                    const size = new THREE.Vector3();
-                    box.getSize(size);  // size contains width (x), height (y), and depth (z)
-                    console.log(`Model dimensions(width, height, depth): ${size.x}, ${size.y}, ${size.z}`);
+                    const autoScale = computeAutoScale(device.name, rawSize);
+                    const manualMultiplier = device.modelScale || 1.0;
+                    const finalScale = autoScale !== null ? autoScale * manualMultiplier : manualMultiplier;
+                    model.scale.setScalar(finalScale);
+                    console.log(`loadDevice scale for ${device.name}: auto=${autoScale}, manual=${manualMultiplier}, final=${finalScale}`);
 
-                    // Get the device position from your custom logic (optional)
-                    position = getDevicePosition(device, index, size);
-                    console.log(`loadDevice position setting: ${position.x}, ${position.y}, ${position.z}`);
+                    // Use scaled size for position calculations
+                    const scaledSize = rawSize.clone().multiplyScalar(finalScale);
+                    position = getDevicePosition(device, index, scaledSize);
 
-                    // Set the model position using the calculated position
                     model.position.set(position.x, position.y, position.z);
+                    const center = box.getCenter(new THREE.Vector3()).multiplyScalar(finalScale);
+                    model.position.sub(center);
 
-                    // Optionally, adjust the position based on the model's center
-                    const center = box.getCenter(new THREE.Vector3());
-                    model.position.sub(center);  // Center the model on its position
-
-                    // Add the model to the scene
                     scene.add(model);
 
-                    // Store reference to the model for future use
-                    devicesRef.current[device.id] = {
+                    const refKey = device.uniqueId || device.id;
+                    model.userData = { ...model.userData, productId: device.id, name: device.name, uniqueId: refKey };
+                    devicesRef.current[refKey] = {
                         model,
                         data: device,
                         connectionsInUse: { inputs: [], outputs: [] }
                     };
 
-                    // Scale the model (if needed)
-                    const scale = 1.0;
-                    model.scale.set(scale, scale, scale);
-
-                    // Traverse the model to access individual meshes and set up materials and shadows
                     model.traverse((child) => {
                         if (child.isMesh) {
-                            console.log('Mesh geometry:', child.geometry);  // Access geometry here
                             child.material.side = THREE.DoubleSide;
                             child.castShadow = true;
                             child.receiveShadow = true;
@@ -1787,8 +1860,10 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const cube = new THREE.Mesh(geometry, material);
         const pos = position && typeof position.x === 'number' ? position : { x: 0, y: 1.05, z: 0 };
         cube.position.set(pos.x, pos.y, pos.z);
+        const refKey = device.uniqueId || device.id;
+        cube.userData = { ...cube.userData, productId: device.id, name: device.name, uniqueId: refKey };
         scene.add(cube);
-        devicesRef.current[device.id] = {
+        devicesRef.current[refKey] = {
             model: cube,
             data: device,
             connectionsInUse: { inputs: [], outputs: [] }
@@ -2104,28 +2179,25 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         // Common table setup - create as a shelf (thin top with legs, open front for cable visibility)
         const tableGroup = new THREE.Group();
         
-        // Very thin top surface - use PlaneGeometry for minimal thickness
         const tableTop = new THREE.Mesh(
-            new THREE.PlaneGeometry(4.5, 1),
+            new THREE.PlaneGeometry(6, 1.4),
             new THREE.MeshStandardMaterial({ 
                 color: 0x222222,
-                side: THREE.DoubleSide  // Visible from both sides
+                side: THREE.DoubleSide
             })
         );
-        tableTop.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+        tableTop.rotation.x = -Math.PI / 2;
         tableTop.position.set(0, 0.95, -0.25);
         tableTop.receiveShadow = true;
-        tableTop.castShadow = false; // Don't cast shadow to avoid visual clutter
+        tableTop.castShadow = false;
         tableGroup.add(tableTop);
         
-        // Add corner legs for support (only back legs, front is open for cables)
         const legGeometry = new THREE.BoxGeometry(0.1, 0.9, 0.1);
         const legMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
         
-        // Only back legs to keep front open for cable visibility
         const legPositions = [
-            { x: -2.15, z: 0.2 },   // Back left
-            { x: 2.15, z: 0.2 }      // Back right
+            { x: -2.9, z: 0.2 },
+            { x: 2.9, z: 0.2 }
         ];
         
         legPositions.forEach(pos => {
@@ -2159,9 +2231,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     roughness: 0.3
                 });
                 
-                // Top surface (thin)
                 const boothTop = new THREE.Mesh(
-                    new THREE.PlaneGeometry(5, 1.2),
+                    new THREE.PlaneGeometry(6.6, 1.6),
                     boothMaterial
                 );
                 boothTop.rotation.x = -Math.PI / 2;
@@ -2169,32 +2240,30 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 boothTop.receiveShadow = true;
                 boothGroup.add(boothTop);
                 
-                // Back panel
                 const boothBack = new THREE.Mesh(
-                    new THREE.PlaneGeometry(5, 0.9),
+                    new THREE.PlaneGeometry(6.6, 0.9),
                     boothMaterial
                 );
-                boothBack.position.set(0, 0.45, -0.85);
+                boothBack.position.set(0, 0.45, -1.05);
                 boothBack.receiveShadow = true;
                 boothGroup.add(boothBack);
                 
-                // Side panels (left and right)
                 const sideMaterial = boothMaterial.clone();
                 const leftSide = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.2, 0.9),
+                    new THREE.PlaneGeometry(1.6, 0.9),
                     sideMaterial
                 );
                 leftSide.rotation.y = Math.PI / 2;
-                leftSide.position.set(-2.5, 0.45, -0.25);
+                leftSide.position.set(-3.3, 0.45, -0.25);
                 leftSide.receiveShadow = true;
                 boothGroup.add(leftSide);
                 
                 const rightSide = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.2, 0.9),
+                    new THREE.PlaneGeometry(1.6, 0.9),
                     sideMaterial
                 );
                 rightSide.rotation.y = -Math.PI / 2;
-                rightSide.position.set(2.5, 0.45, -0.25);
+                rightSide.position.set(3.3, 0.45, -0.25);
                 rightSide.receiveShadow = true;
                 boothGroup.add(rightSide);
                 
@@ -2447,96 +2516,635 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 
                 break;
 
-            case 'Producer':
-                // Studio environment
+            case 'Producer': {
+                // Producer studio — dark polished concrete floor
                 floor.material = new THREE.MeshStandardMaterial({ 
-                    color: 0x444444,
-                    roughness: 0.9
+                    color: 0x1a1715,
+                    roughness: 0.6,
+                    metalness: 0.15
                 });
 
-                // Add acoustic panels on walls
-                const wallGeometry = new THREE.BoxGeometry(0.5, 1, 1);
-                const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
-                
-                for (let i = -2; i <= 2; i++) {
-                    // Back wall panels
-                    const backPanel = new THREE.Mesh(wallGeometry, wallMaterial);
-                    backPanel.position.set(i * 1.2, 1.5, -2);
-                    backPanel.userData.type = 'environment';
-                    scene.add(backPanel);
+                // Replace the wide DJ table with a narrower studio desk
+                while (tableGroup.children.length > 0) tableGroup.remove(tableGroup.children[0]);
+                const deskW = 2.8, deskD = 0.9;
+                const studioDeskTop = new THREE.Mesh(
+                    new THREE.BoxGeometry(deskW, 0.035, deskD),
+                    new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.3, roughness: 0.7 })
+                );
+                studioDeskTop.position.set(0, 0.93, -0.25);
+                studioDeskTop.receiveShadow = true;
+                tableGroup.add(studioDeskTop);
+                djTableRef.current = studioDeskTop;
 
-                    // Side wall panels
-                    if (i > -2 && i < 2) {
-                        const leftPanel = new THREE.Mesh(wallGeometry, wallMaterial);
-                        leftPanel.rotation.y = Math.PI / 2;
-                        leftPanel.position.set(-3, 1.5, i * 1.2);
-                        leftPanel.userData.type = 'environment';
-                        scene.add(leftPanel);
+                const deskLegGeo = new THREE.BoxGeometry(0.05, 0.9, 0.05);
+                const deskLegMat = new THREE.MeshStandardMaterial({ color: 0x111115, metalness: 0.5, roughness: 0.4 });
+                [
+                    { x: -deskW / 2 + 0.06, z: -0.25 + deskD / 2 - 0.06 },
+                    { x: deskW / 2 - 0.06, z: -0.25 + deskD / 2 - 0.06 },
+                    { x: -deskW / 2 + 0.06, z: -0.25 - deskD / 2 + 0.06 },
+                    { x: deskW / 2 - 0.06, z: -0.25 - deskD / 2 + 0.06 },
+                ].forEach(pos => {
+                    const leg = new THREE.Mesh(deskLegGeo, deskLegMat);
+                    leg.position.set(pos.x, 0.47, pos.z);
+                    leg.castShadow = true;
+                    tableGroup.add(leg);
+                });
 
-                        const rightPanel = new THREE.Mesh(wallGeometry, wallMaterial);
-                        rightPanel.rotation.y = Math.PI / 2;
-                        rightPanel.position.set(3, 1.5, i * 1.2);
-                        rightPanel.userData.type = 'environment';
-                        scene.add(rightPanel);
+                const studioW = 10;
+                const studioD = 8;
+                const studioH = 3.5;
+
+                const studioWallMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x12121a, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide
+                });
+
+                // Back wall
+                const sBackWall = new THREE.Mesh(new THREE.PlaneGeometry(studioW, studioH), studioWallMat);
+                sBackWall.rotation.y = Math.PI;
+                sBackWall.position.set(0, studioH / 2, -studioD / 2);
+                sBackWall.receiveShadow = true;
+                sBackWall.userData.type = 'environment';
+                scene.add(sBackWall);
+
+                // Left wall
+                const sLeftWall = new THREE.Mesh(new THREE.PlaneGeometry(studioD, studioH), studioWallMat.clone());
+                sLeftWall.rotation.y = Math.PI / 2;
+                sLeftWall.position.set(-studioW / 2, studioH / 2, 0);
+                sLeftWall.receiveShadow = true;
+                sLeftWall.userData.type = 'environment';
+                scene.add(sLeftWall);
+
+                // Right wall
+                const sRightWall = new THREE.Mesh(new THREE.PlaneGeometry(studioD, studioH), studioWallMat.clone());
+                sRightWall.rotation.y = -Math.PI / 2;
+                sRightWall.position.set(studioW / 2, studioH / 2, 0);
+                sRightWall.receiveShadow = true;
+                sRightWall.userData.type = 'environment';
+                scene.add(sRightWall);
+
+                // Front wall
+                const sFrontWall = new THREE.Mesh(new THREE.PlaneGeometry(studioW, studioH), studioWallMat.clone());
+                sFrontWall.position.set(0, studioH / 2, studioD / 2);
+                sFrontWall.receiveShadow = true;
+                sFrontWall.userData.type = 'environment';
+                scene.add(sFrontWall);
+
+                // Ceiling
+                const sCeiling = new THREE.Mesh(new THREE.PlaneGeometry(studioW, studioD), studioWallMat.clone());
+                sCeiling.rotation.x = Math.PI / 2;
+                sCeiling.position.set(0, studioH, 0);
+                sCeiling.receiveShadow = true;
+                sCeiling.userData.type = 'environment';
+                scene.add(sCeiling);
+
+                // Acoustic foam panels on back wall
+                const foamColors = [0x2a1a35, 0x1a2535, 0x221a30];
+                for (let row = 0; row < 4; row++) {
+                    for (let col = -4; col <= 4; col++) {
+                        if (Math.abs(col) <= 1 && row >= 1 && row <= 2) continue;
+                        const foam = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.45, 0.45, 0.06),
+                            new THREE.MeshStandardMaterial({ color: foamColors[(row + col + 10) % 3], roughness: 1.0 })
+                        );
+                        foam.position.set(col * 0.55, 0.6 + row * 0.55, -studioD / 2 + 0.04);
+                        foam.userData.type = 'environment';
+                        scene.add(foam);
                     }
                 }
 
-                // Studio lighting
-                const studioLight1 = new THREE.PointLight(0xffffff, 1);
-                studioLight1.position.set(2, 3, 2);
-                studioLight1.userData.type = 'environment';
-                scene.add(studioLight1);
+                // Acoustic panels on side walls
+                for (let row = 0; row < 3; row++) {
+                    for (let col = -2; col <= 2; col++) {
+                        const fc = foamColors[(row + col + 6) % 3];
+                        const lFoam = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.06, 0.45, 0.45),
+                            new THREE.MeshStandardMaterial({ color: fc, roughness: 1.0 })
+                        );
+                        lFoam.position.set(-studioW / 2 + 0.04, 0.8 + row * 0.55, col * 0.55);
+                        lFoam.userData.type = 'environment';
+                        scene.add(lFoam);
 
-                const studioLight2 = new THREE.PointLight(0xffffff, 1);
-                studioLight2.position.set(-2, 3, -2);
-                studioLight2.userData.type = 'environment';
-                scene.add(studioLight2);
+                        const rFoam = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.06, 0.45, 0.45),
+                            new THREE.MeshStandardMaterial({ color: fc, roughness: 1.0 })
+                        );
+                        rFoam.position.set(studioW / 2 - 0.04, 0.8 + row * 0.55, col * 0.55);
+                        rFoam.userData.type = 'environment';
+                        scene.add(rFoam);
+                    }
+                }
+
+                // Bass traps in back corners
+                const btMat = new THREE.MeshStandardMaterial({ color: 0x201828, roughness: 1.0 });
+                const btShape = new THREE.Shape();
+                btShape.moveTo(0, 0);
+                btShape.lineTo(0.35, 0);
+                btShape.lineTo(0, 0.35);
+                btShape.closePath();
+                const btGeo = new THREE.ExtrudeGeometry(btShape, { depth: studioH - 0.2, bevelEnabled: false });
+
+                const btLeft = new THREE.Mesh(btGeo, btMat);
+                btLeft.rotation.x = -Math.PI / 2;
+                btLeft.position.set(-studioW / 2 + 0.01, 0.1, -studioD / 2 + 0.35);
+                btLeft.userData.type = 'environment';
+                scene.add(btLeft);
+
+                const btRight = new THREE.Mesh(btGeo, btMat);
+                btRight.rotation.x = -Math.PI / 2;
+                btRight.rotation.z = Math.PI / 2;
+                btRight.position.set(studioW / 2 - 0.35, 0.1, -studioD / 2 + 0.01);
+                btRight.userData.type = 'environment';
+                scene.add(btRight);
+
+                // --- Equipment Racks (19-inch style, angled 45° toward center) ---
+                const rackSlotYPositions = [0.35, 0.65, 0.95, 1.25];
+                const rackConfigs = [
+                    { x: -2.2, rotY: Math.PI / 4 },
+                    { x: 2.2, rotY: -Math.PI / 4 }
+                ];
+
+                rackConfigs.forEach(({ x: rackX, rotY }) => {
+                    const rack = new THREE.Group();
+                    const rW = 0.55, rD = 0.4, rH = 1.5, rBase = 0.1;
+
+                    const frameMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.85, roughness: 0.25 });
+                    const panelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0e, metalness: 0.5, roughness: 0.4, side: THREE.DoubleSide });
+
+                    // Vertical corner posts
+                    const postGeo = new THREE.BoxGeometry(0.035, rH, 0.035);
+                    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([sx, sz]) => {
+                        const p = new THREE.Mesh(postGeo, frameMat);
+                        p.position.set(sx * rW / 2, rBase + rH / 2, sz * rD / 2);
+                        rack.add(p);
+                    });
+
+                    // Front rack rails
+                    const fRailGeo = new THREE.BoxGeometry(0.018, rH - 0.04, 0.012);
+                    [-1, 1].forEach(sx => {
+                        const r = new THREE.Mesh(fRailGeo, frameMat);
+                        r.position.set(sx * (rW / 2 - 0.05), rBase + rH / 2, rD / 2 - 0.005);
+                        rack.add(r);
+                    });
+
+                    // Top & bottom frame rails
+                    const hGeo = new THREE.BoxGeometry(rW, 0.022, 0.022);
+                    const dGeo = new THREE.BoxGeometry(0.022, 0.022, rD);
+                    [rBase, rBase + rH].forEach(y => {
+                        [-rD / 2, rD / 2].forEach(z => {
+                            const hr = new THREE.Mesh(hGeo, frameMat);
+                            hr.position.set(0, y, z);
+                            rack.add(hr);
+                        });
+                        [-rW / 2, rW / 2].forEach(x => {
+                            const dr = new THREE.Mesh(dGeo, frameMat);
+                            dr.position.set(x, y, 0);
+                            rack.add(dr);
+                        });
+                    });
+
+                    // Side panels
+                    [-rW / 2, rW / 2].forEach(x => {
+                        const sp = new THREE.Mesh(new THREE.PlaneGeometry(rD - 0.04, rH - 0.04), panelMat);
+                        sp.rotation.y = Math.PI / 2;
+                        sp.position.set(x, rBase + rH / 2, 0);
+                        rack.add(sp);
+                    });
+
+                    // Back panel
+                    const bp = new THREE.Mesh(new THREE.PlaneGeometry(rW - 0.04, rH - 0.04), panelMat);
+                    bp.position.set(0, rBase + rH / 2, -rD / 2);
+                    rack.add(bp);
+
+                    // Shelves at each slot level
+                    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x181820, metalness: 0.6, roughness: 0.4 });
+                    rackSlotYPositions.forEach(slotY => {
+                        const shelf = new THREE.Mesh(
+                            new THREE.BoxGeometry(rW - 0.07, 0.008, rD - 0.07),
+                            shelfMat
+                        );
+                        shelf.position.set(0, slotY - 0.03, 0);
+                        rack.add(shelf);
+                    });
+
+                    // Feet
+                    const footGeo = new THREE.CylinderGeometry(0.025, 0.025, rBase, 8);
+                    const footMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7, roughness: 0.3 });
+                    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([sx, sz]) => {
+                        const f = new THREE.Mesh(footGeo, footMat);
+                        f.position.set(sx * (rW / 2 - 0.04), rBase / 2, sz * (rD / 2 - 0.04));
+                        rack.add(f);
+                    });
+
+                    rack.position.set(rackX, 0, -0.25);
+                    rack.rotation.y = rotY;
+                    rack.userData.type = 'environment';
+                    scene.add(rack);
+                });
+
+                // --- Studio Lighting ---
+                const studioMainLight = new THREE.PointLight(0xffeedd, 1.0);
+                studioMainLight.position.set(0, studioH - 0.3, 0.5);
+                studioMainLight.castShadow = true;
+                studioMainLight.userData.type = 'environment';
+                scene.add(studioMainLight);
+
+                // Focused desk light
+                const deskSpot = new THREE.SpotLight(0xffffff, 0.8);
+                deskSpot.position.set(0, studioH - 0.5, 0.8);
+                deskSpot.target.position.set(0, 0.95, -0.25);
+                deskSpot.angle = Math.PI / 5;
+                deskSpot.penumbra = 0.6;
+                deskSpot.userData.type = 'environment';
+                scene.add(deskSpot);
+                scene.add(deskSpot.target);
+
+                // Cool-tinted accent lights over each rack
+                rackConfigs.forEach(({ x: rackX }) => {
+                    const rLight = new THREE.SpotLight(0x8899cc, 0.5);
+                    rLight.position.set(rackX, studioH - 0.5, 0.5);
+                    rLight.target.position.set(rackX, 0.8, -0.25);
+                    rLight.angle = Math.PI / 5;
+                    rLight.penumbra = 0.5;
+                    rLight.userData.type = 'environment';
+                    scene.add(rLight);
+                    scene.add(rLight.target);
+                });
+
+                // Subtle LED accent strip along desk back edge
+                const ledMat = new THREE.MeshStandardMaterial({
+                    color: 0x003388, emissive: 0x0033ff, emissiveIntensity: 0.3, side: THREE.DoubleSide
+                });
+                const ledStrip = new THREE.Mesh(new THREE.PlaneGeometry(deskW, 0.015), ledMat);
+                ledStrip.rotation.x = -Math.PI / 2;
+                ledStrip.position.set(0, 0.95, -0.25 - deskD / 2 + 0.01);
+                ledStrip.userData.type = 'environment';
+                scene.add(ledStrip);
+
+                // --- Monitor speaker stands (poles from ground) ---
+                const monPoleMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.25 });
+                const monPlatMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.4, roughness: 0.6 });
+                [{ x: -1.2, z: -0.9 }, { x: 1.2, z: -0.9 }].forEach(({ x, z }) => {
+                    // Base
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.03, 16), monPoleMat);
+                    base.position.set(x, 0.015, z);
+                    base.userData.type = 'environment';
+                    scene.add(base);
+                    // Pole
+                    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.1, 8), monPoleMat);
+                    pole.position.set(x, 0.58, z);
+                    pole.userData.type = 'environment';
+                    scene.add(pole);
+                    // Top platform
+                    const plat = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.22), monPlatMat);
+                    plat.position.set(x, 1.14, z);
+                    plat.userData.type = 'environment';
+                    scene.add(plat);
+                });
+
+                // --- Wall details ---
+                // LED strip along floor on back wall
+                const wallLedMat = new THREE.MeshStandardMaterial({
+                    color: 0x220044, emissive: 0x6622cc, emissiveIntensity: 0.25, side: THREE.DoubleSide
+                });
+                const backFloorLed = new THREE.Mesh(new THREE.PlaneGeometry(studioW - 1, 0.02), wallLedMat);
+                backFloorLed.rotation.x = -Math.PI / 2;
+                backFloorLed.position.set(0, 0.01, -studioD / 2 + 0.06);
+                backFloorLed.userData.type = 'environment';
+                scene.add(backFloorLed);
+
+                // LED strips along floor on side walls
+                [-studioW / 2 + 0.06, studioW / 2 - 0.06].forEach(wx => {
+                    const sideLed = new THREE.Mesh(new THREE.PlaneGeometry(studioD - 1, 0.02), wallLedMat);
+                    sideLed.rotation.x = -Math.PI / 2;
+                    sideLed.rotation.z = Math.PI / 2;
+                    sideLed.position.set(wx, 0.01, 0);
+                    sideLed.userData.type = 'environment';
+                    scene.add(sideLed);
+                });
+
+                // Floating shelves on side walls — placed away from foam panels (foam at z ≈ -1.1 to 1.1)
+                const shelfDecMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.3, roughness: 0.7 });
+                [
+                    { x: -studioW / 2 + 0.18, z: -2.5 },
+                    { x: -studioW / 2 + 0.18, z: 2.0 },
+                    { x: studioW / 2 - 0.18, z: -2.5 },
+                    { x: studioW / 2 - 0.18, z: 2.0 },
+                ].forEach(({ x, z }) => {
+                    const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.45), shelfDecMat);
+                    shelf.position.set(x, 1.6, z);
+                    shelf.userData.type = 'environment';
+                    scene.add(shelf);
+                    const obj = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.12, 0.14, 0.02),
+                        new THREE.MeshStandardMaterial({ color: 0x222230, roughness: 0.6 })
+                    );
+                    obj.position.set(x, 1.69, z);
+                    obj.userData.type = 'environment';
+                    scene.add(obj);
+                });
+
+                // Framed prints / gold records on back wall — above the foam panels (top row ends ~y=2.5)
+                const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.7, roughness: 0.3 });
+                const artMat = new THREE.MeshStandardMaterial({ color: 0x141420, roughness: 0.5 });
+                [-1.8, 0, 1.8].forEach(fx => {
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.03), frameMat);
+                    frame.position.set(fx, 2.8, -studioD / 2 + 0.08);
+                    frame.userData.type = 'environment';
+                    scene.add(frame);
+                    const art = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.01), artMat);
+                    art.position.set(fx, 2.8, -studioD / 2 + 0.10);
+                    art.userData.type = 'environment';
+                    scene.add(art);
+                });
+
+                // Gold record disc on center frame
+                const discMat = new THREE.MeshStandardMaterial({ color: 0xc9a84c, metalness: 0.9, roughness: 0.2 });
+                const disc = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), discMat);
+                disc.position.set(0, 2.8, -studioD / 2 + 0.11);
+                disc.userData.type = 'environment';
+                scene.add(disc);
+
                 break;
+            }
 
-            case 'Musician':
-                // Recording studio environment
+            case 'Musician': {
+                // Cozy rehearsal / live-room studio — warm hardwood floor
                 floor.material = new THREE.MeshStandardMaterial({ 
-                    color: 0x332211,  // Wooden floor color
-                    roughness: 0.8
+                    color: 0x3d2816, roughness: 0.7, metalness: 0.05
                 });
 
-                // Add recording booth glass
-                const glassGeometry = new THREE.BoxGeometry(6, 3, 0.1);
-                const glassMaterial = new THREE.MeshPhysicalMaterial({
-                    color: 0xaaaaaa,
-                    transparent: true,
-                    opacity: 0.3,
-                    roughness: 0.1,
-                    metalness: 0.1,
-                    transmission: 0.5
+                // Replace default table with invisible floor-level reference
+                while (tableGroup.children.length > 0) tableGroup.remove(tableGroup.children[0]);
+                const stageRef = new THREE.Mesh(
+                    new THREE.BoxGeometry(8, 0.01, 6),
+                    new THREE.MeshStandardMaterial({ visible: false })
+                );
+                stageRef.position.set(0, 0.005, 0);
+                tableGroup.add(stageRef);
+                djTableRef.current = stageRef;
+
+                const mRoomW = 12, mRoomD = 10, mRoomH = 3.4;
+                const mWallMat = new THREE.MeshStandardMaterial({
+                    color: 0x1a1510, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide
                 });
 
-                const glass = new THREE.Mesh(glassGeometry, glassMaterial);
-                glass.position.set(0, 1.5, -2);
-                glass.userData.type = 'environment';
-                scene.add(glass);
+                // Walls
+                const mBackWall = new THREE.Mesh(new THREE.PlaneGeometry(mRoomW, mRoomH), mWallMat);
+                mBackWall.rotation.y = Math.PI;
+                mBackWall.position.set(0, mRoomH / 2, -mRoomD / 2);
+                mBackWall.receiveShadow = true;
+                mBackWall.userData.type = 'environment';
+                scene.add(mBackWall);
 
-                // Add warm studio lighting
-                const warmLight = new THREE.PointLight(0xffaa66, 1);
-                warmLight.position.set(0, 3, 0);
-                warmLight.userData.type = 'environment';
-                scene.add(warmLight);
+                const mLeftWall = new THREE.Mesh(new THREE.PlaneGeometry(mRoomD, mRoomH), mWallMat.clone());
+                mLeftWall.rotation.y = Math.PI / 2;
+                mLeftWall.position.set(-mRoomW / 2, mRoomH / 2, 0);
+                mLeftWall.receiveShadow = true;
+                mLeftWall.userData.type = 'environment';
+                scene.add(mLeftWall);
 
-                // Add accent lights
-                const accent1 = new THREE.SpotLight(0xff9966, 0.8);
-                accent1.position.set(-2, 2, -1);
-                accent1.angle = Math.PI / 6;
-                accent1.penumbra = 0.5;
-                accent1.userData.type = 'environment';
-                scene.add(accent1);
+                const mRightWall = new THREE.Mesh(new THREE.PlaneGeometry(mRoomD, mRoomH), mWallMat.clone());
+                mRightWall.rotation.y = -Math.PI / 2;
+                mRightWall.position.set(mRoomW / 2, mRoomH / 2, 0);
+                mRightWall.receiveShadow = true;
+                mRightWall.userData.type = 'environment';
+                scene.add(mRightWall);
 
-                const accent2 = new THREE.SpotLight(0xff9966, 0.8);
-                accent2.position.set(2, 2, -1);
-                accent2.angle = Math.PI / 6;
-                accent2.penumbra = 0.5;
-                accent2.userData.type = 'environment';
-                scene.add(accent2);
+                const mFrontWall = new THREE.Mesh(new THREE.PlaneGeometry(mRoomW, mRoomH), mWallMat.clone());
+                mFrontWall.position.set(0, mRoomH / 2, mRoomD / 2);
+                mFrontWall.receiveShadow = true;
+                mFrontWall.userData.type = 'environment';
+                scene.add(mFrontWall);
+
+                const mCeiling = new THREE.Mesh(new THREE.PlaneGeometry(mRoomW, mRoomD), mWallMat.clone());
+                mCeiling.rotation.x = Math.PI / 2;
+                mCeiling.position.set(0, mRoomH, 0);
+                mCeiling.userData.type = 'environment';
+                scene.add(mCeiling);
+
+                // --- Recording studio glass pane (left wall — control room window) ---
+                const glassPane = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.06, 1.6, 2.8),
+                    new THREE.MeshPhysicalMaterial({
+                        color: 0x88aacc, transparent: true, opacity: 0.18,
+                        roughness: 0.05, metalness: 0.1, transmission: 0.7,
+                        side: THREE.DoubleSide
+                    })
+                );
+                glassPane.position.set(-mRoomW / 2 + 0.08, 1.5, -1.0);
+                glassPane.userData.type = 'environment';
+                scene.add(glassPane);
+
+                // Glass frame (dark metal border)
+                const gFrameMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.3 });
+                const gfTop = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 2.88), gFrameMat);
+                gfTop.position.set(-mRoomW / 2 + 0.08, 2.32, -1.0);
+                gfTop.userData.type = 'environment';
+                scene.add(gfTop);
+                const gfBot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 2.88), gFrameMat);
+                gfBot.position.set(-mRoomW / 2 + 0.08, 0.68, -1.0);
+                gfBot.userData.type = 'environment';
+                scene.add(gfBot);
+                const gfL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.68, 0.04), gFrameMat);
+                gfL.position.set(-mRoomW / 2 + 0.08, 1.5, -2.44);
+                gfL.userData.type = 'environment';
+                scene.add(gfL);
+                const gfR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.68, 0.04), gFrameMat);
+                gfR.position.set(-mRoomW / 2 + 0.08, 1.5, 0.44);
+                gfR.userData.type = 'environment';
+                scene.add(gfR);
+
+                // Dim light behind glass (simulates control room glow)
+                const ctrlGlow = new THREE.PointLight(0x4466aa, 0.3, 5);
+                ctrlGlow.position.set(-mRoomW / 2 - 0.5, 1.5, -1.0);
+                ctrlGlow.userData.type = 'environment';
+                scene.add(ctrlGlow);
+
+                // --- Soundproofing panels on back wall ---
+                const spColors = [0x2a211a, 0x332a1e, 0x261e16, 0x2e2518];
+                for (let row = 0; row < 3; row++) {
+                    for (let col = -3; col <= 3; col++) {
+                        const panel = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.75, 0.75, 0.07),
+                            new THREE.MeshStandardMaterial({
+                                color: spColors[(row + col + 8) % 4],
+                                roughness: 1.0
+                            })
+                        );
+                        panel.position.set(col * 0.85, 0.8 + row * 0.85, -mRoomD / 2 + 0.04);
+                        panel.userData.type = 'environment';
+                        scene.add(panel);
+                    }
+                }
+
+                // --- Acoustic panels on right wall ---
+                const mFoamColors = [0x2a211a, 0x332a1e, 0x261e16];
+                for (let row = 0; row < 3; row++) {
+                    for (let col = -2; col <= 2; col++) {
+                        const rfp = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.06, 0.55, 0.55),
+                            new THREE.MeshStandardMaterial({ color: mFoamColors[(row + col + 6) % 3], roughness: 1.0 })
+                        );
+                        rfp.position.set(mRoomW / 2 - 0.04, 0.9 + row * 0.65, col * 0.65);
+                        rfp.userData.type = 'environment';
+                        scene.add(rfp);
+                    }
+                }
+
+                // --- Area rug ---
+                const rug = new THREE.Mesh(
+                    new THREE.PlaneGeometry(5, 4),
+                    new THREE.MeshStandardMaterial({ color: 0x1e1412, roughness: 1.0, side: THREE.DoubleSide })
+                );
+                rug.rotation.x = -Math.PI / 2;
+                rug.position.set(0, 0.005, 0);
+                rug.userData.type = 'environment';
+                scene.add(rug);
+                const rugBorder = new THREE.Mesh(
+                    new THREE.PlaneGeometry(5.3, 4.3),
+                    new THREE.MeshStandardMaterial({ color: 0x2a1c14, roughness: 1.0, side: THREE.DoubleSide })
+                );
+                rugBorder.rotation.x = -Math.PI / 2;
+                rugBorder.position.set(0, 0.003, 0);
+                rugBorder.userData.type = 'environment';
+                scene.add(rugBorder);
+
+                // --- Furniture: keyboard stand (back-left), instrument table (back-right), drum riser (back-center) ---
+                const standMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.7, roughness: 0.3 });
+                const standTopMat = new THREE.MeshStandardMaterial({ color: 0x222226, metalness: 0.4, roughness: 0.6 });
+
+                // Helper: builds a small table (flat top + 4 legs)
+                const buildStand = (sx, sz, sw, sd, sh) => {
+                    const g = new THREE.Group();
+                    const top = new THREE.Mesh(new THREE.BoxGeometry(sw, 0.025, sd), standTopMat);
+                    top.position.set(0, sh, 0);
+                    top.receiveShadow = true;
+                    g.add(top);
+                    const legH = sh - 0.012;
+                    const legGeo = new THREE.BoxGeometry(0.04, legH, 0.04);
+                    [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([lx, lz]) => {
+                        const leg = new THREE.Mesh(legGeo, standMat);
+                        leg.position.set(lx * (sw / 2 - 0.04), legH / 2, lz * (sd / 2 - 0.04));
+                        leg.castShadow = true;
+                        g.add(leg);
+                    });
+                    g.position.set(sx, 0, sz);
+                    g.userData.type = 'environment';
+                    return g;
+                };
+
+                // Keyboard stand — back left
+                scene.add(buildStand(-1.8, -1.2, 1.2, 0.5, 0.78));
+                // Instrument table — back right
+                scene.add(buildStand(1.8, -1.2, 1.0, 0.5, 0.78));
+                // Drum riser — back center (wide low platform)
+                const drumRiser = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.6, 0.12, 1.2),
+                    new THREE.MeshStandardMaterial({ color: 0x1a1614, roughness: 0.8 })
+                );
+                drumRiser.position.set(0, 0.06, -1.3);
+                drumRiser.receiveShadow = true;
+                drumRiser.userData.type = 'environment';
+                scene.add(drumRiser);
+
+                // Guitar / bass racks for front-left and front-right
+                const buildGuitarRack = (rx, rz) => {
+                    const g = new THREE.Group();
+                    const rackMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.3 });
+
+                    // Base plate
+                    const basePlate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.4), rackMat);
+                    basePlate.position.set(0, 0.015, 0);
+                    g.add(basePlate);
+
+                    // Vertical back post
+                    const backPost = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.1, 0.04), rackMat);
+                    backPost.position.set(0, 0.58, -0.16);
+                    g.add(backPost);
+
+                    // Upper yoke arms (two prongs to hold guitar neck)
+                    [-0.08, 0.08].forEach(ox => {
+                        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.18), rackMat);
+                        arm.position.set(ox, 1.05, -0.05);
+                        g.add(arm);
+                        const tip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.06, 0.02), rackMat);
+                        tip.position.set(ox, 1.07, 0.04);
+                        g.add(tip);
+                    });
+
+                    // Lower body cradle — angled rest
+                    const cradle = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.02, 0.2), rackMat);
+                    cradle.position.set(0, 0.35, 0.02);
+                    g.add(cradle);
+                    // Cradle lip (front edge to stop guitar sliding)
+                    const lip = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.06, 0.02), rackMat);
+                    lip.position.set(0, 0.37, 0.11);
+                    g.add(lip);
+
+                    // Rubber padding strips on cradle (subtle detail)
+                    const padMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+                    [-0.1, 0, 0.1].forEach(px => {
+                        const pad = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.025, 0.18), padMat);
+                        pad.position.set(px, 0.36, 0.02);
+                        g.add(pad);
+                    });
+
+                    g.position.set(rx, 0, rz);
+                    g.userData.type = 'environment';
+                    return g;
+                };
+
+                scene.add(buildGuitarRack(-2.0, 0.4));
+                scene.add(buildGuitarRack(2.0, 0.4));
+
+                // --- Edison-style pendant lights ---
+                const pendantPositions = [
+                    { x: -2.0, z: -0.5 }, { x: -0.7, z: 0.2 }, { x: 0, z: -0.4 },
+                    { x: 0.7, z: 0.2 }, { x: 2.0, z: -0.5 },
+                    { x: -1.0, z: -1.2 }, { x: 1.0, z: -1.2 }
+                ];
+                const bulbMat = new THREE.MeshStandardMaterial({
+                    color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 0.8
+                });
+                const wireMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 });
+
+                pendantPositions.forEach(({ x, z }, i) => {
+                    const wireLen = 0.5 + (i % 3) * 0.2;
+                    const bulbY = mRoomH - wireLen;
+                    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, wireLen, 6), wireMat);
+                    wire.position.set(x, mRoomH - wireLen / 2, z);
+                    wire.userData.type = 'environment';
+                    scene.add(wire);
+                    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 12), bulbMat);
+                    bulb.position.set(x, bulbY, z);
+                    bulb.userData.type = 'environment';
+                    scene.add(bulb);
+                    const pLight = new THREE.PointLight(0xffaa44, 0.35, 5);
+                    pLight.position.set(x, bulbY, z);
+                    pLight.userData.type = 'environment';
+                    scene.add(pLight);
+                });
+
+                // Warm fill light
+                const mFillLight = new THREE.PointLight(0xffd0a0, 0.25);
+                mFillLight.position.set(0, mRoomH - 0.2, 0);
+                mFillLight.userData.type = 'environment';
+                scene.add(mFillLight);
+
+                // Stage accent spots
+                [[-2.2, 0.4], [0, -1.0], [2.2, 0.4]].forEach(([tx, tz]) => {
+                    const spot = new THREE.SpotLight(0xffcc88, 0.25);
+                    spot.position.set(tx, mRoomH - 0.3, tz + 1.5);
+                    spot.target.position.set(tx, 0, tz);
+                    spot.angle = Math.PI / 5;
+                    spot.penumbra = 0.7;
+                    spot.userData.type = 'environment';
+                    scene.add(spot);
+                    scene.add(spot.target);
+                });
+
                 break;
+            }
             default:
                 // Default environment
                 floor.material = new THREE.MeshStandardMaterial({ 
@@ -2738,35 +3346,45 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 break;
 
             case 'Producer':
-                // Show laptop and synth/FX positions
                 initialSpots = [
-                    { x: 0, y: 1.05, z: 0, type: 'interface' },          // Middle (Interface)
-                    { x: -0.8, y: 1.05, z: 0, type: 'synth_left' },     // Left Synth
-                    { x: 0.8, y: 1.05, z: 0, type: 'synth_right' },     // Right Synth
-                    { x: -1.6, y: 1.05, z: 0, type: 'fx_left' },        // Left FX
-                    { x: 1.6, y: 1.05, z: 0, type: 'fx_right' }         // Right FX
+                    // Desk spots
+                    { x: 0, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_CENTER, size: { width: 0.35, depth: 0.25 } },
+                    { x: -0.55, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_LEFT, size: { width: 0.35, depth: 0.25 } },
+                    { x: 0.55, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_RIGHT, size: { width: 0.35, depth: 0.25 } },
+                    // Monitor speakers on stands behind desk
+                    { x: -1.2, y: 1.18, z: -0.9, type: SPOT_TYPES.MONITOR_LEFT, size: { width: 0.24, depth: 0.18 } },
+                    { x: 1.2, y: 1.18, z: -0.9, type: SPOT_TYPES.MONITOR_RIGHT, size: { width: 0.24, depth: 0.18 } },
+                    // Left rack — angled 45° to face center
+                    { x: -2.2, y: 0.35, z: -0.25, type: SPOT_TYPES.RACK_LEFT_1, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
+                    { x: -2.2, y: 0.65, z: -0.25, type: SPOT_TYPES.RACK_LEFT_2, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
+                    { x: -2.2, y: 0.95, z: -0.25, type: SPOT_TYPES.RACK_LEFT_3, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
+                    { x: -2.2, y: 1.25, z: -0.25, type: SPOT_TYPES.RACK_LEFT_4, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
+                    // Right rack — angled 45° to face center
+                    { x: 2.2, y: 0.35, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_1, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
+                    { x: 2.2, y: 0.65, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_2, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
+                    { x: 2.2, y: 0.95, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_3, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
+                    { x: 2.2, y: 1.25, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_4, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
                 ];
                 break;
 
             case 'Musician':
-                // Show just two basic spots initially
                 initialSpots = [
-                    // Main instrument position (center)
-                    { 
-                        x: 0, 
-                        y: 1.05, 
-                        z: 0, 
-                        type: 'main_instrument',
-                        size: { width: 0.4, depth: 0.4 }  // Larger spot for main instrument
-                    },
-                    // Effects position (in front)
-                    { 
-                        x: 0, 
-                        y: 0.05,  // Lower position for floor effects
-                        z: 0.5,   // In front of the main instrument
-                        type: 'effects',
-                        size: { width: 0.8, depth: 0.3 }  // Wide but shallow for pedals
-                    }
+                    // Front row — main stage positions (center on floor, sides on small stands)
+                    { x: 0, y: 0.05, z: 0.4, type: SPOT_TYPES.STAGE_CENTER, size: { width: 0.4, depth: 0.4 } },
+                    { x: -2.0, y: 0.39, z: 0.42, type: SPOT_TYPES.STAGE_LEFT, size: { width: 0.3, depth: 0.16 } },
+                    { x: 2.0, y: 0.39, z: 0.42, type: SPOT_TYPES.STAGE_RIGHT, size: { width: 0.3, depth: 0.16 } },
+                    // Back row — elevated on tables / riser
+                    { x: -1.8, y: 0.82, z: -1.2, type: SPOT_TYPES.STAGE_BACK_LEFT, size: { width: 0.5, depth: 0.35 } },
+                    { x: 0, y: 0.17, z: -1.3, type: SPOT_TYPES.STAGE_BACK_CENTER, size: { width: 0.6, depth: 0.5 } },
+                    { x: 1.8, y: 0.82, z: -1.2, type: SPOT_TYPES.STAGE_BACK_RIGHT, size: { width: 0.5, depth: 0.35 } },
+                    // Pedals — two at each guitar rack's feet
+                    { x: -2.2, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_1, size: { width: 0.22, depth: 0.16 } },
+                    { x: -1.8, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_2, size: { width: 0.22, depth: 0.16 } },
+                    { x: 1.8, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_3, size: { width: 0.22, depth: 0.16 } },
+                    { x: 2.2, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_4, size: { width: 0.22, depth: 0.16 } },
+                    // Amps — far sides, on the floor
+                    { x: -3.0, y: 0.05, z: -0.3, type: SPOT_TYPES.AMP_LEFT, size: { width: 0.5, depth: 0.4 } },
+                    { x: 3.0, y: 0.05, z: -0.3, type: SPOT_TYPES.AMP_RIGHT, size: { width: 0.5, depth: 0.4 } },
                 ];
                 break;
             default:
@@ -2799,6 +3417,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
             const ghostSquare = new THREE.Mesh(geometry, material);
             ghostSquare.position.set(position.x, position.y, position.z);
+            if (position.rotationY) ghostSquare.rotation.y = position.rotationY;
             ghostSquare.userData = { 
                 index,
                 defaultColor: 0x808080,
@@ -2913,35 +3532,44 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Update the removeDevice function to handle position-specific removal
     const removeDevice = (uniqueId) => {
         const device = placedDevicesList.find(d => d.uniqueId === uniqueId);
         if (device) {
-            // Find the specific device reference using uniqueId
-            const deviceRef = Object.values(devicesRef.current).find(ref => 
-                ref.data?.uniqueId === uniqueId
-            );
-
-            if (deviceRef?.model) {
-                sceneRef.current.remove(deviceRef.model);
-                // Remove the specific device reference
-                delete devicesRef.current[device.id];
+            const ref = devicesRef.current[uniqueId];
+            if (ref?.model) {
+                sceneRef.current.remove(ref.model);
+                ref.model.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry?.dispose();
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material?.dispose();
+                    }
+                });
             }
-            
-            // Remove any cables connected to this device's position
+            delete devicesRef.current[uniqueId];
+
+            // Remove cables connected to this specific device instance
             cablesRef.current = cablesRef.current.filter(cable => {
-                if (cable.userData.sourceDevice === device.id || cable.userData.targetDevice === device.id) {
+                const ud = cable.userData;
+                if (ud.sourceDeviceUniqueId === uniqueId || ud.targetDeviceUniqueId === uniqueId ||
+                    (ud.sourceDevice === device.id && !ud.sourceDeviceUniqueId) ||
+                    (ud.targetDevice === device.id && !ud.targetDeviceUniqueId)) {
                     sceneRef.current.remove(cable);
-        return false;
-    }
+                    cable.geometry?.dispose();
+                    cable.material?.dispose();
+                    return false;
+                }
                 return true;
             });
-            
-            // Update the placed devices list using the unique identifier
-            // This will trigger the useEffect that calls updateConnections
+
+            if (miniProfileDevice?.uniqueId === uniqueId) {
+                setShowMiniProfile(false);
+                setMiniProfileDevice(null);
+                setEditConnectionsMode(false);
+            }
+
             updatePlacedDevicesList(device, 'remove');
 
-            // Force a re-render of the scene
             if (rendererRef.current && sceneRef.current && cameraRef.current) {
                 rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
@@ -2972,15 +3600,37 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 }
             case 'Producer':
                 switch (spotType) {
-                    case SPOT_TYPES.MIDDLE: return 'Audio Interface';
-                    case SPOT_TYPES.MIDDLE_LEFT:
-                    case SPOT_TYPES.MIDDLE_RIGHT: return 'Synthesizer';
-                    case SPOT_TYPES.FAR_LEFT:
-                    case SPOT_TYPES.FAR_RIGHT: return 'Effects Unit';
+                    case SPOT_TYPES.DESK_CENTER: return 'Audio Interface';
+                    case SPOT_TYPES.DESK_LEFT:
+                    case SPOT_TYPES.DESK_RIGHT: return 'Controller / Synth';
+                    case SPOT_TYPES.RACK_LEFT_1:
+                    case SPOT_TYPES.RACK_LEFT_2:
+                    case SPOT_TYPES.RACK_LEFT_3:
+                    case SPOT_TYPES.RACK_LEFT_4:
+                    case SPOT_TYPES.RACK_RIGHT_1:
+                    case SPOT_TYPES.RACK_RIGHT_2:
+                    case SPOT_TYPES.RACK_RIGHT_3:
+                    case SPOT_TYPES.RACK_RIGHT_4: return 'Rack Unit / Processor';
+                    case SPOT_TYPES.MONITOR_LEFT:
+                    case SPOT_TYPES.MONITOR_RIGHT: return 'Studio Monitor';
                     default: return 'Any Device';
                 }
             case 'Musician':
-                return 'Instrument or Effects';
+                switch (spotType) {
+                    case SPOT_TYPES.STAGE_CENTER: return 'Instrument / Mic';
+                    case SPOT_TYPES.STAGE_LEFT:
+                    case SPOT_TYPES.STAGE_RIGHT: return 'Guitar / Bass';
+                    case SPOT_TYPES.STAGE_BACK_LEFT:
+                    case SPOT_TYPES.STAGE_BACK_RIGHT: return 'Keyboard / Instrument';
+                    case SPOT_TYPES.STAGE_BACK_CENTER: return 'Drums / Instrument';
+                    case SPOT_TYPES.PEDAL_1:
+                    case SPOT_TYPES.PEDAL_2:
+                    case SPOT_TYPES.PEDAL_3:
+                    case SPOT_TYPES.PEDAL_4: return 'Effects Pedal';
+                    case SPOT_TYPES.AMP_LEFT:
+                    case SPOT_TYPES.AMP_RIGHT: return 'Amplifier / Monitor';
+                    default: return 'Instrument or Effects';
+                }
             default:
                 return 'Any Device';
         }
@@ -3271,18 +3921,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     }, [placedDevicesList, hasQuotaError, lastApiCall]);
 
     // Handle category toggle for device visibility
-    const handleCategoryToggle = (categoryId, isVisible) => {
-        console.log(`Toggling category ${categoryId} visibility: ${isVisible}`);
-        setHiddenCategories(prev => {
-            const newHidden = new Set(prev);
-            if (isVisible) {
-                newHidden.delete(categoryId);
-            } else {
-                newHidden.add(categoryId);
-            }
-            console.log('New hidden categories:', Array.from(newHidden));
-            return newHidden;
-        });
+    const handleCategoryToggle = (categoryId) => {
+        setHighlightedCategory(prev => prev === categoryId ? null : categoryId);
     };
 
     // Expose the toggle function to parent (only once)
@@ -3296,7 +3936,13 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     useEffect(() => {
         if (showMiniProfile && miniProfileDevice?.uniqueId) {
             const updated = placedDevicesList.find(d => d.uniqueId === miniProfileDevice.uniqueId);
-            if (updated) setMiniProfileDevice(updated);
+            if (updated) {
+                setMiniProfileDevice(updated);
+            } else {
+                setShowMiniProfile(false);
+                setMiniProfileDevice(null);
+                setEditConnectionsMode(false);
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only update when list changes, not when panel/device changes
     }, [placedDevicesList]);
@@ -3308,59 +3954,93 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens, zoom to device
     }, [showMiniProfile]);
 
-    // Update device visibility when hidden categories change
     useEffect(() => {
-        if (sceneRef.current && placedDevicesList.length > 0) {
-            console.log('Processing devices for visibility:', placedDevicesList.map(d => d.name));
-            console.log('Hidden categories:', Array.from(hiddenCategories));
-            
-            placedDevicesList.forEach(device => {
-                // Get the device object from devicesRef instead of scene
-                const deviceRef = devicesRef.current[device.uniqueId];
-                if (deviceRef && deviceRef.model) {
-                    // Determine if this device should be hidden based on its category
-                    const deviceCategory = getDeviceCategory(device);
-                    const shouldHide = hiddenCategories.has(deviceCategory);
-                    console.log(`Device: ${device.name} -> Category: ${deviceCategory} -> Should hide: ${shouldHide}`);
-                    deviceRef.model.visible = !shouldHide;
-                } else {
-                    console.log(`Device object not found for: ${device.name} (${device.uniqueId})`);
+        if (!sceneRef.current || placedDevicesList.length === 0) return;
+
+        placedDevicesList.forEach(device => {
+            const deviceRef = devicesRef.current[device.uniqueId];
+            if (!deviceRef?.model) return;
+
+            const deviceCategory = getDeviceCategory(device);
+            const isHighlighted = highlightedCategory && deviceCategory === highlightedCategory;
+
+            deviceRef.model.visible = true;
+            deviceRef.model.traverse(child => {
+                if (!child.isMesh) return;
+                if (isHighlighted) {
+                    if (!child.userData._origEmissive) {
+                        child.userData._origEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0, 0, 0);
+                        child.userData._origEmissiveIntensity = child.material.emissiveIntensity ?? 0;
+                    }
+                    child.material.emissive = new THREE.Color(0x00a2ff);
+                    child.material.emissiveIntensity = 0.35;
+                } else if (child.userData._origEmissive) {
+                    child.material.emissive = child.userData._origEmissive;
+                    child.material.emissiveIntensity = child.userData._origEmissiveIntensity;
+                    delete child.userData._origEmissive;
+                    delete child.userData._origEmissiveIntensity;
                 }
             });
-            
-            // Force a re-render
-            if (rendererRef.current && cameraRef.current) {
-                rendererRef.current.render(sceneRef.current, cameraRef.current);
-            }
-        }
-    }, [hiddenCategories, placedDevicesList]);
+        });
 
-    // Helper function to determine device category
-    const getDeviceCategory = (device) => {
-        const name = device.name.toLowerCase();
-        console.log(`Categorizing device: "${device.name}" -> "${name}"`);
-        
-        if (name.includes('cdj') || name.includes('turntable') || name.includes('controller')) {
-            console.log(`  -> Matched players category`);
-            return 'players';
-        } else if (name.includes('djm') || name.includes('mixer')) {
-            console.log(`  -> Matched mixers category`);
-            return 'mixers';
-        } else if (name.includes('rmx') || name.includes('effect')) {
-            console.log(`  -> Matched effects category`);
-            return 'effects';
-        } else if (name.includes('speaker') || name.includes('monitor')) {
-            console.log(`  -> Matched speakers category`);
-            return 'speakers';
-        } else if (name.includes('cable') || name.includes('rca') || name.includes('xlr')) {
-            console.log(`  -> Matched cables category`);
-            return 'cables';
-        } else if (name.includes('headphone') || name.includes('case')) {
-            console.log(`  -> Matched accessories category`);
-            return 'accessories';
+        if (rendererRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        console.log(`  -> Default to players category`);
-        return 'players'; // default category
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getDeviceCategory is stable within a setupType
+    }, [highlightedCategory, placedDevicesList]);
+
+    const getDeviceCategory = (device) => {
+        const name = (device.name || '').toLowerCase();
+        const sub = (device.subcategory || '').toLowerCase();
+        const type = (device.type || '').toLowerCase();
+        const spot = (device.spotType || '').toLowerCase();
+
+        const spotMap = {
+            middle: 'mixers', middle_back: 'mixers',
+            middle_left: 'players', middle_right: 'players', far_left: 'players', far_right: 'players',
+            middle_left_inner: 'players', middle_right_inner: 'players',
+            fx_top: 'effects', fx_left: 'effects', fx_right: 'effects', fx_front: 'effects',
+            speaker_left: 'speakers', speaker_right: 'speakers',
+            desk_center: 'audio-interface', desk_left: 'controllers', desk_right: 'controllers',
+            rack_left_1: 'effects', rack_left_2: 'effects', rack_left_3: 'effects', rack_left_4: 'effects',
+            rack_right_1: 'effects', rack_right_2: 'effects', rack_right_3: 'effects', rack_right_4: 'effects',
+            monitor_left: 'monitors', monitor_right: 'monitors',
+            stage_center: 'instruments', stage_left: 'instruments', stage_right: 'instruments',
+            stage_back_left: 'instruments', stage_back_right: 'instruments', stage_back_center: 'instruments',
+            pedal_1: 'effects', pedal_2: 'effects', pedal_3: 'effects', pedal_4: 'effects',
+            amp_left: 'amplifiers', amp_right: 'amplifiers',
+        };
+
+        if (currentSetupType === 'DJ') {
+            if (sub === 'players' || sub === 'mixers' || sub === 'effects' || sub === 'speakers' || sub === 'cables' || sub === 'accessories') return sub;
+            if (name.includes('djm') || name.includes('mixer') || name.includes('xone') || type.includes('mixer')) return 'mixers';
+            if (name.includes('cdj') || name.includes('player') || name.includes('turntable') || name.includes('xdj') || name.includes('ddj') || type.includes('player') || type.includes('controller')) return 'players';
+            if (name.includes('rmx') || name.includes('sp-1') || name.includes('effect') || type.includes('fx') || type.includes('effect')) return 'effects';
+            if (name.includes('speaker') || name.includes('monitor') || name.includes('pa ') || type.includes('speaker')) return 'speakers';
+            if (name.includes('cable') || name.includes('rca') || name.includes('xlr') || type.includes('cable')) return 'cables';
+            if (name.includes('headphone') || name.includes('case') || name.includes('laptop') || type.includes('headphone')) return 'accessories';
+        }
+        if (currentSetupType === 'Producer') {
+            if (sub === 'audio-interface' || sub === 'synthesizers' || sub === 'controllers' || sub === 'monitors' || sub === 'microphones' || sub === 'software') return sub;
+            if (name.includes('interface') || name.includes('focusrite') || name.includes('scarlett') || name.includes('apollo') || type.includes('interface')) return 'audio-interface';
+            if (name.includes('synth') || name.includes('moog') || name.includes('korg') || type.includes('synth')) return 'synthesizers';
+            if (name.includes('controller') || name.includes('midi') || name.includes('pad') || name.includes('push') || type.includes('controller')) return 'controllers';
+            if (name.includes('monitor') || name.includes('speaker') || name.includes('genelec') || name.includes('krk') || type.includes('monitor')) return 'monitors';
+            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
+            if (name.includes('daw') || name.includes('laptop') || name.includes('software') || type.includes('daw')) return 'software';
+        }
+        if (currentSetupType === 'Musician') {
+            if (sub === 'instruments' || sub === 'amplifiers' || sub === 'effects' || sub === 'microphones' || sub === 'cables' || sub === 'accessories') return sub;
+            if (name.includes('guitar') || name.includes('bass') || name.includes('keyboard') || name.includes('piano') || name.includes('drum') || name.includes('synth') || type.includes('guitar') || type.includes('bass') || type.includes('drum')) return 'instruments';
+            if (name.includes('amp') || name.includes('amplifier') || name.includes('combo') || name.includes('cabinet') || type.includes('amp')) return 'amplifiers';
+            if (name.includes('pedal') || name.includes('stomp') || name.includes('effect') || name.includes('overdrive') || name.includes('delay') || name.includes('reverb') || type.includes('pedal') || type.includes('effect')) return 'effects';
+            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
+            if (name.includes('cable') || type.includes('cable')) return 'cables';
+            if (name.includes('stand') || name.includes('case') || name.includes('tuner') || type.includes('stand')) return 'accessories';
+        }
+
+        if (spot && spotMap[spot]) return spotMap[spot];
+        return 'accessories';
     };
 
     return (
@@ -3468,7 +4148,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                                     <button type="button" className="edit-connections-btn" style={{
                                         width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: '#00a2ff',
                                         background: 'rgba(0, 162, 255, 0.15)', border: '1px solid rgba(0, 162, 255, 0.4)', borderRadius: '10px',
-                                        cursor: 'pointer', fontFamily: 'inherit', marginTop: 'auto'
+                                        cursor: 'pointer', fontFamily: 'inherit'
                                     }} onClick={() => setEditConnectionsMode(true)}>
                                         Edit connection positions
                                     </button>
@@ -3709,178 +4389,205 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     </div>
                 )}
 
-                {/* Search Modal - Updated with recommended highlighting */}
-            {showSearch && (
+                {/* Search Modal */}
+            {showSearch && (() => {
+                    const activeSpot = ghostSpotsRef.current[selectedGhostIndex];
+                    const recType = activeSpot?.userData?.recommendedType || 'Any Device';
+                    const hasBrain = setupHasBrain();
+                    const deviceCount = (placedDevicesListRef.current || []).length;
+                    const needsBrain = !hasBrain && (currentSetupType === 'DJ' || currentSetupType === 'Producer');
+
+                    const brainHints = {
+                        DJ: { icon: '🎛️', text: 'Start with your mixer — everything connects to it' },
+                        Producer: { icon: '🎹', text: 'Start with your audio interface or laptop — it\'s the center of your studio' },
+                    };
+                    const spotHints = {
+                        'Mixer (DJM)': '🎛️ Mixer slot',
+                        'Player (CDJ)': '🎧 Player slot',
+                        'RMX-1000': '🎚️ Effects slot',
+                        'Speaker': '🔊 Speaker slot',
+                        'Audio Interface': '🎤 Audio interface slot',
+                        'Controller / Synth': '🎮 Controller / synth slot',
+                        'Rack Unit / Processor': '⚙️ Rack unit slot',
+                        'Studio Monitor': '🔊 Monitor slot',
+                        'Instrument / Mic': '🎸 Instrument / mic slot',
+                        'Guitar / Bass': '🎸 Guitar / bass stand',
+                        'Keyboard / Instrument': '🎹 Keyboard slot',
+                        'Drums / Instrument': '🥁 Drum riser',
+                        'Effects Pedal': '🎚️ Pedal slot',
+                        'Amplifier / Monitor': '🔊 Amp slot',
+                    };
+
+                    return (
                     <div className="search-modal fade-in" style={searchModalStyle}>
-                        <style>
-                            {`
-                                .search-modal::-webkit-scrollbar {
-                                    width: 8px;
-                                    background-color: #000000;
-                                }
-                                .search-modal::-webkit-scrollbar-thumb {
-                                    background-color: #333333;
-                                    border-radius: 4px;
-                                }
-                                .search-modal::-webkit-scrollbar-track {
-                                    background-color: #000000;
-                                }
-                            `}
-                        </style>
-                        <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
-                            marginBottom: '20px'
-                        }}>
-                            <h3 style={{ 
-                                margin: 0, 
-                                color: '#ffffff',
-                                fontSize: '16px',
-                                fontFamily: 'Space Grotesk, sans-serif'
-                            }}>
+                        <style>{`
+                            .search-modal::-webkit-scrollbar { width: 8px; background-color: #000; }
+                            .search-modal::-webkit-scrollbar-thumb { background-color: #333; border-radius: 4px; }
+                            .search-modal::-webkit-scrollbar-track { background-color: #000; }
+                            .search-product-card { transition: background-color 0.15s ease, border-color 0.15s ease; }
+                            .search-product-card:hover { background-color: rgba(255,255,255,0.08) !important; }
+                        `}</style>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontFamily: 'Space Grotesk, sans-serif' }}>
                                 {searchMode === 'ghost' ? 'Add Device' : 'Search Products'}
                             </h3>
-                            <button 
-                                onClick={() => {
-                                    setShowSearch(false);
-                                    setSearchMode('');
-                                    setSearchQuery('');
-                                }}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '24px',
-                                    cursor: 'pointer',
-                                    color: '#ffffff',
-                                    opacity: 0.7,
-                                    transition: 'opacity 0.2s ease'
-                                }}
-                            >
-                                ×
-                            </button>
+                            <button
+                                onClick={() => { setShowSearch(false); setSearchMode(''); setSearchQuery(''); setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
+                                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#fff', opacity: 0.7, transition: 'opacity 0.2s ease', lineHeight: 1, padding: '4px' }}
+                            >×</button>
                         </div>
-                        
-                    <input
-                        type="text"
-                        placeholder="Search for a product..."
-                        value={searchQuery}
+
+                        {/* Context banner */}
+                        {searchMode === 'ghost' && (
+                            <div style={{
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                marginBottom: '14px',
+                                background: needsBrain ? 'rgba(255, 180, 50, 0.12)' : 'rgba(0, 162, 255, 0.1)',
+                                border: `1px solid ${needsBrain ? 'rgba(255, 180, 50, 0.25)' : 'rgba(0, 162, 255, 0.2)'}`,
+                            }}>
+                                <div style={{ fontSize: '13px', fontWeight: '600', color: needsBrain ? '#ffb432' : '#4db8ff', marginBottom: '2px' }}>
+                                    {needsBrain
+                                        ? `${brainHints[currentSetupType]?.icon || '🎛️'} ${brainHints[currentSetupType]?.text || 'Add your main device first'}`
+                                        : (spotHints[recType] || `📍 ${recType}`)
+                                    }
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+                                    {deviceCount === 0 ? 'No devices yet' : `${deviceCount} device${deviceCount !== 1 ? 's' : ''} in setup`}
+                                    {!needsBrain && recType !== 'Any Device' && ` · Showing best matches for this spot`}
+                                </div>
+                            </div>
+                        )}
+
+                        <input
+                            type="text"
+                            placeholder="Search for a product..."
+                            value={searchQuery}
                             onChange={handleSearchInputChange}
                             className="fade-in"
                             style={{
                                 width: '100%',
-                                padding: '12px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                borderRadius: '4px',
-                                color: '#ffffff',
-                                marginBottom: '20px',
-                                outline: 'none'
+                                padding: '10px 14px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                marginBottom: '14px',
+                                outline: 'none',
+                                fontSize: '14px',
+                                fontFamily: 'inherit',
+                                boxSizing: 'border-box',
                             }}
                         />
 
                         {!showSuggestionForm ? (
                             <>
-                                <button
-                                    onClick={handleSuggestNewProduct}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px',
-                                        backgroundColor: 'rgba(46, 204, 113, 0.2)',
-                                        border: '1px solid rgba(46, 204, 113, 0.3)',
-                                        borderRadius: '4px',
-                                        color: '#2ecc71',
-                                        marginBottom: '20px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        fontWeight: '500',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px'
-                                    }}
-                                >
-                                    <span>+</span> Suggest New Product
-                                </button>
-
-                                <div className="search-results fade-in" style={{
-                                    maxHeight: '400px',
-                                    overflowY: 'auto'
-                                }}>
+                                <div className="search-results fade-in" style={{ maxHeight: '380px', overflowY: 'auto', marginBottom: '12px' }}>
                                     {filteredResults.map(product => {
-                                        const currentSpot = ghostSpotsRef.current[selectedGhostIndex];
-                                        const recommendedType = currentSpot?.userData?.recommendedType;
-                                        const isRecommended = isProductRecommended(product, recommendedType);
-                                        
+                                        const isRec = isProductRecommended(product, recType);
+                                        const isBrain = needsBrain && isBrainProduct(product);
+                                        const highlighted = isRec || isBrain;
+
                                         return (
-                                            <div 
+                                            <div
                                                 key={product.id}
+                                                className="search-product-card"
                                                 onClick={() => handleProductSelect(product)}
                                                 style={{
-                                                    padding: '12px',
-                                                    marginBottom: isRecommended ? '8px' : '0',
+                                                    padding: '10px 12px',
+                                                    marginBottom: '4px',
                                                     cursor: 'pointer',
-                                                    transition: 'all 0.2s ease',
-                                                    backgroundColor: isRecommended ? 'rgba(39, 174, 96, 0.1)' : 'transparent',
-                                                    boxShadow: isRecommended ? '0 0 15px rgba(39, 174, 96, 0.2)' : 'none',
-                                                    borderRadius: isRecommended ? '4px' : '0',
-                                                    border: isRecommended ? '1px solid rgba(39, 174, 96, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
-                                                    position: 'relative'
+                                                    backgroundColor: highlighted ? 'rgba(39, 174, 96, 0.08)' : 'transparent',
+                                                    borderRadius: '8px',
+                                                    border: highlighted ? '1px solid rgba(39, 174, 96, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)',
                                                 }}
                                             >
-                                                <div style={{ 
-                                                    fontWeight: '500',
-                                                    color: isRecommended ? '#2ecc71' : '#ffffff',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between'
-                                                }}>
-                                    {product.name}
-                                                    {isRecommended && (
-                                                        <span style={{ 
-                                                            fontSize: '12px',
-                                                            padding: '2px 6px',
-                                                            backgroundColor: 'rgba(46, 204, 113, 0.2)',
-                                                            borderRadius: '4px',
-                                                            marginLeft: '8px'
-                                                        }}>
-                                                            Recommended
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                                    <span style={{ fontWeight: '500', fontSize: '14px', color: highlighted ? '#2ecc71' : '#fff', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {product.name}
+                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                                        {isBrain && (
+                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(255, 180, 50, 0.2)', color: '#ffb432', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
+                                                                BRAIN
+                                                            </span>
+                                                        )}
+                                                        {isRec && (
+                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
+                                                                SUGGESTED
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                    {product.brand && (
+                                                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{product.brand}</span>
+                                                    )}
+                                                    {product.category && (
+                                                        <span style={{ fontSize: '10px', padding: '1px 6px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '4px', color: 'rgba(255,255,255,0.4)' }}>
+                                                            {product.category}{product.subcategory ? ` · ${product.subcategory}` : ''}
                                                         </span>
                                                     )}
-                                                </div>
-                                                <div style={{ 
-                                                    fontSize: '12px', 
-                                                    opacity: 0.7,
-                                                    marginTop: '4px',
-                                                    color: isRecommended ? '#2ecc71' : '#ffffff'
-                                                }}>
-                                                    {product.category}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                     {filteredResults.length === 0 && (
-                                        <div style={{ 
-                                            textAlign: 'center', 
-                                            padding: '20px',
-                                            color: 'rgba(255, 255, 255, 0.5)'
-                                        }}>
+                                        <div style={{ textAlign: 'center', padding: '24px 20px', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
                                             No products found
-                </div>
-            )}
-        </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={handleSuggestNewProduct}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        borderRadius: '8px',
+                                        color: 'rgba(255,255,255,0.6)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        fontWeight: '500',
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Suggest New Product
+                                </button>
                             </>
                         ) : (
                             <ProductSuggestionForm
-                                onClose={() => {
-                                    setShowSuggestionForm(false);
-                                }}
-                                recommendedType={ghostSpotsRef.current[selectedGhostIndex]?.userData?.recommendedType || 'Any Device'}
-                                spotType={ghostSpotsRef.current[selectedGhostIndex]?.userData?.type || 'standard'}
+                                onClose={() => { setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
+                                recommendedType={recType}
+                                spotType={activeSpot?.userData?.type || 'standard'}
+                                modelScale={suggestionModelScale}
+                                onModelFileChange={(f) => { setSuggestionModelFile(f); setSuggestionModelScale(1.0); }}
+                                onScaleChange={(s) => setSuggestionModelScale(s)}
                             />
                         )}
                     </div>
-                )}
+                    );
+                })()}
+
+                {showSuggestionForm && suggestionModelFile && (() => {
+                    const spot = ghostSpotsRef.current[selectedGhostIndex];
+                    const pos = spot ? { x: spot.position.x, y: spot.position.y, z: spot.position.z } : null;
+                    return (
+                        <ModelPreviewPanel
+                            file={suggestionModelFile}
+                            scale={suggestionModelScale}
+                            onClose={() => setSuggestionModelFile(null)}
+                            mainSceneRef={sceneRef}
+                            ghostSpotPosition={pos}
+                        />
+                    );
+                })()}
             </div>
         </>
     );

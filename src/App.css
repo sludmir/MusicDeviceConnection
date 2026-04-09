@@ -66,6 +66,28 @@ html, body {
   color: var(--text-primary);
 }
 
+/* Transparent header when hub page is showing */
+.App--hub-active .App-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  padding: 24px 24px;
+}
+
+.App--hub-active .App-header-center img {
+  height: 80px !important;
+}
+
+.App--hub-active .App-header-center {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .App-header-left {
   flex: 1;
   display: flex;
@@ -114,6 +136,27 @@ html, body {
   background: var(--card-bg-hover);
   transform: scale(1.05);
 }
+
+/* Transparent controls on hub */
+.App--hub-active .theme-toggle {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(232, 232, 236, 0.6);
+}
+
+.App--hub-active .theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 232, 236, 0.9);
+}
+
+.App--hub-active .header-profile-trigger {
+  color: rgba(232, 232, 236, 0.6);
+}
+
+.App--hub-active .App-header .header-profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 
 .theme-toggle:focus-visible {
   outline: 2px solid #00a2ff;

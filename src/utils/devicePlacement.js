@@ -70,18 +70,18 @@ export const SPOT_PRIORITIES = {
     [DEVICE_ROLES.ACCESSORY]: ['middle_left_inner', 'middle_right_inner']  // Accessories
   },
   Producer: {
-    [DEVICE_ROLES.BRAIN]: ['interface'],  // Laptop/Interface in center
-    [DEVICE_ROLES.INPUT]: ['synth_left', 'synth_right'],  // Synthesizers on sides
-    [DEVICE_ROLES.EFFECTS]: ['fx_left', 'fx_right'],  // Effects on sides
-    [DEVICE_ROLES.OUTPUT]: ['monitor_left', 'monitor_right'],  // Monitors
-    [DEVICE_ROLES.ACCESSORY]: ['accessory']
+    [DEVICE_ROLES.BRAIN]: ['desk_center'],
+    [DEVICE_ROLES.INPUT]: ['desk_left', 'desk_right'],
+    [DEVICE_ROLES.EFFECTS]: ['rack_left_1', 'rack_left_2', 'rack_left_3', 'rack_left_4', 'rack_right_1', 'rack_right_2', 'rack_right_3', 'rack_right_4'],
+    [DEVICE_ROLES.OUTPUT]: ['monitor_left', 'monitor_right'],
+    [DEVICE_ROLES.ACCESSORY]: ['rack_left_4', 'rack_right_4']
   },
   Musician: {
-    [DEVICE_ROLES.BRAIN]: ['center'],  // Main instrument/amp
-    [DEVICE_ROLES.INPUT]: ['left', 'right'],  // Instruments
-    [DEVICE_ROLES.EFFECTS]: ['effects'],  // Pedals/effects
-    [DEVICE_ROLES.OUTPUT]: ['output'],  // Amps/speakers
-    [DEVICE_ROLES.ACCESSORY]: ['accessory']
+    [DEVICE_ROLES.BRAIN]: ['stage_center'],
+    [DEVICE_ROLES.INPUT]: ['stage_left', 'stage_right', 'stage_back_left', 'stage_back_center', 'stage_back_right'],
+    [DEVICE_ROLES.EFFECTS]: ['pedal_1', 'pedal_2', 'pedal_3', 'pedal_4'],
+    [DEVICE_ROLES.OUTPUT]: ['amp_left', 'amp_right'],
+    [DEVICE_ROLES.ACCESSORY]: ['stage_back_left', 'stage_back_right']
   }
 };
 

@@ -9,6 +9,7 @@ import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
 // Unused imports - kept for potential future use
 // import { findProductByName, prepareProductForSetup, canAddProductToSetup } from './utils/productSearch';
+import AddProductsScript from './AddProductsScript';
 import SetupTimelineImport from './SetupTimeline';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
@@ -218,10 +219,9 @@ function App() {
     console.log('Devices updated in App.js:', devices.map(d => d.name));
   }, []);
 
-  const handleCategoryToggle = (categoryId, isVisible) => {
-    // Call the ThreeScene toggle function
+  const handleCategoryToggle = (categoryId) => {
     if (threeSceneToggleFunction) {
-      threeSceneToggleFunction(categoryId, isVisible);
+      threeSceneToggleFunction(categoryId);
     }
   };
 
@@ -366,17 +366,34 @@ function App() {
         return djSetupSpots;
       case 'Producer':
         return [
-          { x: 0, y: 1.05, z: 0, type: 'interface' },
-          { x: -0.8, y: 1.05, z: 0, type: 'synth_left' },
-          { x: 0.8, y: 1.05, z: 0, type: 'synth_right' },
-          { x: -1.6, y: 1.05, z: 0, type: 'fx_left' },
-          { x: 1.6, y: 1.05, z: 0, type: 'fx_right' }
+          { x: 0, y: 0.97, z: -0.25, type: 'desk_center' },
+          { x: -0.55, y: 0.97, z: -0.25, type: 'desk_left' },
+          { x: 0.55, y: 0.97, z: -0.25, type: 'desk_right' },
+          { x: -1.2, y: 1.18, z: -0.9, type: 'monitor_left' },
+          { x: 1.2, y: 1.18, z: -0.9, type: 'monitor_right' },
+          { x: -2.2, y: 0.35, z: -0.25, type: 'rack_left_1' },
+          { x: -2.2, y: 0.65, z: -0.25, type: 'rack_left_2' },
+          { x: -2.2, y: 0.95, z: -0.25, type: 'rack_left_3' },
+          { x: -2.2, y: 1.25, z: -0.25, type: 'rack_left_4' },
+          { x: 2.2, y: 0.35, z: -0.25, type: 'rack_right_1' },
+          { x: 2.2, y: 0.65, z: -0.25, type: 'rack_right_2' },
+          { x: 2.2, y: 0.95, z: -0.25, type: 'rack_right_3' },
+          { x: 2.2, y: 1.25, z: -0.25, type: 'rack_right_4' },
         ];
       case 'Musician':
         return [
-          { x: 0, y: 1.05, z: 0, type: 'center' },
-          { x: -0.8, y: 1.05, z: 0, type: 'left' },
-          { x: 0.8, y: 1.05, z: 0, type: 'right' }
+          { x: 0, y: 0.05, z: 0.4, type: 'stage_center' },
+          { x: -2.0, y: 0.39, z: 0.42, type: 'stage_left' },
+          { x: 2.0, y: 0.39, z: 0.42, type: 'stage_right' },
+          { x: -1.8, y: 0.82, z: -1.2, type: 'stage_back_left' },
+          { x: 0, y: 0.17, z: -1.3, type: 'stage_back_center' },
+          { x: 1.8, y: 0.82, z: -1.2, type: 'stage_back_right' },
+          { x: -2.2, y: 0.02, z: 0.75, type: 'pedal_1' },
+          { x: -1.8, y: 0.02, z: 0.75, type: 'pedal_2' },
+          { x: 1.8, y: 0.02, z: 0.75, type: 'pedal_3' },
+          { x: 2.2, y: 0.02, z: 0.75, type: 'pedal_4' },
+          { x: -3.0, y: 0.05, z: -0.3, type: 'amp_left' },
+          { x: 3.0, y: 0.05, z: -0.3, type: 'amp_right' },
         ];
       default:
         return djSetupSpots;
@@ -460,7 +477,7 @@ function App() {
   }
 
   return (
-    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className={`App${user && !selectedSetup && !currentView ? ' App--hub-active' : ''}`} style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header className="App-header">
         <div className="App-header-left">
           <button
@@ -673,7 +690,9 @@ function App() {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Render different views based on currentView state */}
-        {currentView === 'mySets' ? (
+        {currentView === 'addProducts' ? (
+          <AddProductsScript />
+        ) : currentView === 'mySets' ? (
           <MySets 
             onBack={handleBackToMain}
             onSelectSetup={(setup) => {
@@ -697,6 +716,17 @@ function App() {
               setCurrentView('profile');
             }}
             onUploadClick={() => setShowFeedPostSetModal(true)}
+            onCopySetup={async (setupId) => {
+              try {
+                const setupSnap = await getDoc(doc(db, 'setups', setupId));
+                if (setupSnap.exists()) {
+                  const setup = { id: setupSnap.id, ...setupSnap.data() };
+                  handleSetupSelectFromLanding(setup);
+                }
+              } catch (err) {
+                console.error('Error loading setup:', err);
+              }
+            }}
             theme={theme}
           />
         ) : currentView === 'upload' ? (
@@ -739,6 +769,7 @@ function App() {
             onSetupSelect={handleSetupSelectFromLanding}
             onNewSetup={handleNewSetupFromLanding}
             onFeedClick={() => setCurrentView('feed')}
+            onAddProducts={() => setCurrentView('addProducts')}
             theme={theme}
           />
         ) : user && selectedSetup ? (

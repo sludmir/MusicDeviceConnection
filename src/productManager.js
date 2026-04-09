@@ -137,6 +137,7 @@ export const DEFAULT_PRODUCT_TEMPLATE = {
   specifications: {},
   features: [],
   modelPath: "",
+  modelScale: 1.0,
   imageUrl: "",
   isActive: true,
   createdAt: null,
