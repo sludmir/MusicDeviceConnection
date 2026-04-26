@@ -19,7 +19,7 @@
 [data-theme="dark"] {
   --app-bg: #3d4a5c;
   --app-bg-alt: #354052;
-  --header-bg: #4a5568;
+  --header-bg: #0e0c08;
   --text-primary: #f0f0f0;
   --text-secondary: rgba(255, 255, 255, 0.85);
   --text-muted: rgba(255, 255, 255, 0.6);
@@ -30,6 +30,13 @@
   --shadow: rgba(0, 0, 0, 0.3);
   --dropdown-bg: #2d3748;
   --dropdown-hover: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .App-header {
+  background: rgba(10, 8, 5, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom-color: rgba(212, 168, 80, 0.15);
 }
 
 /* Global */
@@ -54,6 +61,8 @@ html, body {
 
 /* Top bar - 2/3 scale */
 .App-header {
+  position: relative;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -170,6 +179,7 @@ html, body {
   border-radius: 8px;
   box-shadow: 0 4px 12px var(--shadow);
   color: var(--text-primary);
+  z-index: 1400;
 }
 
 .profile-dropdown-item {
@@ -195,6 +205,32 @@ html, body {
 /* Header profile trigger hover */
 .App-header .header-profile-trigger:hover {
   background: var(--dropdown-hover);
+}
+
+.builder-feed-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(0, 162, 255, 0.2);
+  border: 1px solid rgba(0, 162, 255, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.builder-feed-btn:hover {
+  background: rgba(0, 162, 255, 0.3);
+  border-color: #00a2ff;
+  transform: translateY(-1px);
+}
+
+.builder-feed-btn:active {
+  transform: translateY(0);
 }
 
 .sign-in-btn {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { buildMobileDiagram } from '../utils/buildMobileDiagram';
 import './SaveSetupButton.css';
 
 function SaveSetupButton({ currentDevices, setupType }) {
@@ -61,11 +62,16 @@ function SaveSetupButton({ currentDevices, setupType }) {
         outputs: device.outputs || []
       }));
 
+      // Build the mobile diagram from the full device objects (before they are
+      // stripped down for storage). Keeps imageUrl/brand/dimensions embedded.
+      const mobileDiagram = buildMobileDiagram(currentDevices, setupType || 'DJ');
+
       const setupData = {
         name: setupName.trim(),
         ownerId: auth.currentUser.uid,
         setupType: setupType || 'DJ',
         devices: devicesData,
+        mobileDiagram,
         isMainSetup: isMainSetup,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()

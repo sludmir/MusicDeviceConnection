@@ -2,11 +2,24 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
-import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo } from 'react-icons/md';
+import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo, MdGraphicEq } from 'react-icons/md';
 import './Feed.css';
 
 const PRELOAD_WINDOW = 2;
 const AUDIO_DRIFT_THRESHOLD = 0.3;
+const DEBUG_FEED_AUDIO = process.env.NODE_ENV !== 'production';
+
+function toFiniteNumberOr(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getClipAudioTrackURL(clip) {
+  if (!clip) return null;
+  if (typeof clip.audioTrackURL !== 'string') return null;
+  const trimmed = clip.audioTrackURL.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const [clips, setClips] = useState([]);
@@ -20,6 +33,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const [deleting, setDeleting] = useState(false);
   const [pausedOverlay, setPausedOverlay] = useState(null);
   const [fullSetClip, setFullSetClip] = useState(null);
+  const [failedExternalAudioClipIds, setFailedExternalAudioClipIds] = useState(() => new Set());
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
@@ -39,6 +53,11 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     };
   }, []);
 
+  const logAudioDebug = useCallback((event, payload = {}) => {
+    if (!DEBUG_FEED_AUDIO) return;
+    console.debug('[FeedAudio]', event, payload);
+  }, []);
+
   // ── Scroll-based autoplay ──────────────────────────────────────────
 
   useEffect(() => {
@@ -51,7 +70,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       setPausedOverlay(null);
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       const clip = clips[index];
-      const start = Number(clip?.clipStart) ?? 0;
+      const start = toFiniteNumberOr(clip?.clipStart, 0);
       Object.values(videoRefs.current).forEach((vid, idx) => {
         if (!vid) return;
         if (idx !== index) {
@@ -109,8 +128,8 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
   const setupClipSegmentLoop = useCallback((videoEl, clip) => {
     if (!videoEl || !clip?.videoURL) return () => {};
-    const start = Number(clip.clipStart) ?? 0;
-    const end = Number(clip.clipEnd) ?? 0;
+    const start = toFiniteNumberOr(clip.clipStart, 0);
+    const end = toFiniteNumberOr(clip.clipEnd, 0);
     const useSegment = end > start && end - start > 0;
 
     let rafId = null;
@@ -172,17 +191,34 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     const vid = videoRefs.current[currentIndex];
     const clip = clips[currentIndex];
     const audioEl = feedAudioRef.current;
-    if (!clip?.audioTrackURL || !audioEl) {
+    const audioTrackURL = getClipAudioTrackURL(clip);
+    if (!audioTrackURL || !audioEl) {
       if (audioEl) {
+        logAudioDebug('noExternalTrack-usingVideoAudio', {
+          clipId: clip?.id || null,
+          hasAudioTrackURLField: Boolean(clip?.audioTrackURL),
+          normalizedAudioTrackURL: audioTrackURL
+        });
         audioEl.pause();
         audioEl.removeAttribute('src');
       }
       return () => {};
     }
 
-    const start = Number(clip.clipStart) ?? 0;
+    const start = toFiniteNumberOr(clip.clipStart, 0);
     const offset = Number(clip.audioOffsetSeconds) || 0;
     const targetTime = start + offset;
+    const safePlayAudio = (audioNode, context) => {
+      if (!audioNode) return;
+      audioNode.play().catch((err) => {
+        logAudioDebug('externalAudioPlayRejected', {
+          clipId: clip?.id || null,
+          context,
+          name: err?.name,
+          message: err?.message
+        });
+      });
+    };
 
     const syncAudio = () => {
       const a = feedAudioRef.current;
@@ -198,7 +234,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       const a = feedAudioRef.current;
       if (a && vid) {
         a.currentTime = vid.currentTime + offset;
-        a.play().catch(() => {});
+        safePlayAudio(a, 'video-play-event');
       }
     };
 
@@ -211,24 +247,45 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
     const onAudioReady = () => {
       const a = feedAudioRef.current;
-      if (!a || a.src !== clip.audioTrackURL) return;
+      if (!a) return;
+      const sameSrc = a.src === audioTrackURL;
+      if (!sameSrc && DEBUG_FEED_AUDIO) {
+        console.debug('[FeedAudio] externalAudioSrcMismatch', {
+          clipId: clip?.id || null,
+          audioElementSrc: a.src,
+          expectedAudioTrackURL: audioTrackURL
+        });
+      }
       a.currentTime = targetTime;
       if (vid && !vid.paused) {
         a.currentTime = vid.currentTime + offset;
-        a.play().catch(() => {});
+        safePlayAudio(a, 'audio-ready');
       }
     };
 
-    const needNewSrc = audioEl.src !== clip.audioTrackURL;
+    const onAudioError = () => {
+      logAudioDebug('externalAudioLoadError-fallingBackToVideoAudio', {
+        clipId: clip?.id || null,
+        audioTrackURL
+      });
+      setFailedExternalAudioClipIds((prev) => {
+        const next = new Set(prev);
+        if (clip?.id) next.add(clip.id);
+        return next;
+      });
+    };
+
+    const needNewSrc = audioEl.src !== audioTrackURL;
     if (needNewSrc) {
-      audioEl.src = clip.audioTrackURL;
+      audioEl.src = audioTrackURL;
       audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
       audioEl.addEventListener('canplay', onAudioReady, { once: true });
+      audioEl.addEventListener('error', onAudioError, { once: true });
     } else {
       audioEl.currentTime = targetTime;
       if (vid && !vid.paused) {
         audioEl.currentTime = vid.currentTime + offset;
-        audioEl.play().catch(() => {});
+        safePlayAudio(audioEl, 'same-src-resume');
       }
     }
 
@@ -237,7 +294,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     vid.addEventListener('timeupdate', onTimeUpdate);
     if (!vid.paused) {
       syncAudio();
-      audioEl.play().catch(() => {});
+      safePlayAudio(audioEl, 'effect-initial-sync');
     }
 
     return () => {
@@ -246,9 +303,10 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       vid.removeEventListener('timeupdate', onTimeUpdate);
       audioEl.removeEventListener('loadedmetadata', onAudioReady);
       audioEl.removeEventListener('canplay', onAudioReady);
+      audioEl.removeEventListener('error', onAudioError);
       audioEl.pause();
     };
-  }, [currentIndex, clips]);
+  }, [currentIndex, clips, logAudioDebug]);
 
   // ── Data loading ──────────────────────────────────────────────────
 
@@ -276,7 +334,13 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       const snapshot = await getDocs(q);
       const allClips = [];
       snapshot.forEach((docSnap) => {
-        allClips.push({ id: docSnap.id, ...docSnap.data() });
+        const raw = docSnap.data();
+        const normalizedTrackUrl = getClipAudioTrackURL(raw);
+        allClips.push({
+          id: docSnap.id,
+          ...raw,
+          audioTrackURL: normalizedTrackUrl
+        });
       });
 
       const clipsFromSets = allClips.filter((clip) => clip.fullSetId);
@@ -287,6 +351,15 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       if (sortedClips.length < 10) setHasMore(false);
       if (snapshot.docs.length > 0) setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
       setClips(prev => [...prev, ...sortedClips]);
+      if (DEBUG_FEED_AUDIO && sortedClips.length > 0) {
+        console.debug('[FeedAudio] loadedClipAudioFields', sortedClips.slice(0, 5).map((clip) => ({
+          id: clip.id,
+          hasFullSetId: Boolean(clip.fullSetId),
+          hasAudioTrackURL: Boolean(getClipAudioTrackURL(clip)),
+          clipStart: clip.clipStart,
+          clipEnd: clip.clipEnd
+        })));
+      }
       setLikedClips(prev => {
         const next = new Set(prev);
         sortedClips.forEach(c => {
@@ -349,7 +422,15 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
 
     if (v.paused) {
-      v.play().catch(() => {});
+      v.muted = false;
+      v.volume = 1;
+      v.play().catch((err) => {
+        logAudioDebug('videoPlayRejected-onUserClick', {
+          clipId: clips[index]?.id || null,
+          name: err?.name,
+          message: err?.message
+        });
+      });
       setPausedOverlay(null);
     } else {
       v.pause();
@@ -423,17 +504,18 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
   const renderCopySetupBtn = (clip, variant = 'overlay') => {
     if (!clip.setupId) return null;
+    const setupLabel = (clip.setupName || '').trim() || 'Linked Setup';
     const cls = variant === 'overlay' ? 'feed-action-btn' : 'feed-action-btn feed-action-btn-row';
     return (
       <button
         type="button"
         className={cls}
         onClick={(e) => { e.stopPropagation(); handleCopySetup(clip); }}
-        aria-label="Copy setup"
-        title="View & copy this setup"
+        aria-label={`Open setup: ${setupLabel}`}
+        title={`Open setup: ${setupLabel}`}
       >
-        <span className="feed-action-icon feed-action-emoji">🎛️</span>
-        <span>{variant === 'row' ? 'Copy Setup' : ''}</span>
+        <span className="feed-action-icon"><MdGraphicEq size={20} /></span>
+        <span>{variant === 'row' ? setupLabel : ''}</span>
       </button>
     );
   };
@@ -477,6 +559,9 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
           clips.map((clip, index) => {
           const isNear = Math.abs(index - currentIndex) <= PRELOAD_WINDOW;
           const isCurrent = index === currentIndex;
+          const hasExternalAudio = Boolean(getClipAudioTrackURL(clip));
+          const externalAudioFailed = clip?.id ? failedExternalAudioClipIds.has(clip.id) : false;
+          const shouldMuteVideo = !isCurrent || (hasExternalAudio && !externalAudioFailed);
 
           return (
           <div key={clip.id} className="feed-item">
@@ -526,17 +611,26 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
                   src={isNear ? clip.videoURL : undefined}
                   className="feed-video"
                   preload={isCurrent || Math.abs(index - currentIndex) <= 1 ? 'auto' : 'metadata'}
-                  muted={!isCurrent || !!clip.audioTrackURL}
+                  muted={shouldMuteVideo}
                   playsInline
                   onLoadedMetadata={(e) => {
                     const v = e.target;
-                    const start = Number(clip.clipStart) ?? 0;
-                    const end = Number(clip.clipEnd) ?? 0;
+                    const start = toFiniteNumberOr(clip.clipStart, 0);
+                    const end = toFiniteNumberOr(clip.clipEnd, 0);
                     if (end > start) v.currentTime = start;
                   }}
                   onCanPlay={(e) => {
                     if (isCurrent && e.target.paused && pausedOverlay !== index) {
-                      e.target.play().catch(() => {});
+                      e.target.play().catch((err) => {
+                        logAudioDebug('videoPlayRejected-onCanPlay', {
+                          clipId: clip?.id || null,
+                          muted: e.target.muted,
+                          hasExternalAudio,
+                          externalAudioFailed,
+                          name: err?.name,
+                          message: err?.message
+                        });
+                      });
                     }
                   }}
                   onWaiting={() => {}}

@@ -1,0 +1,157 @@
+.connection-guide-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.connection-guide-btn:hover {
+  background: rgba(0, 162, 255, 0.18);
+  border-color: rgba(0, 162, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.connection-guide-btn:active {
+  transform: translateY(0);
+}
+
+.connection-guide-btn svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.connection-guide-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
+.connection-guide-modal {
+  background: #15151a;
+  border-radius: 16px;
+  border: 1px solid #2a2a33;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  width: min(1100px, 100%);
+  height: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.connection-guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.connection-guide-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.connection-guide-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.connection-guide-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.connection-guide-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.connection-guide-canvas {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+}
+
+.connection-guide-detail {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 162, 255, 0.04);
+}
+
+.connection-guide-detail-img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.connection-guide-detail-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.connection-guide-detail-name {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.connection-guide-detail-brand {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.connection-guide-detail-meta {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  margin-top: 4px;
+  text-transform: capitalize;
+}
+
+.connection-guide-detail-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.connection-guide-detail-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}

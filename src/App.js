@@ -9,7 +9,7 @@ import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
 // Unused imports - kept for potential future use
 // import { findProductByName, prepareProductForSetup, canAddProductToSetup } from './utils/productSearch';
-import AddProductsScript from './AddProductsScript';
+import ProductImporter from './ProductImporter';
 import SetupTimelineImport from './SetupTimeline';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
@@ -17,6 +17,7 @@ import SettingsImport from './Settings';
 import PreferencesImport from './Preferences';
 import HubLandingPageImport from './components/HubLandingPage';
 import SaveSetupButtonImport from './components/SaveSetupButton';
+import ConnectionGuideButtonImport from './components/ConnectionGuideButton';
 import FeedImport from './components/Feed';
 import PostSetModalImport from './components/PostSetModal';
 import UploadImport from './components/Upload';
@@ -33,6 +34,7 @@ const ThreeScene = lazy(() =>
 const unwrap = (m) => (m && typeof m.default === 'function' ? m.default : m);
 const SetupTimeline = unwrap(SetupTimelineImport);
 const SaveSetupButton = unwrap(SaveSetupButtonImport);
+const ConnectionGuideButton = unwrap(ConnectionGuideButtonImport);
 const ProductDashboard = unwrap(ProductDashboardImport);
 const MySets = unwrap(MySetsImport);
 const Settings = unwrap(SettingsImport);
@@ -691,7 +693,7 @@ function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Render different views based on currentView state */}
         {currentView === 'addProducts' ? (
-          <AddProductsScript />
+          <ProductImporter onBack={() => setCurrentView(null)} />
         ) : currentView === 'mySets' ? (
           <MySets 
             onBack={handleBackToMain}
@@ -776,8 +778,21 @@ function App() {
           <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
           <div className="setup-container" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="main-content" style={{ flex: 1, position: 'relative', marginBottom: '80px' }}>
-              <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 100 }}>
-                <SaveSetupButton 
+              <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 250, display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="builder-feed-btn"
+                  onClick={() => setCurrentView('feed')}
+                  title="Open the LiveSet feed"
+                >
+                  <MdPlayCircleOutline size={18} />
+                  Feed
+                </button>
+                <ConnectionGuideButton
+                  currentDevices={actualDevices}
+                  setupType={selectedSetup}
+                />
+                <SaveSetupButton
                   currentDevices={actualDevices}
                   setupType={selectedSetup}
                 />
