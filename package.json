@@ -10,6 +10,8 @@
     "@firebase/auth": "^1.6.0",
     "@firebase/firestore": "^4.4.0",
     "@firebase/storage": "^0.12.0",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
@@ -20,7 +22,6 @@
     "gh-pages": "^6.2.0",
     "gsap": "^3.12.7",
     "http-proxy-middleware": "^3.0.3",
-    "icons": "^1.0.0",
     "micromatch": "^4.0.8",
     "nanoid": "^5.1.5",
     "openai": "^5.0.1",
@@ -78,5 +79,14 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "overrides": {
+    "fork-ts-checker-webpack-plugin": {
+      "semver": "7.5.4",
+      "schema-utils": "2.7.1"
+    },
+    "detect-port-alt": {
+      "debug": "4.3.4"
+    }
   }
 }
