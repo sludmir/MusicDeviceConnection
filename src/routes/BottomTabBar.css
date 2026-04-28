@@ -1,0 +1,33 @@
+.app-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 50;
+}
+
+.app-tabbar__tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  color: var(--text-dim);
+  text-decoration: none;
+  padding-top: 2px;
+  border-top: 2px solid transparent;
+  transition: color var(--dur-micro), border-color var(--dur-micro);
+}
+
+.app-tabbar__tab--active {
+  color: var(--text);
+  border-top-color: var(--accent);
+}
+
+.app-tabbar__label { display: none; }
+.app-tabbar__tab--active .app-tabbar__label { display: inline; }
