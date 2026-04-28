@@ -482,11 +482,8 @@ function AppRoutes({
             } />
             <Route path="/sets" element={
               <MySets
-                onBack={() => navigate('/hub')}
                 onSelectSetup={handleSetupSelectFromLanding}
-                currentSetup={selectedSetup}
-                currentDevices={actualDevices}
-                setupType={selectedSetup}
+                onNewSetup={handleNewSetupFromLanding}
               />
             } />
             <Route path="/profile" element={

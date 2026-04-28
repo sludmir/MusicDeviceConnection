@@ -1,0 +1,191 @@
+.mysets {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  padding: var(--space-7) var(--space-5);
+}
+
+.mysets__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.mysets__loading {
+  text-align: center;
+  color: var(--text-dim);
+  padding: var(--space-8);
+  font-size: var(--fs-sm);
+}
+
+.mysets__empty-filter {
+  margin: 0;
+  padding: var(--space-7);
+  color: var(--text-dim);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+
+.mysets__new-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--dur-micro);
+}
+
+.mysets__new-link:hover { color: var(--accent); }
+
+.mysets__cta {
+  background: var(--text);
+  color: var(--bg);
+  border: 1px solid var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-5);
+  font-weight: 500;
+  font-size: var(--fs-body);
+  cursor: pointer;
+  transition: background var(--dur-micro), border-color var(--dur-micro);
+}
+
+.mysets__cta:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Filter row ---- */
+
+.mysets__filters {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.mysets__filter {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: border-color var(--dur-micro), color var(--dur-micro), background var(--dur-micro);
+}
+
+.mysets__filter:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.mysets__filter--active {
+  background: rgba(217, 194, 160, 0.12);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ---- Grid ---- */
+
+.mysets__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.mysets-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 130px;
+}
+
+.mysets-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mysets-card__name {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mysets-card__bottom {
+  margin-top: auto;
+  color: var(--text-dim);
+}
+
+.mysets-card__menu-wrap {
+  position: relative;
+}
+
+.mysets-card__kebab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  transition: color var(--dur-micro), background var(--dur-micro);
+}
+
+.mysets-card__kebab:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.mysets-card__menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  min-width: 140px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.mysets-card__menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--danger);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mysets-card__menu button:hover {
+  background: rgba(200, 85, 61, 0.12);
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 900px) {
+  .mysets__grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .mysets { padding: var(--space-5) var(--space-4); }
+  .mysets__grid { grid-template-columns: 1fr; }
+}
