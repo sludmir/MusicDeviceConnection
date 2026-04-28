@@ -1,6 +1,5 @@
 @import "./ui/fonts.css";
 @import "./ui/tokens.css";
-@import url('https://fonts.cdnfonts.com/css/sf-pro-display');
 
 body {
   font-family: var(--font-sans);
@@ -13,11 +12,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: var(--font-mono);
 }
