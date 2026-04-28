@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
 import { MdDelete } from 'react-icons/md';
+import { useToast } from './ui';
 import './components/HubLandingPage.css';
 
 function MySets({ onBack, onSelectSetup }) {
+  const toast = useToast();
   const [savedSetups, setSavedSetups] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +52,7 @@ function MySets({ onBack, onSelectSetup }) {
       setSavedSetups((prev) => prev.filter((s) => s.id !== setup.id));
     } catch (err) {
       console.error('Error deleting setup:', err);
-      alert('Failed to delete setup. Please try again.');
+      toast.error('Failed to delete setup. Please try again.');
     }
   };
 

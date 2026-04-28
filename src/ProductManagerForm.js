@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { productManager, PRODUCT_CATEGORIES, CONNECTION_TYPES, DEFAULT_PRODUCT_TEMPLATE } from './productManager';
 import { computeAutoScale, getRealDimensions } from './dimensionScaler';
+import { useToast } from './ui';
 import './ProductManagerForm.css';
 
 function ModelViewer({ modelSource, scale, productName, onDimensionsChange, onAutoScaleComputed }) {
@@ -132,6 +133,7 @@ function ModelViewer({ modelSource, scale, productName, onDimensionsChange, onAu
 }
 
 const ProductManagerForm = ({ onClose, editingProduct = null }) => {
+  const toast = useToast();
   const [formData, setFormData] = useState({ ...DEFAULT_PRODUCT_TEMPLATE });
   const [modelFile, setModelFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -276,7 +278,7 @@ const ProductManagerForm = ({ onClose, editingProduct = null }) => {
       }
 
       if (result.success) {
-        alert(editingProduct ? 'Product updated successfully!' : 'Product added successfully!');
+        toast.success(editingProduct ? 'Product updated.' : 'Product added.');
         onClose();
       } else {
         setErrors([result.error]);

@@ -4,9 +4,11 @@ import ProductManagerForm from './ProductManagerForm';
 import { auth } from './firebaseConfig';
 import { IoArrowBack } from 'react-icons/io5';
 import { MdSync, MdPerson, MdAdminPanelSettings, MdEdit, MdDelete } from 'react-icons/md';
+import { useToast } from './ui';
 import './ProductDashboard.css';
 
 const ProductDashboard = ({ onClose }) => {
+  const toast = useToast();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -58,12 +60,12 @@ const ProductDashboard = ({ onClose }) => {
         const result = await productManager.deleteProduct(productId);
         if (result.success) {
           await loadProducts(); // Reload products
-          alert('Product deleted successfully!');
+          toast.success('Product deleted.');
         } else {
-          alert('Error deleting product: ' + result.error);
+          toast.error('Error deleting product: ' + result.error);
         }
       } catch (error) {
-        alert('Error deleting product: ' + error.message);
+        toast.error('Error deleting product: ' + error.message);
       }
     }
   };
