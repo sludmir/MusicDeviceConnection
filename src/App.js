@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import './App.css';
 import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline } from 'react-icons/md';
 import { FiSearch, FiChevronDown } from 'react-icons/fi';
@@ -7,8 +8,7 @@ import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
-// Unused imports - kept for potential future use
-// import { findProductByName, prepareProductForSetup, canAddProductToSetup } from './utils/productSearch';
+import AppShell from './AppShell';
 import ProductImporter from './ProductImporter';
 import SetupTimelineImport from './SetupTimeline';
 import ProductDashboardImport from './ProductDashboard';
@@ -66,32 +66,14 @@ const APP_COMPONENTS = [
 ];
 const INVALID_COMPONENTS = APP_COMPONENTS.filter(([, C]) => !isValidComponent(C)).map(([name]) => name);
 
-// Test Firebase connection
 async function testFirebaseConnection() {
   try {
-    console.log("Starting Firebase connection test...");
-    
-    // Check if Firebase is initialized
-    if (!auth || !db) {
-      console.error("Firebase is not properly initialized");
-      return false;
-    }
-
-    // Get current auth state synchronously
+    if (!auth || !db) return false;
     const currentUser = auth.currentUser;
-    console.log("Current auth state:", currentUser ? `Authenticated as ${currentUser.email}` : "Not authenticated");
-
-    if (!currentUser) {
-      console.log("No user authenticated, please sign in");
-      return false;
-    }
-
-    // Test Firestore access with a simple query
+    if (!currentUser) return false;
     try {
-      console.log("Testing Firestore access...");
       const testRef = collection(db, "users");
       await getDocs(testRef);
-      console.log("Successfully connected to Firestore");
       return true;
     } catch (firestoreError) {
       console.error("Firestore access error:", firestoreError);
@@ -106,22 +88,14 @@ async function testFirebaseConnection() {
 function App() {
   const [user, setUser] = useState(null);
   const [selectedSetup, setSelectedSetup] = useState(null);
-  const [setupDevices, setSetupDevices] = useState({
-    DJ: [],
-    Producer: [],
-    Musician: []
-  });
+  const [setupDevices, setSetupDevices] = useState({ DJ: [], Producer: [], Musician: [] });
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [actualDevices, setActualDevices] = useState([]);
   const [threeSceneToggleFunction, setThreeSceneToggleFunction] = useState(null);
-  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const [showProductDashboard, setShowProductDashboard] = useState(false);
   const [showFeedPostSetModal, setShowFeedPostSetModal] = useState(false);
-  const [currentView, setCurrentView] = useState(null); // 'mySets', 'settings', 'preferences', 'productDashboard', 'feed', 'upload', 'profile'
-  const [profileUserId, setProfileUserId] = useState(null);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem('livet-set-theme') || 'light';
@@ -130,7 +104,6 @@ function App() {
     }
   });
 
-  // Apply theme to document and persist
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     try {
@@ -140,20 +113,12 @@ function App() {
 
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
-  // Handle authentication state changes
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      console.log("Auth state changed:", user ? "User logged in" : "User logged out");
       setUser(user);
-      
       if (user) {
-        console.log("User authenticated:", user.email);
         try {
-          // Initialize database if needed
-          const initResult = await initializeDatabase();
-          console.log("Database initialization result:", initResult);
-
-          // Initialize user profile if doesn't exist
+          await initializeDatabase();
           const userRef = doc(db, 'users', user.uid);
           const userSnap = await getDoc(userRef);
           if (!userSnap.exists()) {
@@ -164,39 +129,25 @@ function App() {
               following: [],
               createdAt: serverTimestamp()
             });
-            console.log("User profile initialized");
           }
-
-          // Test Firebase connection
           const connected = await testFirebaseConnection();
           setIsFirebaseConnected(connected);
-          if (!connected) {
-            setError("Failed to connect to Firebase. Please try again.");
-          }
-        } catch (error) {
-          console.error("Error during initialization:", error);
+          if (!connected) setError("Failed to connect to Firebase. Please try again.");
+        } catch (err) {
+          console.error("Error during initialization:", err);
           setError("Connection error. Please try again.");
         }
       } else {
-        console.log("User not authenticated");
         setIsFirebaseConnected(false);
       }
       setIsLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Load initial devices when Firebase is connected
   useEffect(() => {
     if (isFirebaseConnected && user) {
-      // Initialize with some default devices if needed
-      setSetupDevices(prev => ({
-        ...prev,
-        DJ: [], // You can populate this with initial devices if needed
-        Producer: [],
-        Musician: []
-      }));
+      setSetupDevices(prev => ({ ...prev, DJ: [], Producer: [], Musician: [] }));
     }
   }, [isFirebaseConnected, user]);
 
@@ -204,240 +155,19 @@ function App() {
     window.setupDevices = setupDevices;
   }, [setupDevices]);
 
-  // Unused - kept for potential future use
-  // const handleSetupSelection = (setupType) => {
-  //   setSelectedSetup(setupType);
-  //   setActualDevices([]); // Reset devices when switching setup types
-  //   setSelectedCategory(null); // Reset selected category
-  // };
-
-  const handleCategorySelect = (categoryId) => {
-    setSelectedCategory(categoryId);
-    console.log('Selected category:', categoryId);
-  };
+  const handleCategorySelect = (categoryId) => setSelectedCategory(categoryId);
 
   const handleDevicesChange = useCallback((devices) => {
     setActualDevices(devices);
-    console.log('Devices updated in App.js:', devices.map(d => d.name));
   }, []);
 
   const handleCategoryToggle = (categoryId) => {
-    if (threeSceneToggleFunction) {
-      threeSceneToggleFunction(categoryId);
-    }
+    if (threeSceneToggleFunction) threeSceneToggleFunction(categoryId);
   };
 
   const handleThreeSceneToggleSetup = (toggleFunction) => {
     setThreeSceneToggleFunction(() => toggleFunction);
   };
-
-  const toggleProfileDropdown = () => {
-    setIsProfileDropdownOpen(!isProfileDropdownOpen);
-  };
-
-  const closeProfileDropdown = () => {
-    setIsProfileDropdownOpen(false);
-  };
-
-  const handleMySets = () => {
-    closeProfileDropdown();
-    setCurrentView('mySets');
-  };
-
-  const handleSettings = () => {
-    closeProfileDropdown();
-    setCurrentView('settings');
-  };
-
-  const handlePreferences = () => {
-    closeProfileDropdown();
-    setCurrentView('preferences');
-  };
-
-  const handleProductManagement = () => {
-    closeProfileDropdown();
-    setCurrentView('productDashboard');
-  };
-
-  const handleFeed = () => {
-    closeProfileDropdown();
-    setCurrentView('feed');
-  };
-
-  const handleSearch = () => {
-    closeProfileDropdown();
-    setCurrentView('search');
-  };
-
-  const handleNotifications = () => {
-    closeProfileDropdown();
-    setCurrentView('notifications');
-  };
-
-  const handleMyProfile = () => {
-    closeProfileDropdown();
-    setProfileUserId(null);
-    setCurrentView('profile');
-  };
-
-  const handleBackToMain = () => {
-    setCurrentView(null);
-  };
-
-  // Unused - kept for potential future use
-  // Handle adding a device from search
-  /*
-  const handleAddDevice = async (searchQuery) => {
-    if (!selectedSetup) {
-      alert('Please select a setup type first');
-      return;
-    }
-
-    try {
-      // Search for the product
-      const product = await findProductByName(searchQuery);
-      
-      if (!product) {
-        alert(`Product "${searchQuery}" not found. Please check the spelling or try a different name.`);
-        return;
-      }
-
-      // Validate if product can be added
-      const validation = canAddProductToSetup(product, selectedSetup, actualDevices);
-      if (!validation.canAdd) {
-        alert(validation.reason);
-        return;
-      }
-
-      // Get spot configuration for current setup type
-      const spotConfig = getSpotConfigForSetup(selectedSetup);
-      
-      // Prepare device with smart placement
-      const newDevice = prepareProductForSetup(
-        product, 
-        selectedSetup, 
-        actualDevices, 
-        spotConfig
-      );
-
-      if (!newDevice) {
-        alert('Failed to prepare device for setup');
-        return;
-      }
-
-      // Add device to setup
-      const updatedDevices = [...actualDevices, newDevice];
-      setActualDevices(updatedDevices);
-      
-      // Update setupDevices state
-      setSetupDevices(prev => ({
-        ...prev,
-        [selectedSetup]: updatedDevices
-      }));
-
-      console.log('Device added:', newDevice.name, 'at position:', newDevice);
-    } catch (error) {
-      console.error('Error adding device:', error);
-      alert('Failed to add device. Please try again.');
-    }
-  };
-  */
-
-  // Unused - kept for potential future use
-  // Get spot configuration for setup type
-  /*
-  const getSpotConfigForSetup = (setupType) => {
-    // This matches the spot configuration in ThreeScene.js
-    const djSetupSpots = [
-      { x: 0, y: 1.05, z: 0, type: 'middle' },
-      { x: -0.8, y: 1.05, z: 0, type: 'middle_left' },
-      { x: 0.8, y: 1.05, z: 0, type: 'middle_right' },
-      { x: -1.6, y: 1.05, z: 0, type: 'far_left' },
-      { x: 1.6, y: 1.05, z: 0, type: 'far_right' },
-      { x: -0.4, y: 1.05, z: 0, type: 'middle_left_inner' },
-      { x: 0.4, y: 1.05, z: 0, type: 'middle_right_inner' },
-      { x: 0, y: 1.05, z: -0.2, type: 'middle_back' },
-      { x: 0, y: 1.5, z: -0.5, type: 'fx_top' },
-      { x: -0.4, y: 1.05, z: -0.3, type: 'fx_left' },
-      { x: 0.4, y: 1.05, z: -0.3, type: 'fx_right' },
-      { x: 0, y: 1.05, z: 0.3, type: 'fx_front' }
-    ];
-
-    switch (setupType) {
-      case 'DJ':
-        return djSetupSpots;
-      case 'Producer':
-        return [
-          { x: 0, y: 0.97, z: -0.25, type: 'desk_center' },
-          { x: -0.55, y: 0.97, z: -0.25, type: 'desk_left' },
-          { x: 0.55, y: 0.97, z: -0.25, type: 'desk_right' },
-          { x: -1.2, y: 1.18, z: -0.9, type: 'monitor_left' },
-          { x: 1.2, y: 1.18, z: -0.9, type: 'monitor_right' },
-          { x: -2.2, y: 0.35, z: -0.25, type: 'rack_left_1' },
-          { x: -2.2, y: 0.65, z: -0.25, type: 'rack_left_2' },
-          { x: -2.2, y: 0.95, z: -0.25, type: 'rack_left_3' },
-          { x: -2.2, y: 1.25, z: -0.25, type: 'rack_left_4' },
-          { x: 2.2, y: 0.35, z: -0.25, type: 'rack_right_1' },
-          { x: 2.2, y: 0.65, z: -0.25, type: 'rack_right_2' },
-          { x: 2.2, y: 0.95, z: -0.25, type: 'rack_right_3' },
-          { x: 2.2, y: 1.25, z: -0.25, type: 'rack_right_4' },
-        ];
-      case 'Musician':
-        return [
-          { x: 0, y: 0.05, z: 0.4, type: 'stage_center' },
-          { x: -2.0, y: 0.39, z: 0.42, type: 'stage_left' },
-          { x: 2.0, y: 0.39, z: 0.42, type: 'stage_right' },
-          { x: -1.8, y: 0.82, z: -1.2, type: 'stage_back_left' },
-          { x: 0, y: 0.17, z: -1.3, type: 'stage_back_center' },
-          { x: 1.8, y: 0.82, z: -1.2, type: 'stage_back_right' },
-          { x: -2.2, y: 0.02, z: 0.75, type: 'pedal_1' },
-          { x: -1.8, y: 0.02, z: 0.75, type: 'pedal_2' },
-          { x: 1.8, y: 0.02, z: 0.75, type: 'pedal_3' },
-          { x: 2.2, y: 0.02, z: 0.75, type: 'pedal_4' },
-          { x: -3.0, y: 0.05, z: -0.3, type: 'amp_left' },
-          { x: 3.0, y: 0.05, z: -0.3, type: 'amp_right' },
-        ];
-      default:
-        return djSetupSpots;
-    }
-  };
-  */
-
-  // Handle setup selection from landing page
-  const handleSetupSelectFromLanding = (setup) => {
-    setSelectedSetup(setup.setupType || 'DJ');
-    setActualDevices(setup.devices || []);
-    setSetupDevices(prev => ({
-      ...prev,
-      [setup.setupType || 'DJ']: setup.devices || []
-    }));
-    setCurrentView(null);
-  };
-
-  // Handle new setup creation from landing page
-  const handleNewSetupFromLanding = (setupType) => {
-    setSelectedSetup(setupType);
-    setActualDevices([]);
-    setSetupDevices(prev => ({
-      ...prev,
-      [setupType]: []
-    }));
-    setCurrentView(null);
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isProfileDropdownOpen && !event.target.closest('.profile-dropdown-container')) {
-        closeProfileDropdown();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isProfileDropdownOpen]);
 
   if (isLoading) {
     return (
@@ -478,8 +208,122 @@ function App() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <header className="App-header">
+          <div className="App-header-left">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              title={theme === 'light' ? 'Dark mode' : 'Light mode'}
+            >
+              {theme === 'light' ? <MdDarkMode size={20} /> : <MdLightMode size={20} />}
+            </button>
+          </div>
+          <div className="App-header-center" style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <img src={theme === 'dark' ? '/liveset-logo-dark.png' : '/liveset-logo.png'} alt="LiveSet" style={{ height: '64px', width: 'auto', display: 'block' }} />
+          </div>
+          <div className="App-header-right">
+            <button type="button" className="sign-in-btn" onClick={signInWithGoogle}>Sign In with Google</button>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
   return (
-    <div className={`App${user && !selectedSetup && !currentView ? ' App--hub-active' : ''}`} style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <BrowserRouter>
+      <AppRoutes
+        user={user}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        selectedSetup={selectedSetup}
+        setSelectedSetup={setSelectedSetup}
+        setupDevices={setupDevices}
+        setSetupDevices={setSetupDevices}
+        actualDevices={actualDevices}
+        setActualDevices={setActualDevices}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        isFirebaseConnected={isFirebaseConnected}
+        showFeedPostSetModal={showFeedPostSetModal}
+        setShowFeedPostSetModal={setShowFeedPostSetModal}
+        handleDevicesChange={handleDevicesChange}
+        handleCategorySelect={handleCategorySelect}
+        handleCategoryToggle={handleCategoryToggle}
+        handleThreeSceneToggleSetup={handleThreeSceneToggleSetup}
+      />
+    </BrowserRouter>
+  );
+}
+
+function AppRoutes({
+  user,
+  theme,
+  toggleTheme,
+  selectedSetup,
+  setSelectedSetup,
+  setupDevices,
+  setSetupDevices,
+  actualDevices,
+  setActualDevices,
+  selectedCategory,
+  setSelectedCategory,
+  isFirebaseConnected,
+  showFeedPostSetModal,
+  setShowFeedPostSetModal,
+  handleDevicesChange,
+  handleCategorySelect,
+  handleCategoryToggle,
+  handleThreeSceneToggleSetup,
+}) {
+  const navigate = useNavigate();
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const closeDropdown = () => setIsProfileDropdownOpen(false);
+  const toggleProfileDropdown = () => setIsProfileDropdownOpen((o) => !o);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isProfileDropdownOpen && !event.target.closest('.profile-dropdown-container')) {
+        closeDropdown();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProfileDropdownOpen]);
+
+  const goAndClose = (path) => () => {
+    closeDropdown();
+    navigate(path);
+  };
+
+  const handleLogoClick = () => {
+    setSelectedSetup(null);
+    setSelectedCategory(null);
+    setActualDevices([]);
+    navigate('/hub');
+  };
+
+  const handleSetupSelectFromLanding = (setup) => {
+    const type = setup.setupType || 'DJ';
+    setSelectedSetup(type);
+    setActualDevices(setup.devices || []);
+    setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
+    navigate('/builder');
+  };
+
+  const handleNewSetupFromLanding = (setupType) => {
+    setSelectedSetup(setupType);
+    setActualDevices([]);
+    setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
+    navigate('/builder');
+  };
+
+  return (
+    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header className="App-header">
         <div className="App-header-left">
           <button
@@ -494,12 +338,7 @@ function App() {
         </div>
         <div
           className="App-header-center"
-          onClick={() => {
-            setSelectedSetup(null);
-            setSelectedCategory(null);
-            setActualDevices([]);
-            setCurrentView(null);
-          }}
+          onClick={handleLogoClick}
           style={{
             cursor: 'pointer',
             transition: 'opacity 0.2s ease',
@@ -516,153 +355,80 @@ function App() {
           <img src={theme === 'dark' ? '/liveset-logo-dark.png' : '/liveset-logo.png'} alt="LiveSet" style={{ height: '64px', width: 'auto', display: 'block' }} />
         </div>
         <div className="App-header-right">
-        {user ? (
           <div className="profile-dropdown-container" style={{ position: 'relative' }}>
-            <div 
+            <div
               className="header-profile-trigger"
               onClick={toggleProfileDropdown}
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px', 
-                cursor: 'pointer',
-                padding: '5px 8px',
-                borderRadius: '5px',
-                transition: 'background-color 0.2s ease'
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px 8px', borderRadius: '5px', transition: 'background-color 0.2s ease' }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProfileDropdown(); } }}
             >
-              <div style={{ 
-                width: '22px', 
-                height: '22px', 
-                borderRadius: '50%', 
-                backgroundColor: '#00a2ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '10px'
-              }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#00a2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '10px' }}>
                 {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: '10px', fontWeight: '500' }}>
-                  {user.displayName || 'User'}
-                </p>
-                <p style={{ margin: 0, fontSize: '8px', opacity: 0.7 }}>
-                  {user.email}
-                </p>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: '500' }}>{user.displayName || 'User'}</p>
+                <p style={{ margin: 0, fontSize: '8px', opacity: 0.7 }}>{user.email}</p>
               </div>
-              <div style={{ 
-                transform: isProfileDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s ease'
-              }}>
+              <div style={{ transform: isProfileDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
                 <FiChevronDown size={14} />
               </div>
             </div>
-            
+
             {isProfileDropdownOpen && (
-              <div className="profile-dropdown-menu" style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                minWidth: '200px',
-                zIndex: 1000,
-                marginTop: '4px'
-              }}>
+              <div className="profile-dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, minWidth: '200px', zIndex: 1000, marginTop: '4px' }}>
                 <div style={{ padding: '8px 0' }}>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleSearch}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'background-color 0.2s ease'
-                    }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/search')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <FiSearch size={18} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Search users</div>
                       <div className="profile-dropdown-item-sub">Find people to follow</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleNotifications}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/notifications')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdNotificationsNone size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Notifications</div>
                       <div className="profile-dropdown-item-sub">Recent activity</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleFeed}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/feed')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdPlayCircleOutline size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Feed</div>
                       <div className="profile-dropdown-item-sub">Discover live sets</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleMyProfile}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/profile')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdPerson size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>My Profile</div>
                       <div className="profile-dropdown-item-sub">View your profile & setups</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleMySets}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/sets')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdHeadphones size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>My Sets</div>
                       <div className="profile-dropdown-item-sub">View saved setups</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleSettings}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/settings')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdSettings size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Settings</div>
                       <div className="profile-dropdown-item-sub">Manage profile</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handlePreferences}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/preferences')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdTune size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Preferences</div>
                       <div className="profile-dropdown-item-sub">Budget & options</div>
                     </div>
                   </div>
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={handleProductManagement}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={goAndClose('/admin/products')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdInventory2 size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Product Management</div>
@@ -670,11 +436,7 @@ function App() {
                     </div>
                   </div>
                   <div className="profile-dropdown-divider" />
-                  <div 
-                    className="profile-dropdown-item"
-                    onClick={logout}
-                    style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background-color 0.2s ease' }}
-                  >
+                  <div className="profile-dropdown-item" onClick={() => { closeDropdown(); logout(); }} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdLogout size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Sign Out</div>
@@ -684,156 +446,137 @@ function App() {
               </div>
             )}
           </div>
-        ) : (
-          <button type="button" className="sign-in-btn" onClick={signInWithGoogle}>Sign In with Google</button>
-        )}
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Render different views based on currentView state */}
-        {currentView === 'addProducts' ? (
-          <ProductImporter onBack={() => setCurrentView(null)} />
-        ) : currentView === 'mySets' ? (
-          <MySets 
-            onBack={handleBackToMain}
-            onSelectSetup={(setup) => {
-              handleSetupSelectFromLanding(setup);
-              setCurrentView(null);
-            }}
-            currentSetup={selectedSetup}
-            currentDevices={actualDevices}
-            setupType={selectedSetup}
-          />
-        ) : currentView === 'settings' ? (
-          <Settings onBack={handleBackToMain} />
-        ) : currentView === 'preferences' ? (
-          <Preferences onBack={handleBackToMain} />
-        ) : currentView === 'productDashboard' ? (
-          <ProductDashboard onClose={handleBackToMain} />
-        ) : currentView === 'feed' ? (
-          <Feed 
-            onProfileClick={(userId) => {
-              setProfileUserId(userId);
-              setCurrentView('profile');
-            }}
-            onUploadClick={() => setShowFeedPostSetModal(true)}
-            onCopySetup={async (setupId) => {
-              try {
-                const setupSnap = await getDoc(doc(db, 'setups', setupId));
-                if (setupSnap.exists()) {
-                  const setup = { id: setupSnap.id, ...setupSnap.data() };
-                  handleSetupSelectFromLanding(setup);
-                }
-              } catch (err) {
-                console.error('Error loading setup:', err);
-              }
-            }}
-            theme={theme}
-          />
-        ) : currentView === 'upload' ? (
-          <Upload 
-            onBack={() => setCurrentView('feed')}
-            onSuccess={() => {
-              setCurrentView('feed');
-            }}
-          />
-        ) : currentView === 'profile' ? (
-          <Profile 
-            userId={profileUserId || auth.currentUser?.uid}
-            onBack={() => {
-              setCurrentView('feed');
-              setProfileUserId(null);
-            }}
-            onSetupSelect={(setup) => {
-              handleSetupSelectFromLanding(setup);
-              setCurrentView(null);
-            }}
-          />
-        ) : currentView === 'search' ? (
-          <UserSearch
-            onBack={() => setCurrentView('feed')}
-            onProfileClick={(userId) => {
-              setProfileUserId(userId);
-              setCurrentView('profile');
-            }}
-          />
-        ) : currentView === 'notifications' ? (
-          <Notifications
-            onBack={() => setCurrentView('feed')}
-            onProfileClick={(userId) => {
-              setProfileUserId(userId);
-              setCurrentView('profile');
-            }}
-          />
-        ) : user && !selectedSetup ? (
-          <HubLandingPage
-            onSetupSelect={handleSetupSelectFromLanding}
-            onNewSetup={handleNewSetupFromLanding}
-            onFeedClick={() => setCurrentView('feed')}
-            onAddProducts={() => setCurrentView('addProducts')}
-            theme={theme}
-          />
-        ) : user && selectedSetup ? (
-          <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
-          <div className="setup-container" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <div className="main-content" style={{ flex: 1, position: 'relative', marginBottom: '80px' }}>
-              <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 250, display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  className="builder-feed-btn"
-                  onClick={() => setCurrentView('feed')}
-                  title="Open the LiveSet feed"
-                >
-                  <MdPlayCircleOutline size={18} />
-                  Feed
-                </button>
-                <ConnectionGuideButton
-                  currentDevices={actualDevices}
-                  setupType={selectedSetup}
-                />
-                <SaveSetupButton
-                  currentDevices={actualDevices}
-                  setupType={selectedSetup}
-                />
-              </div>
-              <ThreeScene 
-                devices={setupDevices[selectedSetup]} 
-                isInitialized={isFirebaseConnected}
-                setupType={selectedSetup}
-                onDevicesChange={handleDevicesChange}
-                onCategoryToggle={handleThreeSceneToggleSetup}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<Navigate to="/hub" replace />} />
+            <Route path="/hub" element={
+              <HubLandingPage
+                onSetupSelect={handleSetupSelectFromLanding}
+                onNewSetup={handleNewSetupFromLanding}
+                onFeedClick={() => navigate('/feed')}
+                onAddProducts={() => navigate('/admin/products-import')}
+                theme={theme}
               />
-            </div>
-            <SetupTimeline 
-              setupType={selectedSetup}
-              currentDevices={actualDevices}
-              onCategorySelect={handleCategorySelect}
-              selectedCategory={selectedCategory}
-              onToggleCategory={handleCategoryToggle}
-            />
-          </div>
-          </Suspense>
-        ) : null}
+            } />
+            <Route path="/feed" element={
+              <Feed
+                onProfileClick={(userId) => navigate(`/profile/${userId}`)}
+                onUploadClick={() => setShowFeedPostSetModal(true)}
+                onCopySetup={async (setupId) => {
+                  try {
+                    const setupSnap = await getDoc(doc(db, 'setups', setupId));
+                    if (setupSnap.exists()) {
+                      const setup = { id: setupSnap.id, ...setupSnap.data() };
+                      handleSetupSelectFromLanding(setup);
+                    }
+                  } catch (err) {
+                    console.error('Error loading setup:', err);
+                  }
+                }}
+                theme={theme}
+              />
+            } />
+            <Route path="/sets" element={
+              <MySets
+                onBack={() => navigate('/hub')}
+                onSelectSetup={handleSetupSelectFromLanding}
+                currentSetup={selectedSetup}
+                currentDevices={actualDevices}
+                setupType={selectedSetup}
+              />
+            } />
+            <Route path="/profile" element={
+              <Profile
+                userId={auth.currentUser?.uid}
+                onBack={() => navigate('/feed')}
+                onSetupSelect={handleSetupSelectFromLanding}
+              />
+            } />
+            <Route path="/profile/:id" element={
+              <ProfileRoute
+                onBack={() => navigate('/feed')}
+                onSetupSelect={handleSetupSelectFromLanding}
+              />
+            } />
+            <Route path="/search" element={
+              <UserSearch
+                onBack={() => navigate('/feed')}
+                onProfileClick={(userId) => navigate(`/profile/${userId}`)}
+              />
+            } />
+            <Route path="/notifications" element={
+              <Notifications
+                onBack={() => navigate('/feed')}
+                onProfileClick={(userId) => navigate(`/profile/${userId}`)}
+              />
+            } />
+            <Route path="/settings" element={<Settings onBack={() => navigate('/hub')} />} />
+            <Route path="/preferences" element={<Preferences onBack={() => navigate('/hub')} />} />
+            <Route path="/admin/products" element={<ProductDashboard onClose={() => navigate('/hub')} />} />
+            <Route path="/admin/products-import" element={<ProductImporter onBack={() => navigate('/hub')} />} />
+            <Route path="/upload" element={<Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />} />
+            <Route path="*" element={<Navigate to="/hub" replace />} />
+          </Route>
+          <Route path="/builder" element={
+            selectedSetup ? (
+              <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
+                <div className="setup-container" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div className="main-content" style={{ flex: 1, position: 'relative', marginBottom: '80px' }}>
+                    <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 250, display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="builder-feed-btn"
+                        onClick={() => navigate('/feed')}
+                        title="Open the LiveSet feed"
+                      >
+                        <MdPlayCircleOutline size={18} />
+                        Feed
+                      </button>
+                      <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
+                      <SaveSetupButton currentDevices={actualDevices} setupType={selectedSetup} />
+                    </div>
+                    <ThreeScene
+                      devices={setupDevices[selectedSetup]}
+                      isInitialized={isFirebaseConnected}
+                      setupType={selectedSetup}
+                      onDevicesChange={handleDevicesChange}
+                      onCategoryToggle={handleThreeSceneToggleSetup}
+                    />
+                  </div>
+                  <SetupTimeline
+                    setupType={selectedSetup}
+                    currentDevices={actualDevices}
+                    onCategorySelect={handleCategorySelect}
+                    selectedCategory={selectedCategory}
+                    onToggleCategory={handleCategoryToggle}
+                  />
+                </div>
+              </Suspense>
+            ) : (
+              <Navigate to="/hub" replace />
+            )
+          } />
+        </Routes>
       </div>
-      
-      {/* Product Dashboard Modal */}
-      {showProductDashboard && (
-        <ProductDashboard onClose={() => setShowProductDashboard(false)} />
-      )}
 
-      {/* Post Set Modal (from Feed — post full set + clips to feed) */}
       {showFeedPostSetModal && (
         <PostSetModal
           theme={theme}
           onClose={() => setShowFeedPostSetModal(false)}
-          onSuccess={() => {
-            setShowFeedPostSetModal(false);
-          }}
+          onSuccess={() => setShowFeedPostSetModal(false)}
         />
       )}
     </div>
   );
+}
+
+function ProfileRoute({ onBack, onSetupSelect }) {
+  const { id } = useParams();
+  return <Profile userId={id} onBack={onBack} onSetupSelect={onSetupSelect} />;
 }
 
 export default App;
