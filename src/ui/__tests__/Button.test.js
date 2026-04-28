@@ -40,3 +40,22 @@ describe("Button", () => {
     expect(btn).toHaveClass("ui-btn--loading");
   });
 });
+
+import IconButton from "../IconButton";
+
+describe("IconButton", () => {
+  test("renders with aria-label", () => {
+    render(<IconButton aria-label="Close"><span>×</span></IconButton>);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+
+  test("applies icon-only class by default", () => {
+    render(<IconButton aria-label="x"><span>×</span></IconButton>);
+    expect(screen.getByRole("button")).toHaveClass("ui-btn--icon-only");
+  });
+
+  test("defaults to ghost variant", () => {
+    render(<IconButton aria-label="x"><span>×</span></IconButton>);
+    expect(screen.getByRole("button")).toHaveClass("ui-btn--ghost");
+  });
+});
