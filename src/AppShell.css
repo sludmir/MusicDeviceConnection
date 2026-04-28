@@ -1,14 +1,16 @@
 .app-shell {
   display: flex;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
+  min-height: calc(100vh - 64px); /* leaves room for App-header above */
+  background: #0A0908;
+  color: #F5EFE3;
 }
 
 .app-shell__main {
   flex: 1;
   min-width: 0;
   padding-bottom: 0;
+  background: #0A0908;
+  overflow-x: hidden;
 }
 
 /* Mobile: hide sidebar, show tab bar, leave room at bottom for tabs */
