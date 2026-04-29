@@ -140,7 +140,7 @@
 
 .profile__sets-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
 }
 
@@ -154,7 +154,7 @@
 
 .profile-set__thumb {
   position: relative;
-  aspect-ratio: 9 / 16;
+  aspect-ratio: 16 / 9;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -289,11 +289,10 @@
 }
 
 @media (max-width: 760px) {
-  .profile__sets-grid { grid-template-columns: repeat(2, 1fr); }
+  .profile__sets-grid { grid-template-columns: 1fr; }
   .profile__setups-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 500px) {
   .profile { padding: var(--space-5) var(--space-4); }
-  .profile__sets-grid { grid-template-columns: 1fr; }
 }

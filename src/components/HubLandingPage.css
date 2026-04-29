@@ -248,7 +248,7 @@
 .hub-sets-row::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 .hub-set-tile {
-  flex: 0 0 240px;
+  flex: 0 0 320px;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -262,7 +262,7 @@
 
 .hub-set-tile__thumb {
   position: relative;
-  aspect-ratio: 9 / 16;
+  aspect-ratio: 16 / 9;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
