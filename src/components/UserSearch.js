@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { IoArrowBack } from 'react-icons/io5';
+import { MdSearch } from 'react-icons/md';
+import { Avatar, Button, Input, SectionHeader } from '../ui';
 import './UserSearch.css';
 
-function UserSearch({ onBack, onProfileClick }) {
+function UserSearch({ onProfileClick }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,12 +21,10 @@ function UserSearch({ onBack, onProfileClick }) {
     setLoading(true);
     setSearched(true);
     try {
-      const usersRef = collection(db, 'users');
-      // Prefix search on displayName (case-insensitive would need lowercase field or client filter)
       const start = term;
-      const end = term + '\uf8ff';
+      const end = term + '';
       const q = query(
-        usersRef,
+        collection(db, 'users'),
         where('displayName', '>=', start),
         where('displayName', '<=', end),
         orderBy('displayName'),
@@ -34,16 +33,13 @@ function UserSearch({ onBack, onProfileClick }) {
       const snapshot = await getDocs(q);
       const list = [];
       const currentUid = auth.currentUser?.uid;
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const uid = docSnap.id;
-        if (uid !== currentUid) {
-          list.push({ id: uid, ...data });
-        }
+      snapshot.forEach((d) => {
+        const uid = d.id;
+        if (uid !== currentUid) list.push({ id: uid, ...d.data() });
       });
       setResults(list);
-    } catch (error) {
-      console.error('Error searching users:', error);
+    } catch (err) {
+      console.error('Error searching users:', err);
       setResults([]);
     } finally {
       setLoading(false);
@@ -54,58 +50,45 @@ function UserSearch({ onBack, onProfileClick }) {
     if (e.key === 'Enter') searchUsers();
   };
 
-  const handleSelectUser = (userId) => {
-    if (onProfileClick) onProfileClick(userId);
-  };
-
   return (
-    <div className="user-search-container">
-      <div className="user-search-header">
-        {onBack && (
-          <button type="button" className="user-search-back" onClick={onBack}>
-            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
-          </button>
-        )}
-        <h1>Search users</h1>
-      </div>
-      <div className="user-search-input-wrap">
-        <input
-          type="text"
-          className="user-search-input"
-          placeholder="Search by display name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={handleKeyDown}
-          autoFocus
-        />
-        <button type="button" className="user-search-btn" onClick={searchUsers} disabled={loading}>
-          {loading ? 'Searching…' : 'Search'}
-        </button>
-      </div>
-      <div className="user-search-results">
-        {loading && <div className="user-search-loading">Loading…</div>}
-        {!loading && searched && results.length === 0 && (
-          <div className="user-search-empty">
+    <div className="search-page">
+      <div className="search-page__inner">
+        <SectionHeader eyebrow="DISCOVER" title="Search" />
+
+        <div className="search-page__input-row">
+          <div className="search-page__input">
+            <MdSearch size={18} className="search-page__input-icon" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search users by display name…"
+              autoFocus
+              aria-label="Search users"
+            />
+          </div>
+          <Button onClick={searchUsers} loading={loading}>Search</Button>
+        </div>
+
+        {loading ? (
+          <div className="search-page__loading">Searching…</div>
+        ) : searched && results.length === 0 ? (
+          <div className="search-page__empty">
             {searchTerm.trim() ? 'No users match that name.' : 'Enter a name to search.'}
           </div>
-        )}
-        {!loading && results.length > 0 && (
-          <ul className="user-search-list">
+        ) : (
+          <ul className="search-page__list">
             {results.map((user) => (
-              <li key={user.id} className="user-search-item">
+              <li key={user.id}>
                 <button
                   type="button"
-                  className="user-search-item-btn"
-                  onClick={() => handleSelectUser(user.id)}
+                  className="search-result"
+                  onClick={() => onProfileClick && onProfileClick(user.id)}
                 >
-                  <div className="user-search-avatar">
-                    {(user.displayName || user.id)?.[0]?.toUpperCase() || '?'}
-                  </div>
-                  <div className="user-search-info">
-                    <span className="user-search-name">{user.displayName || user.id.slice(0, 12)}</span>
-                    {user.email && (
-                      <span className="user-search-email">{user.email}</span>
-                    )}
+                  <Avatar name={user.displayName || user.id} size={48} />
+                  <div className="search-result__meta">
+                    <span className="search-result__name">{user.displayName || user.id.slice(0, 12)}</span>
+                    {user.email && <span className="search-result__email mono-label">{user.email}</span>}
                   </div>
                 </button>
               </li>
