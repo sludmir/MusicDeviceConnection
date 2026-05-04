@@ -33,4 +33,4 @@ try {
 
 const storage = getStorage(app);
 
-export { auth, provider, db, storage };
+export { app, auth, provider, db, storage };

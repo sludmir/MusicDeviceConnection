@@ -6,10 +6,6 @@
     "@babel/helpers": "^7.27.0",
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@babel/runtime": "^7.27.0",
-    "@firebase/app": "^0.9.25",
-    "@firebase/auth": "^1.6.0",
-    "@firebase/firestore": "^4.4.0",
-    "@firebase/storage": "^0.12.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@testing-library/jest-dom": "^5.17.0",
@@ -21,6 +17,7 @@
     "firebase": "^10.8.0",
     "gh-pages": "^6.2.0",
     "gsap": "^3.12.7",
+    "hls.js": "^1.6.16",
     "http-proxy-middleware": "^3.0.3",
     "micromatch": "^4.0.8",
     "nanoid": "^5.1.5",
@@ -61,7 +58,8 @@
     "security-check": "npm audit --production | grep -v 'nth-check' | grep -v 'postcss' || true",
     "deploy": "npm run build && firebase deploy",
     "deploy:full": "npm run security-check && npm run lint && npm run test -- --watchAll=false && npm run deploy",
-    "emulate": "firebase emulators:start"
+    "emulate": "firebase emulators:start",
+    "dump-products": "node scripts/dumpProducts.js"
   },
   "eslintConfig": {
     "extends": [

@@ -78,6 +78,22 @@
   margin-top: var(--space-5);
 }
 
+.hub-types--in-modal { margin-top: 0; }
+
+.hub-types--in-modal .hub-type-card {
+  min-height: 220px;
+}
+
+/* Widen the shared Modal when it contains the setup-type picker */
+.ui-modal:has(.hub-types--in-modal) {
+  width: min(820px, calc(100vw - var(--space-7)));
+}
+
+@media (max-width: 600px) {
+  .hub-types--in-modal { grid-template-columns: 1fr; }
+  .hub-types--in-modal .hub-type-card { min-height: 0; }
+}
+
 .hub-type-card {
   display: flex;
   flex-direction: column;
@@ -206,6 +222,99 @@
   .hub-hero { grid-template-columns: 1fr; padding: var(--space-4); gap: var(--space-4); }
   .hub-hero__title { font-size: var(--fs-xl); }
   .hub-hero__play { width: 44px; height: 44px; }
+}
+
+/* ---- Hub set player overlay ---- */
+
+.hub-player-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  animation: ui-modal-fade var(--dur-std) ease;
+}
+
+.hub-player {
+  position: relative;
+  width: min(1100px, 100%);
+  max-height: calc(100vh - var(--space-7));
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hub-player__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(10, 9, 8, 0.7);
+  color: var(--text);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--dur-micro);
+}
+
+.hub-player__close:hover { background: rgba(10, 9, 8, 0.95); }
+
+.hub-player__video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  display: block;
+}
+
+.hub-player__meta {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+
+.hub-player__creator { color: var(--text-dim); }
+
+.hub-player__title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---- Post a set CTA ---- */
+
+.hub-post-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.hub-post-cta__hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 600px) {
+  .hub-post-cta { flex-direction: column; gap: var(--space-3); padding: var(--space-4); text-align: center; }
 }
 
 /* ---- "+ New setup" tile in setups grid ---- */

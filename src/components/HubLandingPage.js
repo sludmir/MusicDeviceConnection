@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, deleteDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
-import { Card, Chip, SectionHeader, useToast } from '../ui';
+import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
+import { attachHls } from '../utils/attachHls';
 import './HubLandingPage.css';
 
 const SETUP_TYPES = [
@@ -38,6 +39,30 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showPostSetModal, setShowPostSetModal] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [playingSet, setPlayingSet] = useState(null);
+  const playerVideoRef = useRef(null);
+
+  useEffect(() => {
+    if (!playingSet || !playerVideoRef.current) return undefined;
+    const url = playingSet.videoURL;
+    if (!url) return undefined;
+    const cleanup = attachHls(playerVideoRef.current, url);
+    playerVideoRef.current.play().catch(() => {});
+    return cleanup;
+  }, [playingSet]);
+
+  useEffect(() => {
+    if (!playingSet) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setPlayingSet(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [playingSet]);
+
+  const startNewSetup = (type) => {
+    setShowTypePicker(false);
+    onNewSetup && onNewSetup(type);
+  };
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -132,7 +157,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               <button
                 type="button"
                 className="hub-hero"
-                onClick={onFeedClick}
+                onClick={() => setPlayingSet(hero)}
                 aria-label={`Watch ${hero.title || 'set'}`}
               >
                 <div className="hub-hero__thumb">
@@ -165,7 +190,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
                       key={set.id}
                       type="button"
                       className="hub-set-tile"
-                      onClick={onFeedClick}
+                      onClick={() => setPlayingSet(set)}
                       aria-label={`Open ${set.title || 'set'}`}
                     >
                       <div className="hub-set-tile__thumb">
@@ -188,6 +213,18 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               )}
             </div>
           )}
+
+          <div className="hub-post-cta">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => setShowPostSetModal(true)}
+            >
+              <MdFileUpload size={18} style={{ marginRight: 8, verticalAlign: '-3px' }} />
+              Post a set
+            </Button>
+            <span className="hub-post-cta__hint">Share your performance with the community</span>
+          </div>
         </section>
 
         {/* ---- YOUR SETUPS ---- */}
@@ -212,7 +249,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
                   key={type}
                   padding="lg"
                   className="hub-type-card"
-                  onClick={() => onNewSetup && onNewSetup(type)}
+                  onClick={() => startNewSetup(type)}
                 >
                   <Icon size={36} className="hub-type-card__icon" />
                   <h3 className="hub-type-card__title">{type}</h3>
@@ -264,10 +301,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               <button
                 type="button"
                 className="hub-new-setup-tile"
-                onClick={() => {
-                  // Default to DJ for the quick-add tile; user can switch in builder.
-                  onNewSetup && onNewSetup('DJ');
-                }}
+                onClick={() => setShowTypePicker(true)}
                 aria-label="Start a new setup"
               >
                 <MdAdd size={28} />
@@ -279,12 +313,66 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
 
       </div>
 
+      {playingSet && (
+        <div
+          className="hub-player-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={playingSet.title || 'Set player'}
+          onClick={(e) => { if (e.target === e.currentTarget) setPlayingSet(null); }}
+        >
+          <div className="hub-player">
+            <button
+              type="button"
+              className="hub-player__close"
+              aria-label="Close player"
+              onClick={() => setPlayingSet(null)}
+            >
+              <MdClose size={22} />
+            </button>
+            <video
+              ref={playerVideoRef}
+              className="hub-player__video"
+              controls
+              playsInline
+              autoPlay
+            />
+            <div className="hub-player__meta">
+              <div className="mono-label hub-player__creator">{playingSet.creatorName || 'Unknown'}</div>
+              <div className="hub-player__title">{playingSet.title || 'Untitled set'}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPostSetModal && (
         <PostSetModal
           onClose={() => setShowPostSetModal(false)}
           onSuccess={() => setShowPostSetModal(false)}
         />
       )}
+
+      <Modal
+        open={showTypePicker}
+        onClose={() => setShowTypePicker(false)}
+        title="Start a new setup"
+      >
+        <div className="hub-types hub-types--in-modal">
+          {SETUP_TYPES.map(({ type, icon: Icon, blurb }) => (
+            <Card
+              key={type}
+              padding="lg"
+              className="hub-type-card"
+              onClick={() => startNewSetup(type)}
+            >
+              <Icon size={36} className="hub-type-card__icon" />
+              <h3 className="hub-type-card__title">{type}</h3>
+              <p className="hub-type-card__blurb">{blurb}</p>
+              <span className="hub-type-card__cta mono-label">START BUILDING →</span>
+            </Card>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

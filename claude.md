@@ -1,5 +1,19 @@
 # LiveSet (connect-my-set) — Codebase Reference
 
+## Running 3D Products List
+
+**`PRODUCTS.md`** (repo root) is a running list of every 3D product in the builder. The Firestore `products` collection is the source of truth — `src/data/productDimensions.json` is only an auto-scaling lookup and may contain entries that aren't in the builder.
+
+**Do not edit `PRODUCTS.md` by hand.** Whenever products are added, edited, or removed via the Product Management screen, regenerate it:
+
+```
+npm run dump-products
+```
+
+The script (`scripts/dumpProducts.js`) uses firebase-admin with Application Default Credentials (`gcloud auth application-default login` once).
+
+---
+
 ## What This App Is
 
 LiveSet is a web app where DJs, producers, and musicians can **build virtual setups** of their music gear in an interactive 3D scene, **save and share those setups**, and **browse a social feed** of video performances linked to the gear used. Think "PCPartPicker meets TikTok for music equipment."

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff } from 'react-icons/md';
+import { attachHls } from '../utils/attachHls';
 import './LiveSetPlayer.css';
 
 function formatTime(seconds) {
@@ -40,6 +41,12 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     setDuration(0);
     setLoaded(false);
     setPlaying(false);
+  }, [videoURL]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !videoURL) return;
+    return attachHls(v, videoURL);
   }, [videoURL]);
 
   useEffect(() => {
@@ -173,8 +180,8 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
         <div className="live-set-player-video-wrap" onClick={togglePlay}>
           <video
             ref={videoRef}
-            src={videoURL}
             className="live-set-player-video"
+            preload="metadata"
             muted={!!audioTrackURL || muted}
             playsInline
             onLoadedMetadata={syncAudioToVideo}
