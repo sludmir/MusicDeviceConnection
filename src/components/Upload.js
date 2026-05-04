@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
+import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
 import { IoArrowBack } from 'react-icons/io5';
 import { MdVideoLibrary } from 'react-icons/md';
 import './Upload.css';
 
 const CLIP_MIN_SEC = 3;
 const CLIP_MAX_SEC = 30;
+
+function toFiniteNumberOr(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 function Upload({ onBack, onSuccess }) {
   const [step, setStep] = useState(1);
@@ -25,7 +30,6 @@ function Upload({ onBack, onSuccess }) {
   const timelineRef = useRef(null);
   const clipStartRef = useRef(clipStart);
   const clipEndRef = useRef(clipEnd);
-  const storage = getStorage();
   clipStartRef.current = clipStart;
   clipEndRef.current = clipEnd;
 
@@ -155,76 +159,64 @@ function Upload({ onBack, onSuccess }) {
     try {
       const userId = auth.currentUser.uid;
       const userEmail = auth.currentUser.email;
-      const fileName = `${userId}_${Date.now()}_${videoFile.name}`;
-      
-      // Upload full video
-      const fullVideoRef = ref(storage, `sets/${fileName}`);
-      const uploadTask = uploadBytesResumable(fullVideoRef, videoFile);
-      
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        },
-        (error) => {
-          console.error('Upload error:', error);
-          let errorMessage = 'Upload failed: ' + error.message;
-          
-          // Provide more helpful error messages
-          if (error.code === 'storage/unauthorized') {
-            errorMessage = 'Upload failed: You do not have permission to upload. Please make sure you are signed in.';
-          } else if (error.code === 'storage/canceled') {
-            errorMessage = 'Upload was canceled.';
-          } else if (error.code === 'storage/unknown') {
-            errorMessage = 'Upload failed: An unknown error occurred. Please try again.';
-          } else if (error.message.includes('size') || error.message.includes('large')) {
-            errorMessage = `Upload failed: File is too large. Maximum size is 5GB. Your file is ${formatFileSize(videoFile.size)}.`;
-          }
-          
-          alert(errorMessage);
-          setUploading(false);
-        },
-        async () => {
-          const fullVideoURL = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // Create clip video (in production, you'd use a video processing service)
-          // For now, we'll store the clip selection metadata
-          const clipData = {
-            creatorId: userId,
-            creatorName: userEmail?.split('@')[0] || 'Unknown',
-            title: title.trim(),
-            description: description.trim(),
-            fullVideoURL: fullVideoURL,
-            clipStart: clipStart,
-            clipEnd: clipEnd,
-            videoURL: fullVideoURL, // In production, generate actual clip
-            likes: 0,
-            likedBy: [],
-            createdAt: serverTimestamp(),
-            views: 0
-          };
 
-          const setDocRef = await addDoc(collection(db, 'sets'), {
-            creatorId: userId,
-            creatorName: userEmail?.split('@')[0] || 'Unknown',
-            title: title.trim(),
-            description: description.trim(),
-            videoURL: fullVideoURL,
-            createdAt: serverTimestamp(),
-            views: 0
-          });
+      const bunny = await createBunnyVideo({
+        title: title.trim().slice(0, 200) || videoFile.name,
+        kind: 'set',
+      });
 
-          const clipDataWithSet = { ...clipData, fullSetId: setDocRef.id };
-          await addDoc(collection(db, 'clips'), clipDataWithSet);
-
-          setUploading(false);
-          if (onSuccess) onSuccess();
-          if (onBack) onBack();
-        }
+      await uploadToBunny(
+        videoFile,
+        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
+        (fraction) => setUploadProgress(Math.min(100, Math.round(fraction * 100)))
       );
+
+      const safeClipStart = toFiniteNumberOr(clipStart, 0);
+      const safeClipEnd = toFiniteNumberOr(clipEnd, safeClipStart + CLIP_MIN_SEC);
+      const safeDurationSeconds = toFiniteNumberOr(videoDuration, 0);
+      const creatorName = userEmail?.split('@')[0] || 'Unknown';
+
+      const setDocRef = await addDoc(collection(db, 'sets'), {
+        creatorId: userId,
+        creatorName,
+        title: title.trim(),
+        description: description.trim(),
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        durationSeconds: safeDurationSeconds,
+        createdAt: serverTimestamp(),
+        views: 0,
+      });
+
+      await addDoc(collection(db, 'clips'), {
+        creatorId: userId,
+        creatorName,
+        title: title.trim(),
+        description: description.trim(),
+        fullVideoURL: bunny.hlsUrl,
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        clipStart: safeClipStart,
+        clipEnd: safeClipEnd,
+        fullSetId: setDocRef.id,
+        likes: 0,
+        likedBy: [],
+        views: 0,
+        createdAt: serverTimestamp(),
+      });
+
+      setUploading(false);
+      if (onSuccess) onSuccess();
+      if (onBack) onBack();
     } catch (error) {
       console.error('Error uploading:', error);
-      alert('Upload failed: ' + error.message);
+      alert('Upload failed: ' + (error?.message || error));
       setUploading(false);
     }
   };

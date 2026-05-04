@@ -1,0 +1,30 @@
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-5);
+  color: var(--text-muted);
+}
+
+.ui-empty__eyebrow {
+  color: var(--text-dim);
+}
+
+.ui-empty__title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ui-empty__body {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--text-muted);
+}
+
+.ui-empty__action {
+  margin-top: var(--space-3);
+}

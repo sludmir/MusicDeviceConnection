@@ -69,12 +69,19 @@ export function getRealDimensions(productName) {
 /**
  * Compute auto-scale for a loaded GLB model.
  *
- * @param {string} productName  - Product name to look up in dimensions JSON
- * @param {Object} glbBboxSize  - { x, y, z } bounding box size of the raw GLB (before any scaling)
- * @returns {number|null}       - Scale factor, or null if product not found in JSON
+ * @param {string} productName      - Product name to look up in dimensions JSON
+ * @param {Object} glbBboxSize      - { x, y, z } bounding box size of the raw GLB (before any scaling)
+ * @param {Object} [productDims]    - Optional { width_mm, depth_mm, height_mm } from the Firestore product doc
+ * @returns {number|null}           - Scale factor, or null if product not found
  */
-export function computeAutoScale(productName, glbBboxSize) {
-  const dims = lookupDimensions(productName);
+export function computeAutoScale(productName, glbBboxSize, productDims) {
+  // Prefer Firestore product-level dims, fall back to static JSON
+  let dims = null;
+  if (productDims && productDims.width_mm && productDims.depth_mm && productDims.height_mm) {
+    dims = productDims;
+  } else {
+    dims = lookupDimensions(productName);
+  }
   if (!dims) return null;
 
   const bx = Math.abs(glbBboxSize.x);

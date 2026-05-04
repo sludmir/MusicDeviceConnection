@@ -108,19 +108,19 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
     const djSetupSpots = [
         { x: 0, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE },             // Middle (Mixer)
-        { x: -1.15, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT },    // Middle Left (Player)
-        { x: 1.15, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT },    // Middle Right (Player)
-        { x: -2.3, y: 1.05, z: 0, type: SPOT_TYPES.FAR_LEFT },        // Far Left (Player)
-        { x: 2.3, y: 1.05, z: 0, type: SPOT_TYPES.FAR_RIGHT },        // Far Right (Player)
-        { x: -0.58, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT_INNER },   // Between Mixer and Left CDJ
-        { x: 0.58, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT_INNER },   // Between Mixer and Right CDJ
+        { x: -1.5, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT },     // Middle Left (Player)
+        { x: 1.5, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT },     // Middle Right (Player)
+        { x: -3.0, y: 1.05, z: 0, type: SPOT_TYPES.FAR_LEFT },        // Far Left (Player)
+        { x: 3.0, y: 1.05, z: 0, type: SPOT_TYPES.FAR_RIGHT },        // Far Right (Player)
+        { x: -0.75, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_LEFT_INNER },   // Between Mixer and Left CDJ
+        { x: 0.75, y: 1.05, z: 0, type: SPOT_TYPES.MIDDLE_RIGHT_INNER },   // Between Mixer and Right CDJ
         { x: 0, y: 1.05, z: -0.5, type: SPOT_TYPES.MIDDLE_BACK },     // Behind Mixer
-        { x: 0, y: 1.5, z: -0.6, type: SPOT_TYPES.FX_TOP },           // FX Top (elevated, behind)
-        { x: -0.58, y: 1.05, z: -0.5, type: SPOT_TYPES.FX_LEFT },     // FX Left (behind, between mixer & CDJ)
-        { x: 0.58, y: 1.05, z: -0.5, type: SPOT_TYPES.FX_RIGHT },     // FX Right (behind, between mixer & CDJ)
-        { x: 0, y: 1.05, z: 0.45, type: SPOT_TYPES.FX_FRONT },        // FX Front (Wide units, in front of deck)
-        { x: 4.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_LEFT, size: { width: 0.5, depth: 0.5 } },
-        { x: -4.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_RIGHT, size: { width: 0.5, depth: 0.5 } }
+        { x: 0, y: 1.42, z: -0.55, type: SPOT_TYPES.FX_TOP, size: { width: 0.28, depth: 0.22 } },  // FX rack shelf (RMX-1000) — elevated behind mixer
+        { x: -0.75, y: 1.05, z: -0.22, type: SPOT_TYPES.FX_LEFT, size: { width: 0.22, depth: 0.22 } },  // FX left of mixer, back half of table (Teile Revolo)
+        { x: 0.75, y: 1.05, z: -0.22, type: SPOT_TYPES.FX_RIGHT, size: { width: 0.22, depth: 0.22 } },  // FX right of mixer, back half of table (Teile Revolo)
+        { x: 0, y: 1.05, z: 0.45, type: SPOT_TYPES.FX_FRONT, size: { width: 0.28, depth: 0.18 } }, // FX in front of deck (wide units)
+        { x: 5.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_LEFT, size: { width: 0.5, depth: 0.5 } },
+        { x: -5.5, y: 0.05, z: -0.25, type: SPOT_TYPES.SPEAKER_RIGHT, size: { width: 0.5, depth: 0.5 } }
     ];
 
     // Add searchModalStyle and positionModalStyle definitions
@@ -849,29 +849,40 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     // Helper function to check if basic setup is complete (2 players + 1 mixer)
     const checkBasicSetupComplete = (devicesList) => {
         if (currentSetupType !== 'DJ') return false;
-        
+
         console.log('Checking basic setup with devices:', devicesList.map(d => d.name));
-        
-        // Count CDJs and check for mixer
+
+        // Count players: CDJs, turntables, controllers, XDJs, media players
         const playerCount = devicesList.filter(device => {
-            const name = device.name.toLowerCase();
-            return name.includes('cdj') || name.includes('player');
+            const n = (device.name || '').toLowerCase();
+            const t = (device.type || '').toLowerCase();
+            const sub = (device.subcategory || '').toLowerCase();
+            return n.includes('cdj') || n.includes('xdj') || n.includes('ddj') ||
+                   n.includes('turntable') || n.includes('sl-1210') || n.includes('sl1210') || n.includes('technics') ||
+                   n.includes('player') || n.includes('kontrol s') ||
+                   t.includes('turntable') || t.includes('cdj') || t.includes('controller') || t.includes('media_player') ||
+                   sub === 'players';
         }).length;
-        
+
+        // Check for mixer/brain: DJM, Xone, Rane, MODEL 1, or anything with mixer type
         const hasMixer = devicesList.some(device => {
-            const name = device.name.toLowerCase();
-            return name.includes('djm') || name.includes('mixer');
+            const n = (device.name || '').toLowerCase();
+            const t = (device.type || '').toLowerCase();
+            const sub = (device.subcategory || '').toLowerCase();
+            return n.includes('djm') || n.includes('mixer') || n.includes('xone') ||
+                   n.includes('rane') || n.includes('model 1') || n.includes('rotary') ||
+                   t.includes('mixer') || sub === 'mixers';
         });
-        
+
         const isComplete = playerCount >= 2 && hasMixer;
-        
+
         console.log('Basic setup check results:', {
             playerCount,
             hasMixer,
             isComplete,
             devices: devicesList.map(d => d.name)
         });
-        
+
         return isComplete;
     };
 
@@ -1004,7 +1015,9 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
                         const bbox = new THREE.Box3().setFromObject(model);
                         const bboxSize = bbox.getSize(new THREE.Vector3());
-                        const autoScale = computeAutoScale(product.name, bboxSize);
+                        const productDims = (product.width_mm && product.depth_mm && product.height_mm)
+                          ? { width_mm: product.width_mm, depth_mm: product.depth_mm, height_mm: product.height_mm } : null;
+                        const autoScale = computeAutoScale(product.name, bboxSize, productDims);
                         const manualMultiplier = product.modelScale || 1.0;
                         const finalScale = autoScale !== null ? autoScale * manualMultiplier : manualMultiplier;
                         model.scale.setScalar(finalScale);
@@ -1714,7 +1727,9 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     const rawSize = new THREE.Vector3();
                     box.getSize(rawSize);
 
-                    const autoScale = computeAutoScale(device.name, rawSize);
+                    const deviceDims = (device.width_mm && device.depth_mm && device.height_mm)
+                      ? { width_mm: device.width_mm, depth_mm: device.depth_mm, height_mm: device.height_mm } : null;
+                    const autoScale = computeAutoScale(device.name, rawSize, deviceDims);
                     const manualMultiplier = device.modelScale || 1.0;
                     const finalScale = autoScale !== null ? autoScale * manualMultiplier : manualMultiplier;
                     model.scale.setScalar(finalScale);
@@ -2180,7 +2195,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const tableGroup = new THREE.Group();
         
         const tableTop = new THREE.Mesh(
-            new THREE.PlaneGeometry(6, 1.4),
+            new THREE.PlaneGeometry(8, 1.4),
             new THREE.MeshStandardMaterial({ 
                 color: 0x222222,
                 side: THREE.DoubleSide
@@ -2196,8 +2211,8 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         const legMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
         
         const legPositions = [
-            { x: -2.9, z: 0.2 },
-            { x: 2.9, z: 0.2 }
+            { x: -3.9, z: 0.2 },
+            { x: 3.9, z: 0.2 }
         ];
         
         legPositions.forEach(pos => {
@@ -2232,7 +2247,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 });
                 
                 const boothTop = new THREE.Mesh(
-                    new THREE.PlaneGeometry(6.6, 1.6),
+                    new THREE.PlaneGeometry(8.6, 1.6),
                     boothMaterial
                 );
                 boothTop.rotation.x = -Math.PI / 2;
@@ -2241,7 +2256,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 boothGroup.add(boothTop);
                 
                 const boothBack = new THREE.Mesh(
-                    new THREE.PlaneGeometry(6.6, 0.9),
+                    new THREE.PlaneGeometry(8.6, 0.9),
                     boothMaterial
                 );
                 boothBack.position.set(0, 0.45, -1.05);
@@ -2254,7 +2269,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     sideMaterial
                 );
                 leftSide.rotation.y = Math.PI / 2;
-                leftSide.position.set(-3.3, 0.45, -0.25);
+                leftSide.position.set(-4.3, 0.45, -0.25);
                 leftSide.receiveShadow = true;
                 boothGroup.add(leftSide);
                 
@@ -2263,7 +2278,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     sideMaterial
                 );
                 rightSide.rotation.y = -Math.PI / 2;
-                rightSide.position.set(3.3, 0.45, -0.25);
+                rightSide.position.set(4.3, 0.45, -0.25);
                 rightSide.receiveShadow = true;
                 boothGroup.add(rightSide);
                 
@@ -2271,249 +2286,502 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 boothGroup.userData.type = 'environment';
                 const booth = boothGroup;
 
-                // Add colored spotlights
-                const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xff00ff];
-                colors.forEach((color, i) => {
-                    const spotlight = new THREE.SpotLight(color, 2);
-                    spotlight.position.set(
-                        Math.cos(i * Math.PI/2) * 3,
-                        4,
-                        Math.sin(i * Math.PI/2) * 3
-                    );
-                    spotlight.angle = Math.PI / 6;
-                    spotlight.penumbra = 0.3;
-                    spotlight.decay = 1;
-                    spotlight.distance = 10;
-                    spotlight.target.position.set(0, 0, 0);
-                    spotlight.castShadow = true;
-                    spotlight.userData.type = 'environment';
-                    scene.add(spotlight);
-                    scene.add(spotlight.target);
+                scene.add(booth);
+
+                // ============================================
+                // Hï Ibiza-inspired club environment
+                // ============================================
+
+                const roomWidth = 24;
+                const roomDepth = 28;
+                const roomHeight = 10;
+                const crowdFloorY = -1.2; // Crowd floor is below the DJ booth
+
+                // --- Dark wall material ---
+                const djWallMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x080808,
+                    roughness: 0.95,
+                    metalness: 0.05,
+                    side: THREE.DoubleSide
                 });
 
-                scene.add(booth);
-                
-                // Add dance floor past the DJ setup
-                const danceFloorGroup = new THREE.Group();
-                
-                // Main dance floor surface with checkerboard pattern
-                const danceFloorGeometry = new THREE.PlaneGeometry(12, 8);
-                const danceFloorMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x1a1a1a,
-                    roughness: 0.3,
-                    metalness: 0.8,
-                    side: THREE.DoubleSide
-                });
-                
-                const danceFloor = new THREE.Mesh(danceFloorGeometry, danceFloorMaterial);
-                danceFloor.rotation.x = -Math.PI / 2;
-                danceFloor.position.set(0, 0.01, -7); // Closer to back wall (z: -10), further from booth
-                danceFloor.receiveShadow = true;
-                danceFloorGroup.add(danceFloor);
-                
-                // Add checkerboard pattern using smaller tiles
-                const tileSize = 1;
-                const tileColors = [0x2a2a2a, 0x0a0a0a]; // Dark gray and very dark gray
-                const tilesX = 12;
-                const tilesZ = 8;
-                const danceFloorCenterZ = -7; // Center of dance floor, closer to back wall
-                
-                for (let x = 0; x < tilesX; x++) {
-                    for (let z = 0; z < tilesZ; z++) {
-                        const tile = new THREE.Mesh(
-                            new THREE.PlaneGeometry(tileSize, tileSize),
-                            new THREE.MeshStandardMaterial({ 
-                                color: tileColors[(x + z) % 2],
-                                roughness: 0.2,
-                                metalness: 0.9,
-                                side: THREE.DoubleSide
-                            })
-                        );
-                        tile.rotation.x = -Math.PI / 2;
-                        tile.position.set(
-                            -6 + (x * tileSize) + (tileSize / 2),
-                            0.02,
-                            danceFloorCenterZ - (z * tileSize) + (tileSize / 2)
-                        );
-                        tile.receiveShadow = true;
-                        danceFloorGroup.add(tile);
-                    }
-                }
-                
-                // Add subtle edge lighting/glow effect
-                const edgeLightGeometry = new THREE.PlaneGeometry(12, 0.2);
-                const edgeLightMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x444444,
-                    emissive: 0x222222,
-                    emissiveIntensity: 0.3,
-                    side: THREE.DoubleSide
-                });
-                
-                // Front edge (closer to booth)
-                const frontEdge = new THREE.Mesh(edgeLightGeometry, edgeLightMaterial);
-                frontEdge.rotation.x = -Math.PI / 2;
-                frontEdge.position.set(0, 0.03, -3);
-                danceFloorGroup.add(frontEdge);
-                
-                // Back edge (closer to wall)
-                const backEdge = new THREE.Mesh(edgeLightGeometry, edgeLightMaterial);
-                backEdge.rotation.x = -Math.PI / 2;
-                backEdge.position.set(0, 0.03, -11);
-                danceFloorGroup.add(backEdge);
-                
-                // Left edge
-                const leftEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 8), edgeLightMaterial);
-                leftEdge.rotation.x = -Math.PI / 2;
-                leftEdge.position.set(-6, 0.03, danceFloorCenterZ);
-                danceFloorGroup.add(leftEdge);
-                
-                // Right edge
-                const rightEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 8), edgeLightMaterial);
-                rightEdge.rotation.x = -Math.PI / 2;
-                rightEdge.position.set(6, 0.03, danceFloorCenterZ);
-                danceFloorGroup.add(rightEdge);
-                
-                scene.add(danceFloorGroup);
-                
-                // Add room walls to create a closed space (warehouse club setting)
-                const djWallMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x000000,  // Pure black for club setting
-                    roughness: 0.95,
-                    metalness: 0.0,
-                    side: THREE.DoubleSide  // Make walls visible from both sides
-                });
-                
-                // Extended room dimensions for warehouse feel
-                const roomWidth = 30;  // Wider for warehouse feel
-                const roomDepth = 30;  // Deeper to accommodate dance floor
-                const roomHeight = 12; // Taller ceiling for warehouse
-                
-                // Back wall (moved further back to accommodate dance floor)
+                // --- Room shell (walls, ceiling, floor below booth) ---
+
+                // Back wall
                 const backWall = new THREE.Mesh(
                     new THREE.PlaneGeometry(roomWidth, roomHeight),
                     djWallMaterial
                 );
                 backWall.rotation.y = Math.PI;
-                backWall.position.set(0, roomHeight / 2, -roomDepth / 2);
+                backWall.position.set(0, roomHeight / 2 + crowdFloorY, -roomDepth / 2);
                 backWall.receiveShadow = true;
+                backWall.userData.type = 'environment';
                 scene.add(backWall);
-                
-                // Add red LED strips on left and right sides of back wall (cool rave design)
-                const ledStripMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x660000,  // Darker red
-                    emissive: 0xff0000,
-                    emissiveIntensity: 0.4,
-                    side: THREE.DoubleSide
-                });
-                
-                // Left side vertical LED strips with staggered pattern
-                const leftSideX = -roomWidth / 2 + 0.5;
-                const numLeftStrips = 5;
-                for (let i = 0; i < numLeftStrips; i++) {
-                    const verticalLed = new THREE.Mesh(
-                        new THREE.PlaneGeometry(0.12, 2 + (i % 2) * 1.5), // Varying heights for design
-                        ledStripMaterial.clone()
-                    );
-                    verticalLed.rotation.y = Math.PI;
-                    const yOffset = (i - (numLeftStrips - 1) / 2) * 2.5;
-                    const yPos = roomHeight / 2 + yOffset;
-                    verticalLed.position.set(leftSideX, yPos, -roomDepth / 2 + 0.01);
-                    scene.add(verticalLed);
-                }
-                
-                // Right side vertical LED strips with staggered pattern (mirrored)
-                const rightSideX = roomWidth / 2 - 0.5;
-                for (let i = 0; i < numLeftStrips; i++) {
-                    const verticalLed = new THREE.Mesh(
-                        new THREE.PlaneGeometry(0.12, 2 + (i % 2) * 1.5), // Varying heights for design
-                        ledStripMaterial.clone()
-                    );
-                    verticalLed.rotation.y = Math.PI;
-                    const yOffset = (i - (numLeftStrips - 1) / 2) * 2.5;
-                    const yPos = roomHeight / 2 + yOffset;
-                    verticalLed.position.set(rightSideX, yPos, -roomDepth / 2 + 0.01);
-                    scene.add(verticalLed);
-                }
-                
-                // Add diagonal accent strips on corners for extra design flair
-                const diagonalMaterial = ledStripMaterial.clone();
-                diagonalMaterial.emissiveIntensity = 0.2;
-                
-                // Top-left diagonal
-                const topLeftDiagonal = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.1, 3),
-                    diagonalMaterial
-                );
-                topLeftDiagonal.rotation.y = Math.PI;
-                topLeftDiagonal.rotation.z = Math.PI / 4;
-                topLeftDiagonal.position.set(leftSideX + 0.5, roomHeight - 1, -roomDepth / 2 + 0.01);
-                scene.add(topLeftDiagonal);
-                
-                // Top-right diagonal
-                const topRightDiagonal = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.1, 3),
-                    diagonalMaterial
-                );
-                topRightDiagonal.rotation.y = Math.PI;
-                topRightDiagonal.rotation.z = -Math.PI / 4;
-                topRightDiagonal.position.set(rightSideX - 0.5, roomHeight - 1, -roomDepth / 2 + 0.01);
-                scene.add(topRightDiagonal);
-                
-                // Add subtle red laser spotlights pointing down from ceiling (less intense)
-                const numLasers = 8;
-                for (let i = 0; i < numLasers; i++) {
-                    const laser = new THREE.SpotLight(0xff0000, 0.5); // Much lower intensity
-                    const xPos = -roomWidth / 2 + 2 + (i * (roomWidth - 4) / (numLasers - 1));
-                    laser.position.set(xPos, roomHeight - 1, -roomDepth / 2 + 2);
-                    laser.target.position.set(xPos, 0, -roomDepth / 2 + 2);
-                    laser.angle = Math.PI / 12; // Narrower beam for laser effect
-                    laser.penumbra = 0.2;
-                    laser.decay = 2;
-                    laser.distance = roomHeight;
-                    laser.castShadow = false; // Don't cast shadows to avoid washing out
-                    scene.add(laser);
-                    scene.add(laser.target);
-                }
-                
-                // Left wall (extended)
+
+                // Left wall
                 const leftWall = new THREE.Mesh(
                     new THREE.PlaneGeometry(roomDepth, roomHeight),
                     djWallMaterial.clone()
                 );
                 leftWall.rotation.y = Math.PI / 2;
-                leftWall.position.set(-roomWidth / 2, roomHeight / 2, 0);
+                leftWall.position.set(-roomWidth / 2, roomHeight / 2 + crowdFloorY, 0);
                 leftWall.receiveShadow = true;
+                leftWall.userData.type = 'environment';
                 scene.add(leftWall);
-                
-                // Right wall (extended)
+
+                // Right wall
                 const rightWall = new THREE.Mesh(
                     new THREE.PlaneGeometry(roomDepth, roomHeight),
                     djWallMaterial.clone()
                 );
                 rightWall.rotation.y = -Math.PI / 2;
-                rightWall.position.set(roomWidth / 2, roomHeight / 2, 0);
+                rightWall.position.set(roomWidth / 2, roomHeight / 2 + crowdFloorY, 0);
                 rightWall.receiveShadow = true;
+                rightWall.userData.type = 'environment';
                 scene.add(rightWall);
-                
-                // Front wall (extended)
+
+                // Front wall (behind the DJ)
                 const frontWall = new THREE.Mesh(
                     new THREE.PlaneGeometry(roomWidth, roomHeight),
                     djWallMaterial.clone()
                 );
-                frontWall.position.set(0, roomHeight / 2, roomDepth / 2);
+                frontWall.position.set(0, roomHeight / 2 + crowdFloorY, roomDepth / 4);
                 frontWall.receiveShadow = true;
+                frontWall.userData.type = 'environment';
                 scene.add(frontWall);
-                
-                // Ceiling (extended to match new room dimensions)
+
+                // Ceiling - dark industrial
+                const ceilingMat = new THREE.MeshStandardMaterial({
+                    color: 0x0a0a0a,
+                    roughness: 0.9,
+                    metalness: 0.3,
+                    side: THREE.DoubleSide
+                });
                 const ceiling = new THREE.Mesh(
                     new THREE.PlaneGeometry(roomWidth, roomDepth),
-                    djWallMaterial.clone()
+                    ceilingMat
                 );
                 ceiling.rotation.x = Math.PI / 2;
-                ceiling.position.set(0, roomHeight, 0);
-                ceiling.receiveShadow = true;
+                ceiling.position.set(0, roomHeight + crowdFloorY, 0);
+                ceiling.userData.type = 'environment';
                 scene.add(ceiling);
-                
+
+                // --- Crowd floor (lower level, dark) ---
+                const crowdFloorMat = new THREE.MeshStandardMaterial({
+                    color: 0x0d0d0d,
+                    roughness: 0.85,
+                    metalness: 0.1
+                });
+                const crowdFloor = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomWidth, roomDepth - 4),
+                    crowdFloorMat
+                );
+                crowdFloor.rotation.x = -Math.PI / 2;
+                crowdFloor.position.set(0, crowdFloorY, -roomDepth / 4);
+                crowdFloor.receiveShadow = true;
+                crowdFloor.userData.type = 'environment';
+                scene.add(crowdFloor);
+
+                // --- DJ platform edge (the drop-off from booth to crowd) ---
+                const platformEdgeMat = new THREE.MeshStandardMaterial({
+                    color: 0x1a1a1a,
+                    roughness: 0.5,
+                    metalness: 0.6
+                });
+                // Front face of the elevated platform
+                const platformFront = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomWidth, 1.2),
+                    platformEdgeMat
+                );
+                platformFront.position.set(0, crowdFloorY + 0.6, -1.5);
+                platformFront.userData.type = 'environment';
+                scene.add(platformFront);
+
+                // LED strip along platform edge
+                const platformLedMat = new THREE.MeshStandardMaterial({
+                    color: 0x330000,
+                    emissive: 0xff2200,
+                    emissiveIntensity: 0.5,
+                    side: THREE.DoubleSide
+                });
+                const platformLed = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomWidth - 2, 0.06),
+                    platformLedMat
+                );
+                platformLed.position.set(0, crowdFloorY + 1.18, -1.49);
+                platformLed.userData.type = 'environment';
+                scene.add(platformLed);
+
+                // --- Crowd simulation (scattered point lights for phone flashlights / hands) ---
+                const crowdGroup = new THREE.Group();
+                crowdGroup.userData.type = 'environment';
+
+                // Dim warm wash on the crowd area
+                const crowdWash = new THREE.PointLight(0xffaa88, 0.5, 20, 1.5);
+                crowdWash.position.set(0, 4, -roomDepth / 4);
+                crowdWash.userData.type = 'environment';
+                scene.add(crowdWash);
+
+                // Small emissive dots to simulate phone lights / crowd glow
+                const phoneLightMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    emissive: 0xffeedd,
+                    emissiveIntensity: 0.8,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const phoneLightGeo = new THREE.SphereGeometry(0.04, 6, 6);
+                const numPhoneLights = 80;
+                for (let i = 0; i < numPhoneLights; i++) {
+                    const light = new THREE.Mesh(phoneLightGeo, phoneLightMat.clone());
+                    const px = (Math.random() - 0.5) * (roomWidth - 6);
+                    const pz = -3 - Math.random() * (roomDepth / 2 - 2);
+                    const py = crowdFloorY + 0.8 + Math.random() * 1.2;
+                    light.position.set(px, py, pz);
+                    light.material.emissiveIntensity = 0.3 + Math.random() * 0.7;
+                    light.material.opacity = 0.3 + Math.random() * 0.5;
+                    crowdGroup.add(light);
+                }
+                scene.add(crowdGroup);
+
+                // --- Silhouette crowd (dark capsule shapes suggesting people) ---
+                const silhouetteMat = new THREE.MeshStandardMaterial({
+                    color: 0x0a0a0a,
+                    roughness: 1.0,
+                    metalness: 0.0
+                });
+                const capsuleGeo = new THREE.CapsuleGeometry(0.15, 0.6, 4, 6);
+                const numSilhouettes = 120;
+                for (let i = 0; i < numSilhouettes; i++) {
+                    const person = new THREE.Mesh(capsuleGeo, silhouetteMat);
+                    const px = (Math.random() - 0.5) * (roomWidth - 4);
+                    const pz = -2.5 - Math.random() * (roomDepth / 2 - 1);
+                    person.position.set(px, crowdFloorY + 0.55, pz);
+                    person.rotation.y = Math.random() * Math.PI * 2;
+                    const s = 0.8 + Math.random() * 0.4;
+                    person.scale.set(s, s, s);
+                    person.userData.type = 'environment';
+                    crowdGroup.add(person);
+                }
+
+                // --- Raised hands (thin cylinders sticking up from crowd) ---
+                const handMat = new THREE.MeshStandardMaterial({
+                    color: 0x1a1410,
+                    roughness: 0.9,
+                    metalness: 0.0
+                });
+                const handGeo = new THREE.CylinderGeometry(0.03, 0.04, 0.5, 5);
+                const numHands = 40;
+                for (let i = 0; i < numHands; i++) {
+                    const hand = new THREE.Mesh(handGeo, handMat);
+                    const px = (Math.random() - 0.5) * (roomWidth - 6);
+                    const pz = -3 - Math.random() * (roomDepth / 3);
+                    hand.position.set(px, crowdFloorY + 1.5 + Math.random() * 0.4, pz);
+                    hand.rotation.z = (Math.random() - 0.5) * 0.5;
+                    hand.rotation.x = (Math.random() - 0.5) * 0.3;
+                    hand.userData.type = 'environment';
+                    crowdGroup.add(hand);
+                }
+
+                // --- Vertical LED light pillars (signature Hï Ibiza look) ---
+                const pillarPositions = [
+                    // Back row - tall pillars across the back wall
+                    { x: -8, z: -roomDepth / 2 + 1, h: roomHeight - 1 },
+                    { x: -5.5, z: -roomDepth / 2 + 1, h: roomHeight - 0.5 },
+                    { x: -3, z: -roomDepth / 2 + 1, h: roomHeight - 1.5 },
+                    { x: -1, z: -roomDepth / 2 + 1, h: roomHeight - 0.8 },
+                    { x: 1, z: -roomDepth / 2 + 1, h: roomHeight - 0.8 },
+                    { x: 3, z: -roomDepth / 2 + 1, h: roomHeight - 1.5 },
+                    { x: 5.5, z: -roomDepth / 2 + 1, h: roomHeight - 0.5 },
+                    { x: 8, z: -roomDepth / 2 + 1, h: roomHeight - 1 },
+                    // Mid row - slightly shorter
+                    { x: -7, z: -roomDepth / 3, h: roomHeight - 2 },
+                    { x: -4, z: -roomDepth / 3, h: roomHeight - 2.5 },
+                    { x: 0, z: -roomDepth / 3, h: roomHeight - 2 },
+                    { x: 4, z: -roomDepth / 3, h: roomHeight - 2.5 },
+                    { x: 7, z: -roomDepth / 3, h: roomHeight - 2 },
+                    // Side accent pillars
+                    { x: -roomWidth / 2 + 1, z: -5, h: roomHeight - 1.5 },
+                    { x: -roomWidth / 2 + 1, z: -9, h: roomHeight - 1 },
+                    { x: roomWidth / 2 - 1, z: -5, h: roomHeight - 1.5 },
+                    { x: roomWidth / 2 - 1, z: -9, h: roomHeight - 1 },
+                ];
+
+                pillarPositions.forEach(({ x, z, h }) => {
+                    // Each pillar: thin glowing cylinder
+                    const pillarGeo = new THREE.CylinderGeometry(0.06, 0.06, h, 8);
+                    const pillarMat = new THREE.MeshStandardMaterial({
+                        color: 0x220000,
+                        emissive: 0xff1100,
+                        emissiveIntensity: 0.7,
+                        transparent: true,
+                        opacity: 0.85
+                    });
+                    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                    pillar.position.set(x, crowdFloorY + h / 2, z);
+                    pillar.userData.type = 'environment';
+                    scene.add(pillar);
+
+                    // Outer glow cylinder (larger, more transparent)
+                    const glowGeo = new THREE.CylinderGeometry(0.2, 0.2, h, 8);
+                    const glowMat = new THREE.MeshStandardMaterial({
+                        color: 0x110000,
+                        emissive: 0xff2200,
+                        emissiveIntensity: 0.25,
+                        transparent: true,
+                        opacity: 0.15
+                    });
+                    const glow = new THREE.Mesh(glowGeo, glowMat);
+                    glow.position.set(x, crowdFloorY + h / 2, z);
+                    glow.userData.type = 'environment';
+                    scene.add(glow);
+                });
+
+                // --- Ceiling light fixtures (Hï has ornate hanging lights) ---
+                const fixtureMat = new THREE.MeshStandardMaterial({
+                    color: 0x1a1a1a,
+                    metalness: 0.8,
+                    roughness: 0.3
+                });
+                const fixtureLightMat = new THREE.MeshStandardMaterial({
+                    color: 0x331100,
+                    emissive: 0xff3300,
+                    emissiveIntensity: 0.6,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                // Hanging cylindrical fixtures
+                const fixturePositions = [
+                    { x: -6, z: -4 }, { x: -3, z: -4 }, { x: 0, z: -4 },
+                    { x: 3, z: -4 }, { x: 6, z: -4 },
+                    { x: -7, z: -8 }, { x: -3.5, z: -8 }, { x: 0, z: -8 },
+                    { x: 3.5, z: -8 }, { x: 7, z: -8 },
+                    { x: -5, z: -12 }, { x: 0, z: -12 }, { x: 5, z: -12 },
+                ];
+                const ceilingY = roomHeight + crowdFloorY;
+                fixturePositions.forEach(({ x, z }) => {
+                    // Rod
+                    const rodLen = 0.6 + Math.random() * 0.8;
+                    const rod = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.02, 0.02, rodLen, 6),
+                        fixtureMat
+                    );
+                    rod.position.set(x, ceilingY - rodLen / 2, z);
+                    rod.userData.type = 'environment';
+                    scene.add(rod);
+
+                    // Light body
+                    const bodyH = 0.3 + Math.random() * 0.2;
+                    const body = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.12, 0.15, bodyH, 8),
+                        fixtureLightMat.clone()
+                    );
+                    body.position.set(x, ceilingY - rodLen - bodyH / 2, z);
+                    body.userData.type = 'environment';
+                    scene.add(body);
+                });
+
+                // --- Balcony / mezzanine on sides ---
+                const balconyMat = new THREE.MeshStandardMaterial({
+                    color: 0x151515,
+                    roughness: 0.6,
+                    metalness: 0.5,
+                    side: THREE.DoubleSide
+                });
+                const balconyRailMat = new THREE.MeshStandardMaterial({
+                    color: 0x222222,
+                    metalness: 0.7,
+                    roughness: 0.3
+                });
+
+                // Left and right balconies
+                [-1, 1].forEach(side => {
+                    const bx = side * (roomWidth / 2 - 1.5);
+                    const balconyFloor = new THREE.Mesh(
+                        new THREE.BoxGeometry(3, 0.15, roomDepth / 2 - 2),
+                        balconyMat
+                    );
+                    balconyFloor.position.set(bx, crowdFloorY + 3, -roomDepth / 4 - 1);
+                    balconyFloor.userData.type = 'environment';
+                    scene.add(balconyFloor);
+
+                    // Railing
+                    const railGeo = new THREE.BoxGeometry(0.08, 1.0, roomDepth / 2 - 2);
+                    const rail = new THREE.Mesh(railGeo, balconyRailMat);
+                    rail.position.set(bx - side * 1.4, crowdFloorY + 3.6, -roomDepth / 4 - 1);
+                    rail.userData.type = 'environment';
+                    scene.add(rail);
+
+                    // Rail top bar
+                    const topBar = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.12, 0.05, roomDepth / 2 - 2),
+                        balconyRailMat
+                    );
+                    topBar.position.set(bx - side * 1.4, crowdFloorY + 4.1, -roomDepth / 4 - 1);
+                    topBar.userData.type = 'environment';
+                    scene.add(topBar);
+
+                    // Vertical rail posts
+                    for (let p = 0; p < 6; p++) {
+                        const post = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.025, 0.025, 1.0, 6),
+                            balconyRailMat
+                        );
+                        const pz = -3 - p * 1.8;
+                        post.position.set(bx - side * 1.4, crowdFloorY + 3.6, pz);
+                        post.userData.type = 'environment';
+                        scene.add(post);
+                    }
+
+                    // Under-balcony LED strip
+                    const balconyLed = new THREE.Mesh(
+                        new THREE.PlaneGeometry(2.5, 0.05),
+                        platformLedMat.clone()
+                    );
+                    balconyLed.rotation.x = -Math.PI / 2;
+                    balconyLed.position.set(bx, crowdFloorY + 2.93, -roomDepth / 4 - 1);
+                    balconyLed.userData.type = 'environment';
+                    scene.add(balconyLed);
+
+                    // Balcony support columns
+                    const colMat = new THREE.MeshStandardMaterial({
+                        color: 0x111111,
+                        metalness: 0.6,
+                        roughness: 0.4
+                    });
+                    [-4, -8, -12].forEach(cz => {
+                        const col = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.15, 0.15, 3 + Math.abs(crowdFloorY), 8),
+                            colMat
+                        );
+                        col.position.set(bx - side * 0.5, crowdFloorY + 1.5, cz);
+                        col.userData.type = 'environment';
+                        scene.add(col);
+                    });
+                });
+
+                // --- Main spotlights (warm reds, pointing down at crowd & booth) ---
+
+                // Booth key light (warm white from above)
+                const boothKey = new THREE.SpotLight(0xffeedd, 1.5);
+                boothKey.position.set(0, 6, 2);
+                boothKey.target.position.set(0, 1, 0);
+                boothKey.angle = Math.PI / 5;
+                boothKey.penumbra = 0.6;
+                boothKey.decay = 1.5;
+                boothKey.distance = 12;
+                boothKey.castShadow = true;
+                boothKey.userData.type = 'environment';
+                scene.add(boothKey);
+                scene.add(boothKey.target);
+
+                // Red spots pointing down at crowd (Hï signature)
+                const redSpotPositions = [
+                    { x: -5, z: -4, tx: -4, tz: -5 },
+                    { x: 5, z: -4, tx: 4, tz: -5 },
+                    { x: -3, z: -7, tx: -2, tz: -8 },
+                    { x: 3, z: -7, tx: 2, tz: -8 },
+                    { x: 0, z: -5, tx: 0, tz: -7 },
+                    { x: -7, z: -9, tx: -5, tz: -10 },
+                    { x: 7, z: -9, tx: 5, tz: -10 },
+                ];
+                redSpotPositions.forEach(({ x, z, tx, tz }) => {
+                    const spot = new THREE.SpotLight(0xff2200, 1.2);
+                    spot.position.set(x, ceilingY - 0.5, z);
+                    spot.target.position.set(tx, crowdFloorY, tz);
+                    spot.angle = Math.PI / 8;
+                    spot.penumbra = 0.5;
+                    spot.decay = 1.5;
+                    spot.distance = 15;
+                    spot.castShadow = false;
+                    spot.userData.type = 'environment';
+                    scene.add(spot);
+                    scene.add(spot.target);
+                });
+
+                // Subtle ambient fill (very dark warm)
+                const ambientFill = new THREE.HemisphereLight(0x110505, 0x050505, 0.3);
+                ambientFill.userData.type = 'environment';
+                scene.add(ambientFill);
+
+                // --- Ceiling structural beams (industrial look) ---
+                const beamMat = new THREE.MeshStandardMaterial({
+                    color: 0x111111,
+                    metalness: 0.7,
+                    roughness: 0.4
+                });
+                for (let bz = -2; bz >= -roomDepth / 2 + 2; bz -= 4) {
+                    const beam = new THREE.Mesh(
+                        new THREE.BoxGeometry(roomWidth - 2, 0.2, 0.15),
+                        beamMat
+                    );
+                    beam.position.set(0, ceilingY - 0.15, bz);
+                    beam.userData.type = 'environment';
+                    scene.add(beam);
+                }
+
+                // Cross beams
+                for (let bx = -roomWidth / 2 + 4; bx <= roomWidth / 2 - 4; bx += 5) {
+                    const crossBeam = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.12, 0.15, roomDepth / 2),
+                        beamMat
+                    );
+                    crossBeam.position.set(bx, ceilingY - 0.25, -roomDepth / 4);
+                    crossBeam.userData.type = 'environment';
+                    scene.add(crossBeam);
+                }
+
+                // --- Red accent LEDs on walls (vertical strips like Hï) ---
+                const wallLedMat = new THREE.MeshStandardMaterial({
+                    color: 0x220000,
+                    emissive: 0xff1100,
+                    emissiveIntensity: 0.5,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                // Left wall accent strips
+                for (let wz = -3; wz >= -roomDepth / 2 + 2; wz -= 3) {
+                    const wLed = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.08, roomHeight * 0.6),
+                        wallLedMat
+                    );
+                    wLed.rotation.y = Math.PI / 2;
+                    wLed.position.set(-roomWidth / 2 + 0.05, crowdFloorY + roomHeight * 0.4, wz);
+                    wLed.userData.type = 'environment';
+                    scene.add(wLed);
+                }
+                // Right wall accent strips
+                for (let wz = -3; wz >= -roomDepth / 2 + 2; wz -= 3) {
+                    const wLed = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.08, roomHeight * 0.6),
+                        wallLedMat
+                    );
+                    wLed.rotation.y = -Math.PI / 2;
+                    wLed.position.set(roomWidth / 2 - 0.05, crowdFloorY + roomHeight * 0.4, wz);
+                    wLed.userData.type = 'environment';
+                    scene.add(wLed);
+                }
+
+                // --- Fog/haze effect (subtle transparent planes) ---
+                const hazeMat = new THREE.MeshStandardMaterial({
+                    color: 0x221111,
+                    transparent: true,
+                    opacity: 0.04,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                for (let hy = 2; hy <= 6; hy += 1.5) {
+                    const haze = new THREE.Mesh(
+                        new THREE.PlaneGeometry(roomWidth - 4, roomDepth / 2),
+                        hazeMat.clone()
+                    );
+                    haze.rotation.x = -Math.PI / 2;
+                    haze.position.set(0, hy + crowdFloorY, -roomDepth / 4);
+                    haze.userData.type = 'environment';
+                    scene.add(haze);
+                }
+
                 break;
 
             case 'Producer': {
@@ -3591,9 +3859,10 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     case SPOT_TYPES.MIDDLE_RIGHT:
                     case SPOT_TYPES.FAR_LEFT:
                     case SPOT_TYPES.FAR_RIGHT: return 'Player (CDJ)';
-                    case SPOT_TYPES.FX_TOP:
-                    case SPOT_TYPES.FX_LEFT:
-                    case SPOT_TYPES.FX_RIGHT: return 'RMX-1000';
+                    case SPOT_TYPES.FX_TOP: return 'FX Unit (RMX-1000)';
+                    case SPOT_TYPES.FX_LEFT: return 'FX / Filter (Revolo)';
+                    case SPOT_TYPES.FX_RIGHT: return 'FX / Filter (Revolo)';
+                    case SPOT_TYPES.FX_FRONT: return 'FX Unit / Sampler';
                     case SPOT_TYPES.SPEAKER_LEFT:
                     case SPOT_TYPES.SPEAKER_RIGHT: return 'Speaker';
                     default: return 'Any Device';

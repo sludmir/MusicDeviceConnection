@@ -1,303 +1,378 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, deleteDoc, getDoc, getCountFromServer } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, query, where, orderBy, doc, deleteDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdDelete, MdHeadphones, MdPlayCircleOutline, MdArrowForward, MdPiano, MdVideocam, MdOpenInNew } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
+import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
+import { attachHls } from '../utils/attachHls';
 import './HubLandingPage.css';
 
 const SETUP_TYPES = [
-  {
-    type: 'DJ',
-    icon: <MdHeadphones size={32} />,
-    blurb: 'CDJs, mixers & turntables',
-    accent: '#6366f1',
-  },
-  {
-    type: 'Producer',
-    icon: <MdPiano size={32} />,
-    blurb: 'Synths, interfaces & controllers',
-    accent: '#8b5cf6',
-  },
-  {
-    type: 'Musician',
-    icon: <IoMusicalNotes size={32} />,
-    blurb: 'Instruments, amps & pedals',
-    accent: '#a78bfa',
-  },
+  { type: 'DJ', icon: MdHeadphones, blurb: 'CDJs, mixers & turntables' },
+  { type: 'Producer', icon: MdPiano, blurb: 'Synths, interfaces & controllers' },
+  { type: 'Musician', icon: IoMusicalNotes, blurb: 'Instruments, amps & pedals' },
 ];
 
-const ADMIN_EMAIL = 'sebasludmir@gmail.com';
+function formatTimestamp(ts) {
+  if (!ts?.toDate) return '';
+  const d = ts.toDate();
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000) return 'Today';
+  if (diff < 172800000) return 'Yesterday';
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return d.toLocaleDateString();
+}
 
-function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onAddProducts, theme = 'light' }) {
+function formatDuration(seconds) {
+  if (!seconds || seconds < 0) return '';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
+  const toast = useToast();
   const [savedSetups, setSavedSetups] = useState([]);
+  const [featured, setFeatured] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [showPostSetModal, setShowPostSetModal] = useState(false);
-  const [stats, setStats] = useState({ setups: 0, posts: 0, followers: 0 });
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [playingSet, setPlayingSet] = useState(null);
+  const playerVideoRef = useRef(null);
 
   useEffect(() => {
-    loadSavedSetups();
-    loadStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!playingSet || !playerVideoRef.current) return undefined;
+    const url = playingSet.videoURL;
+    if (!url) return undefined;
+    const cleanup = attachHls(playerVideoRef.current, url);
+    playerVideoRef.current.play().catch(() => {});
+    return cleanup;
+  }, [playingSet]);
+
+  useEffect(() => {
+    if (!playingSet) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setPlayingSet(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [playingSet]);
+
+  const startNewSetup = (type) => {
+    setShowTypePicker(false);
+    onNewSetup && onNewSetup(type);
+  };
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const uid = auth.currentUser.uid;
+
+        const setupsQ = query(
+          collection(db, 'setups'),
+          where('ownerId', '==', uid),
+          orderBy('createdAt', 'desc'),
+          limit(12),
+        );
+        const setupsSnap = await getDocs(setupsQ);
+        const setups = [];
+        setupsSnap.forEach((d) => setups.push({ id: d.id, ...d.data() }));
+
+        let recent = [];
+        try {
+          const setsQ = query(collection(db, 'sets'), orderBy('createdAt', 'desc'), limit(8));
+          const setsSnap = await getDocs(setsQ);
+          setsSnap.forEach((d) => recent.push({ id: d.id, ...d.data() }));
+        } catch {
+          recent = [];
+        }
+
+        if (!cancelled) {
+          setSavedSetups(setups);
+          setFeatured(recent);
+        }
+      } catch (err) {
+        console.error('Hub data load failed:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const loadSavedSetups = async () => {
-    if (!auth.currentUser) return;
-    try {
-      setLoading(true);
-      const setupsRef = collection(db, 'setups');
-      const q = query(
-        setupsRef,
-        where('ownerId', '==', auth.currentUser.uid),
-        orderBy('createdAt', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const setups = [];
-      querySnapshot.forEach((d) => {
-        setups.push({ id: d.id, ...d.data() });
-      });
-      setSavedSetups(setups);
-    } catch (error) {
-      console.error('Error loading setups:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest('.hub-setup-card__menu-wrap')) setOpenMenuId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
-  const loadStats = async () => {
-    if (!auth.currentUser) return;
-    try {
-      const uid = auth.currentUser.uid;
-
-      // Fetch user doc for followers
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      const userData = userDoc.exists() ? userDoc.data() : {};
-      const followerCount = userData.followers?.length || 0;
-
-      // Count sets posted by user
-      let postCount = 0;
-      try {
-        const setsQuery = query(collection(db, 'sets'), where('creatorId', '==', uid));
-        const setsSnap = await getCountFromServer(setsQuery);
-        postCount = setsSnap.data().count;
-      } catch {
-        // fallback: sets collection might not exist yet
-      }
-
-      // Count setups
-      let setupCount = 0;
-      try {
-        const setupsQuery = query(collection(db, 'setups'), where('ownerId', '==', uid));
-        const setupsSnap = await getCountFromServer(setupsQuery);
-        setupCount = setupsSnap.data().count;
-      } catch {
-        // fallback
-      }
-
-      setStats({ setups: setupCount, posts: postCount, followers: followerCount });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp?.toDate) return '';
-    const d = timestamp.toDate();
-    const now = new Date();
-    const diff = now - d;
-    if (diff < 86400000) return 'Today';
-    if (diff < 172800000) return 'Yesterday';
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-    return d.toLocaleDateString();
-  };
-
-  const handleDeleteSetup = async (e, setup) => {
-    e.stopPropagation();
+  const handleDeleteSetup = async (setup) => {
     if (!auth.currentUser || setup.ownerId !== auth.currentUser.uid) return;
     if (!window.confirm(`Delete "${setup.name || 'Untitled Setup'}"? This can't be undone.`)) return;
     try {
       await deleteDoc(doc(db, 'setups', setup.id));
       setSavedSetups((prev) => prev.filter((s) => s.id !== setup.id));
-      setStats((prev) => ({ ...prev, setups: Math.max(0, prev.setups - 1) }));
+      toast.success('Setup deleted.');
     } catch (err) {
       console.error('Error deleting setup:', err);
-      alert('Failed to delete setup. Please try again.');
+      toast.error('Failed to delete setup.');
     }
+    setOpenMenuId(null);
   };
 
-  const setupTypeIcons = {
-    DJ: <MdHeadphones size={16} />,
-    Producer: <MdPiano size={16} />,
-    Musician: <IoMusicalNotes size={16} />
-  };
+  const hero = featured[0];
+  const otherFeatured = featured.slice(1);
 
   return (
-    <div className="hub-page" data-hub-theme="dark">
-      {/* Wireframe grid background */}
-      <div className="hub-grid-bg" aria-hidden="true">
-        <div className="hub-grid-lines" />
-        <div className="hub-grid-glow hub-grid-glow-1" />
-        <div className="hub-grid-glow hub-grid-glow-2" />
-        <div className="hub-grid-fade" />
-      </div>
+    <div className="hub">
+      <div className="hub__inner">
 
-      <div className="hub-scroll">
-        {/* Hero */}
-        <section className="hub-hero">
-          <img
-            src={'/liveset-logo-dark.png'}
-            alt="LiveSet"
-            className="hub-logo"
-          />
-          <p className="hub-tagline">Design your rig. Share your sound.</p>
-
-          {/* Setup type cards */}
-          <div className="hub-build-cards">
-            {SETUP_TYPES.map(({ type, icon, blurb, accent }) => (
-              <button
-                key={type}
-                className="hub-build-card"
-                onClick={() => onNewSetup && onNewSetup(type)}
-                style={{ '--card-accent': accent }}
-              >
-                <div className="hub-build-card-icon">{icon}</div>
-                <span className="hub-build-card-type">{type}</span>
-                <span className="hub-build-card-blurb">{blurb}</span>
-                <span className="hub-build-card-cta">
-                  Start building <MdArrowForward size={14} />
-                </span>
+        {/* ---- FEATURED ---- */}
+        <section className="hub__section">
+          <SectionHeader
+            eyebrow="FEATURED"
+            title="From the community"
+            action={onFeedClick && (
+              <button type="button" className="hub-link" onClick={onFeedClick}>
+                Open feed <MdArrowForward size={14} />
               </button>
-            ))}
-          </div>
-        </section>
+            )}
+          />
 
-        {/* Quick stats */}
-        <section className="hub-stats">
-          <div className="hub-stat">
-            <span className="hub-stat-value">{stats.setups}</span>
-            <span className="hub-stat-label">Setups</span>
-          </div>
-          <div className="hub-stat-divider" />
-          <div className="hub-stat">
-            <span className="hub-stat-value">{stats.posts}</span>
-            <span className="hub-stat-label">Posts</span>
-          </div>
-          <div className="hub-stat-divider" />
-          <div className="hub-stat">
-            <span className="hub-stat-value">{stats.followers}</span>
-            <span className="hub-stat-label">Followers</span>
-          </div>
-        </section>
+          {loading ? (
+            <Card padding="lg"><div className="hub-loading">Loading…</div></Card>
+          ) : featured.length === 0 ? (
+            <Card padding="lg">
+              <div className="hub-loading">No live sets posted yet. Be the first.</div>
+            </Card>
+          ) : (
+            <div className="hub-featured">
+              {/* Hero */}
+              <button
+                type="button"
+                className="hub-hero"
+                onClick={() => setPlayingSet(hero)}
+                aria-label={`Watch ${hero.title || 'set'}`}
+              >
+                <div className="hub-hero__thumb">
+                  {hero.videoURL ? (
+                    <video src={hero.videoURL} muted preload="metadata" />
+                  ) : null}
+                  <div className="hub-hero__overlay">
+                    <div className="hub-hero__play"><MdPlayArrow size={28} /></div>
+                  </div>
+                  {hero.durationSeconds ? (
+                    <span className="hub-hero__duration mono-label">
+                      {formatDuration(hero.durationSeconds)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="hub-hero__meta">
+                  <span className="mono-label hub-hero__creator">{hero.creatorName || 'Unknown'}</span>
+                  <h2 className="hub-hero__title">{hero.title || 'Untitled set'}</h2>
+                  {hero.setupType && (
+                    <div className="hub-hero__chip"><Chip>{hero.setupType.toUpperCase()}</Chip></div>
+                  )}
+                </div>
+              </button>
 
-        {/* Action row: Post + Feed side by side */}
-        <div className="hub-action-row">
-          {/* Share your performance banner */}
-          <section className="hub-post-banner" onClick={() => setShowPostSetModal(true)}>
-            <div className="hub-post-banner-bg" aria-hidden="true" />
-            <div className="hub-post-banner-content">
-              <div className="hub-post-banner-icon">
-                <MdVideocam size={24} />
-              </div>
-              <div className="hub-post-banner-text">
-                <h3 className="hub-post-banner-title">Share your performance</h3>
-                <p className="hub-post-banner-desc">Upload a video and link it to your gear</p>
-              </div>
-              <span className="hub-post-banner-cta">
-                Post my set <MdArrowForward size={14} />
-              </span>
-            </div>
-          </section>
-
-          {/* Discover feed */}
-          {onFeedClick && (
-            <button type="button" className="hub-feed-card" onClick={onFeedClick}>
-              <div className="hub-feed-card-icon">
-                <MdPlayCircleOutline size={24} />
-              </div>
-              <div className="hub-feed-card-text">
-                <span className="hub-feed-card-title">Discover Feed</span>
-                <span className="hub-feed-card-desc">Watch sets from creators</span>
-              </div>
-              <MdArrowForward size={16} className="hub-feed-card-arrow" />
-            </button>
-          )}
-        </div>
-
-        {/* Recent setups */}
-        {(loading || savedSetups.length > 0) && (
-          <section className="hub-section">
-            <div className="hub-section-head">
-              <h2 className="hub-section-title">Recent setups</h2>
-              {savedSetups.length > 0 && (
-                <span className="hub-section-count">{savedSetups.length}</span>
+              {/* Smaller tiles row */}
+              {otherFeatured.length > 0 && (
+                <div className="hub-sets-row">
+                  {otherFeatured.map((set) => (
+                    <button
+                      key={set.id}
+                      type="button"
+                      className="hub-set-tile"
+                      onClick={() => setPlayingSet(set)}
+                      aria-label={`Open ${set.title || 'set'}`}
+                    >
+                      <div className="hub-set-tile__thumb">
+                        {set.videoURL ? (
+                          <video src={set.videoURL} muted preload="metadata" />
+                        ) : null}
+                        {set.durationSeconds ? (
+                          <span className="hub-set-tile__duration mono-label">
+                            {formatDuration(set.durationSeconds)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="hub-set-tile__meta">
+                        <div className="hub-set-tile__creator mono-label">{set.creatorName || 'Unknown'}</div>
+                        <div className="hub-set-tile__title">{set.title || 'Untitled set'}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
+          )}
 
-            {loading ? (
-              <div className="hub-loading">
-                <div className="hub-spinner" />
-              </div>
-            ) : (
-              <div className="hub-setups-row">
-                {savedSetups.slice(0, 6).map((setup) => (
-                  <div key={setup.id} className="hub-setup-card-wrap">
-                    <button
-                      type="button"
-                      className="hub-setup-card"
-                      onClick={() => onSetupSelect && onSetupSelect(setup)}
-                    >
-                      <div className="hub-setup-card-top">
-                        <span className="hub-setup-badge">
-                          {setupTypeIcons[setup.setupType || 'DJ']}
-                          {setup.setupType || 'DJ'}
-                        </span>
-                        <span className="hub-setup-date">{formatDate(setup.createdAt)}</span>
-                      </div>
-                      <span className="hub-setup-name">{setup.name || 'Untitled Setup'}</span>
-                      <span className="hub-setup-meta">{setup.devices?.length || 0} devices</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="hub-setup-delete"
-                      onClick={(e) => handleDeleteSetup(e, setup)}
-                      title="Delete setup"
-                      aria-label="Delete setup"
-                    >
-                      <MdDelete size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+          <div className="hub-post-cta">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => setShowPostSetModal(true)}
+            >
+              <MdFileUpload size={18} style={{ marginRight: 8, verticalAlign: '-3px' }} />
+              Post a set
+            </Button>
+            <span className="hub-post-cta__hint">Share your performance with the community</span>
+          </div>
+        </section>
+
+        {/* ---- YOUR SETUPS ---- */}
+        <section className="hub__section">
+          <SectionHeader
+            eyebrow="YOUR SETUPS"
+            action={savedSetups.length > 0 && (
+              <button
+                type="button"
+                className="hub-link"
+                onClick={() => window.location.assign('/sets')}
+              >
+                View all <MdArrowForward size={14} />
+              </button>
             )}
-          </section>
-        )}
+          />
 
-        {/* Admin-only: import products */}
-        {onAddProducts && auth.currentUser?.email === ADMIN_EMAIL && (
-          <button
-            type="button"
-            className="hub-feed-card"
-            onClick={onAddProducts}
-            style={{ marginTop: 8, borderColor: 'rgba(99, 102, 241, 0.2)' }}
-          >
-            <div className="hub-feed-card-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-              <MdArrowForward size={20} />
+          {loading ? null : savedSetups.length === 0 ? (
+            <div className="hub-types">
+              {SETUP_TYPES.map(({ type, icon: Icon, blurb }) => (
+                <Card
+                  key={type}
+                  padding="lg"
+                  className="hub-type-card"
+                  onClick={() => startNewSetup(type)}
+                >
+                  <Icon size={36} className="hub-type-card__icon" />
+                  <h3 className="hub-type-card__title">{type}</h3>
+                  <p className="hub-type-card__blurb">{blurb}</p>
+                  <span className="hub-type-card__cta mono-label">START BUILDING →</span>
+                </Card>
+              ))}
             </div>
-            <div className="hub-feed-card-text">
-              <span className="hub-feed-card-title">Import Products</span>
-              <span className="hub-feed-card-desc">Admin: bulk add products to Firestore</span>
+          ) : (
+            <div className="hub-setups-grid">
+              {savedSetups.slice(0, 5).map((setup) => (
+                <Card
+                  key={setup.id}
+                  padding="md"
+                  className="hub-setup-card"
+                  onClick={() => onSetupSelect && onSetupSelect(setup)}
+                >
+                  <div className="hub-setup-card__top">
+                    <Chip>{(setup.setupType || 'DJ').toUpperCase()}</Chip>
+                    <div className="hub-setup-card__menu-wrap" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="hub-setup-card__kebab"
+                        aria-label="Setup actions"
+                        onClick={() => setOpenMenuId(openMenuId === setup.id ? null : setup.id)}
+                      >
+                        <MdMoreVert size={18} />
+                      </button>
+                      {openMenuId === setup.id && (
+                        <div className="hub-setup-card__menu">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSetup(setup); }}
+                          >
+                            <MdDelete size={14} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <h4 className="hub-setup-card__name">{setup.name || 'Untitled Setup'}</h4>
+                  <div className="hub-setup-card__bottom mono-label">
+                    {(setup.devices?.length || 0)} DEVICES · {formatTimestamp(setup.updatedAt || setup.createdAt)}
+                  </div>
+                </Card>
+              ))}
+
+              {/* "+ New" tile slotted into the grid */}
+              <button
+                type="button"
+                className="hub-new-setup-tile"
+                onClick={() => setShowTypePicker(true)}
+                aria-label="Start a new setup"
+              >
+                <MdAdd size={28} />
+                <span>New setup</span>
+              </button>
             </div>
-          </button>
-        )}
+          )}
+        </section>
+
       </div>
+
+      {playingSet && (
+        <div
+          className="hub-player-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={playingSet.title || 'Set player'}
+          onClick={(e) => { if (e.target === e.currentTarget) setPlayingSet(null); }}
+        >
+          <div className="hub-player">
+            <button
+              type="button"
+              className="hub-player__close"
+              aria-label="Close player"
+              onClick={() => setPlayingSet(null)}
+            >
+              <MdClose size={22} />
+            </button>
+            <video
+              ref={playerVideoRef}
+              className="hub-player__video"
+              controls
+              playsInline
+              autoPlay
+            />
+            <div className="hub-player__meta">
+              <div className="mono-label hub-player__creator">{playingSet.creatorName || 'Unknown'}</div>
+              <div className="hub-player__title">{playingSet.title || 'Untitled set'}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPostSetModal && (
         <PostSetModal
           onClose={() => setShowPostSetModal(false)}
           onSuccess={() => setShowPostSetModal(false)}
-          theme={theme}
         />
       )}
+
+      <Modal
+        open={showTypePicker}
+        onClose={() => setShowTypePicker(false)}
+        title="Start a new setup"
+      >
+        <div className="hub-types hub-types--in-modal">
+          {SETUP_TYPES.map(({ type, icon: Icon, blurb }) => (
+            <Card
+              key={type}
+              padding="lg"
+              className="hub-type-card"
+              onClick={() => startNewSetup(type)}
+            >
+              <Icon size={36} className="hub-type-card__icon" />
+              <h3 className="hub-type-card__title">{type}</h3>
+              <p className="hub-type-card__blurb">{blurb}</p>
+              <span className="hub-type-card__cta mono-label">START BUILDING →</span>
+            </Card>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

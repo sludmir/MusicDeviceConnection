@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { IoArrowBack } from 'react-icons/io5';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
+import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
 import './PostSetModal.css';
 
 const PIXELS_PER_SECOND = 80;
@@ -13,6 +14,10 @@ const CLIP_MIN_SEC = 10;      // 10 sec – clip minimum
 const CLIP_MAX_SEC = 60;      // 1 min – clip maximum
 const MAX_AUDIO_SIZE_MB = 100;
 const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
+const MAX_VIDEO_SIZE_MB = 5000; // Firebase Storage practical limit (5GB)
+const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+const LARGE_VIDEO_WARN_MB = 1000; // Warn above 1GB for UX/perf
+const LARGE_VIDEO_WARN_BYTES = LARGE_VIDEO_WARN_MB * 1024 * 1024;
 
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 B';
@@ -20,6 +25,39 @@ function formatFileSize(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function getValidDuration(value) {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function normalizeClipRange(range, durationSec) {
+  const dur = getValidDuration(durationSec);
+  if (!dur) {
+    return { start: 0, end: CLIP_MIN_SEC };
+  }
+
+  const maxStart = Math.max(0, dur - CLIP_MIN_SEC);
+  const rawStart = Number(range?.start);
+  const rawEnd = Number(range?.end);
+  const fallbackEnd = Math.min(dur, Math.max(CLIP_MIN_SEC, dur));
+
+  let start = Number.isFinite(rawStart) ? rawStart : 0;
+  let end = Number.isFinite(rawEnd) ? rawEnd : fallbackEnd;
+
+  start = Math.max(0, Math.min(maxStart, start));
+  end = Math.max(start + CLIP_MIN_SEC, end);
+  end = Math.min(dur, start + CLIP_MAX_SEC, end);
+
+  if (end - start < CLIP_MIN_SEC) {
+    start = Math.max(0, Math.min(maxStart, end - CLIP_MIN_SEC));
+    end = Math.min(dur, start + CLIP_MIN_SEC);
+  }
+
+  return {
+    start: Number(start.toFixed(2)),
+    end: Number(end.toFixed(2)),
+  };
 }
 
 function PostSetModal({ onClose, theme = 'light', onSuccess }) {
@@ -69,7 +107,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         const q = query(
           collection(db, 'setups'),
           where('ownerId', '==', auth.currentUser.uid),
-          orderBy('updatedAt', 'desc')
+          orderBy('createdAt', 'desc')
         );
         const snap = await getDocs(q);
         if (cancelled) return;
@@ -101,14 +139,77 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
 
   const handleVideoChange = (e) => {
     const file = e.target.files?.[0];
+    const input = e.target;
     if (!file || !file.type.startsWith('video/')) {
       setError('Please select a video file');
+      if (input) input.value = '';
       return;
     }
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      setError(`Video file is too large (${formatFileSize(file.size)}). Max ${MAX_VIDEO_SIZE_MB} MB.`);
+      if (input) input.value = '';
+      return;
+    }
+    if (file.size > LARGE_VIDEO_WARN_BYTES) {
+      const proceed = window.confirm(
+        `This file is large (${formatFileSize(file.size)}). It may take a while to load and upload. Continue?`
+      );
+      if (!proceed) {
+        if (input) input.value = '';
+        return;
+      }
+    }
+    if (audioURL) URL.revokeObjectURL(audioURL);
+    if (audioInputRef.current) audioInputRef.current.value = '';
+    if (audioRef.current) audioRef.current.pause();
+    setAudioFile(null);
+    setAudioURL(null);
+    setAudioBuffer(null);
+    setWaveformReady(false);
+    setOffsetSeconds(0);
+    setAudioSource('video');
+    setVideoDuration(0);
+    setClipRanges([{ start: 0, end: 10 }]);
+    setActiveClipIndex(0);
+    setNumClips(1);
+    setStep(1);
+    setTitle('');
+    setSelectedSetupId('');
+    setUploadProgress(0);
+    setUploading(false);
+    if (step2VideoRef.current) step2VideoRef.current.currentTime = 0;
+    if (videoRef.current) videoRef.current.currentTime = 0;
     if (videoURL) URL.revokeObjectURL(videoURL);
     setError(null);
     setVideoFile(file);
     setVideoURL(URL.createObjectURL(file));
+    if (input) input.value = '';
+  };
+
+  const resetVideoSelection = () => {
+    if (videoURL) URL.revokeObjectURL(videoURL);
+    setVideoFile(null);
+    setVideoURL(null);
+    setVideoDuration(0);
+    setClipRanges([{ start: 0, end: 10 }]);
+    setNumClips(1);
+    setActiveClipIndex(0);
+    setStep(1);
+    setError(null);
+    setUploadProgress(0);
+    setUploading(false);
+    if (videoRef.current) videoRef.current.currentTime = 0;
+    if (step2VideoRef.current) step2VideoRef.current.currentTime = 0;
+    if (audioURL) URL.revokeObjectURL(audioURL);
+    if (audioInputRef.current) audioInputRef.current.value = '';
+    if (audioRef.current) audioRef.current.pause();
+    setAudioFile(null);
+    setAudioURL(null);
+    setAudioBuffer(null);
+    setWaveformReady(false);
+    setOffsetSeconds(0);
+    setAudioSource('video');
+    setSelectedSetupId('');
   };
 
   const handleAudioChange = useCallback(async (e) => {
@@ -302,13 +403,23 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     if (dur && !Number.isNaN(dur)) setVideoDuration(dur);
   }, []);
 
+  const getBestKnownVideoDuration = useCallback(() => {
+    const refDuration = step2VideoRef.current?.duration;
+    return getValidDuration(refDuration) || getValidDuration(videoDuration);
+  }, [videoDuration]);
+
   const handleStep2VideoLoaded = useCallback(() => {
     const v = step2VideoRef.current;
     if (!v) return;
-    const dur = v.duration;
+    const dur = getValidDuration(v.duration);
+    if (!dur) return;
     setVideoDuration(dur);
-    const end = Math.min(CLIP_MAX_SEC, Math.max(CLIP_MIN_SEC, dur));
-    setClipRanges([{ start: 0, end }]);
+    setClipRanges((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) {
+        return [normalizeClipRange({ start: 0, end: CLIP_MIN_SEC }, dur)];
+      }
+      return prev.map((range) => normalizeClipRange(range, dur));
+    });
   }, []);
 
   const percentToTime = useCallback((p) => Math.max(0, Math.min(videoDuration, (p / 100) * videoDuration)), [videoDuration]);
@@ -397,14 +508,32 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     setNumClips(n);
     setClipRanges((prev) => {
       const next = prev.slice(0, n);
-      const dur = videoDuration || 0;
+      const dur = getBestKnownVideoDuration();
+      if (!dur) {
+        while (next.length < n) {
+          const last = next[next.length - 1];
+          const start = Number.isFinite(last?.end) ? last.end + 30 : 0;
+          next.push({
+            start: Number(start.toFixed(2)),
+            end: Number((start + CLIP_MIN_SEC).toFixed(2)),
+          });
+        }
+        return next;
+      }
+
+      for (let i = 0; i < next.length; i++) {
+        next[i] = normalizeClipRange(next[i], dur);
+      }
+
+      if (next.length === 0) {
+        next.push(normalizeClipRange({ start: 0, end: CLIP_MIN_SEC }, dur));
+      }
+
       while (next.length < n) {
         const last = next[next.length - 1];
-        const start = last
-          ? Math.min(last.end + 30, Math.max(0, dur - CLIP_MIN_SEC))
-          : 0;
-        const end = Math.min(start + CLIP_MIN_SEC, dur || start + CLIP_MIN_SEC);
-        next.push({ start: Number(start.toFixed(2)), end: Number(Math.max(start + CLIP_MIN_SEC, end).toFixed(2)) });
+        const maxStart = Math.max(0, dur - CLIP_MIN_SEC);
+        const start = last ? Math.min(last.end + 30, maxStart) : 0;
+        next.push(normalizeClipRange({ start, end: start + CLIP_MIN_SEC }, dur));
       }
       return next;
     });
@@ -412,10 +541,25 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   };
 
   const handlePost = async () => {
-    const rangesToPost = clipRanges.slice(0, numClips);
+    const dur = getBestKnownVideoDuration();
+    if (!dur) {
+      setError('Video duration is not ready yet. Please wait for the clip preview to load.');
+      return;
+    }
+    const rangesToPost = clipRanges.slice(0, numClips).map((range) => normalizeClipRange(range, dur));
     for (let i = 0; i < rangesToPost.length; i++) {
       const r = rangesToPost[i];
-      const duration = (r?.end ?? 0) - (r?.start ?? 0);
+      const start = Number(r?.start);
+      const end = Number(r?.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        setError(`Clip ${i + 1} has invalid range values`);
+        return;
+      }
+      if (end <= start) {
+        setError(`Clip ${i + 1} must end after it starts`);
+        return;
+      }
+      const duration = end - start;
       if (duration < CLIP_MIN_SEC) {
         setError(`Clip ${i + 1} must be at least ${CLIP_MIN_SEC} seconds`);
         return;
@@ -443,113 +587,101 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
     const storage = getStorage();
     const userId = auth.currentUser.uid;
     const creatorName = auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Unknown';
-    const fileName = `${userId}_${Date.now()}_${videoFile.name}`;
-    const fullVideoRef = ref(storage, `sets/${fileName}`);
 
     try {
-      const uploadTask = uploadBytesResumable(fullVideoRef, videoFile);
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-        },
-        (err) => {
-          console.error('Upload error:', err);
-          setError(err?.message || 'Upload failed');
-          setUploading(false);
-        },
-        () => {
-          const run = async () => {
-          const done = (success) => {
-            setUploading(false);
-            if (success) {
-              // Defer close so user sees 100% and React can flush state
-              setTimeout(() => {
-                onSuccess?.();
-                onClose?.();
-              }, 150);
-            }
-          };
-          try {
-            const fullVideoURL = await getDownloadURL(uploadTask.snapshot.ref);
-            let audioTrackURL = null;
-            if (audioFile) {
-              const audioName = (audioFile.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
-              const audioStorageRef = ref(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
-              await uploadBytes(audioStorageRef, audioFile);
-              audioTrackURL = await getDownloadURL(audioStorageRef);
-            }
+      // 1. Reserve a Bunny Stream video and get a one-shot upload URL.
+      const bunny = await createBunnyVideo({
+        title: (title || videoFile.name || 'Untitled Set').trim().slice(0, 200),
+        kind: 'set',
+      });
 
-            const linkedSetup = savedSetups.find(s => s.id === selectedSetupId);
-            const setData = {
-              creatorId: userId,
-              creatorName,
-              title: (title || 'Untitled Set').trim(),
-              description: '',
-              videoURL: fullVideoURL,
-              durationSeconds: videoDuration,
-              createdAt: serverTimestamp(),
-              views: 0,
-            };
-            if (selectedSetupId && linkedSetup) {
-              setData.setupId = selectedSetupId;
-              setData.setupName = linkedSetup.name || '';
-              setData.setupType = linkedSetup.setupType || 'DJ';
-            }
-            if (audioTrackURL != null) {
-              setData.audioTrackURL = audioTrackURL;
-              setData.audioOffsetSeconds = offsetSeconds;
-            }
-            const setDocRef = await addDoc(collection(db, 'sets'), setData);
-
-            const baseClipData = {
-              creatorId: userId,
-              creatorName,
-              title: (title || 'Untitled Set').trim(),
-              description: '',
-              fullVideoURL,
-              videoURL: fullVideoURL,
-              fullSetId: setDocRef.id,
-              likes: 0,
-              likedBy: [],
-              views: 0,
-            };
-            if (selectedSetupId && linkedSetup) {
-              baseClipData.setupId = selectedSetupId;
-              baseClipData.setupName = linkedSetup.name || '';
-              baseClipData.setupType = linkedSetup.setupType || 'DJ';
-            }
-            if (audioTrackURL != null) {
-              baseClipData.audioTrackURL = audioTrackURL;
-              baseClipData.audioOffsetSeconds = offsetSeconds;
-            }
-
-            for (const r of rangesToPost) {
-              const clipData = {
-                ...baseClipData,
-                clipStart: r.start,
-                clipEnd: r.end,
-                createdAt: serverTimestamp(),
-              };
-              await addDoc(collection(db, 'clips'), clipData);
-            }
-            done(true);
-          } catch (e) {
-            console.error('Error saving set/clip:', e);
-            setError(e?.message || e?.code || String(e) || 'Failed to save');
-            done(false);
-          }
-          };
-          run().catch((e) => {
-            console.error('Post-set completion error:', e);
-            setError(e?.message || e?.code || String(e) || 'Failed to save');
-            setUploading(false);
-          });
-        }
+      // 2. Upload the video file directly to Bunny with progress.
+      await uploadToBunny(
+        videoFile,
+        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
+        (fraction) => setUploadProgress(Math.min(100, Math.round(fraction * 100)))
       );
+
+      // 3. Audio track (optional) still goes to Firebase Storage — small file, cheap, simpler.
+      let audioTrackURL = null;
+      if (audioFile) {
+        const audioName = (audioFile.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const audioStorageRef = ref(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
+        await uploadBytes(audioStorageRef, audioFile);
+        audioTrackURL = await getDownloadURL(audioStorageRef);
+      }
+
+      // 4. Write the Firestore docs. status='processing' until Bunny webhook flips to 'ready'.
+      const linkedSetup = savedSetups.find(s => s.id === selectedSetupId);
+      const setData = {
+        creatorId: userId,
+        creatorName,
+        title: (title || 'Untitled Set').trim(),
+        description: '',
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        durationSeconds: videoDuration,
+        createdAt: serverTimestamp(),
+        views: 0,
+      };
+      if (selectedSetupId && linkedSetup) {
+        setData.setupId = selectedSetupId;
+        setData.setupName = linkedSetup.name || '';
+        setData.setupType = linkedSetup.setupType || 'DJ';
+      }
+      if (audioTrackURL != null) {
+        setData.audioTrackURL = audioTrackURL;
+        setData.audioOffsetSeconds = offsetSeconds;
+      }
+      const setDocRef = await addDoc(collection(db, 'sets'), setData);
+
+      const baseClipData = {
+        creatorId: userId,
+        creatorName,
+        title: (title || 'Untitled Set').trim(),
+        description: '',
+        fullVideoURL: bunny.hlsUrl,
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        fullSetId: setDocRef.id,
+        likes: 0,
+        likedBy: [],
+        views: 0,
+      };
+      if (selectedSetupId && linkedSetup) {
+        baseClipData.setupId = selectedSetupId;
+        baseClipData.setupName = linkedSetup.name || '';
+        baseClipData.setupType = linkedSetup.setupType || 'DJ';
+      }
+      if (audioTrackURL != null) {
+        baseClipData.audioTrackURL = audioTrackURL;
+        baseClipData.audioOffsetSeconds = offsetSeconds;
+      }
+
+      for (const r of rangesToPost) {
+        const clipData = {
+          ...baseClipData,
+          clipStart: r.start,
+          clipEnd: r.end,
+          createdAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, 'clips'), clipData);
+      }
+
+      setUploading(false);
+      setTimeout(() => {
+        onSuccess?.();
+        onClose?.();
+      }, 150);
     } catch (e) {
-      console.error('Error starting upload:', e);
-      setError(e?.message || 'Upload failed');
+      console.error('Error uploading set:', e);
+      setError(e?.message || e?.code || String(e) || 'Upload failed');
       setUploading(false);
     }
   };
@@ -580,12 +712,16 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                     ref={videoRef}
                     src={videoURL}
                     controls
+                    preload="metadata"
                     className="post-set-video"
                     onPlay={handleVideoPlay}
                     onPause={handleVideoPause}
                     onError={handleVideoError}
                     onLoadedMetadata={handleStep1VideoLoaded}
                   />
+                  <button type="button" className="post-set-swap-audio-btn" onClick={resetVideoSelection}>
+                    Choose different video
+                  </button>
                   <p className="post-set-video-label">Video loaded. Full set must be 5 min – 1 hr 30 min. Add optional audio below to sync.</p>
                 </div>
               )}
@@ -727,6 +863,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   ref={step2VideoRef}
                   src={videoURL}
                   controls
+                  preload="metadata"
                   className="post-set-clip-video"
                   onLoadedMetadata={handleStep2VideoLoaded}
                 />

@@ -1,0 +1,20 @@
+.ui-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-1);
+  transition: border-color var(--dur-micro);
+}
+
+.ui-card--p-sm { padding: var(--space-3); }
+.ui-card--p-md { padding: var(--space-4); }
+.ui-card--p-lg { padding: var(--space-6); }
+
+.ui-card--clickable {
+  cursor: pointer;
+}
+.ui-card--clickable:hover,
+.ui-card--clickable:focus-visible {
+  border-color: var(--border-strong);
+  outline: none;
+}

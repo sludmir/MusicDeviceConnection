@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { buildMobileDiagram } from '../utils/buildMobileDiagram';
+import { useToast } from '../ui';
 import './SaveSetupButton.css';
 
 function SaveSetupButton({ currentDevices, setupType }) {
+  const toast = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [setupName, setSetupName] = useState('');
   const [isMainSetup, setIsMainSetup] = useState(false);
@@ -84,7 +86,7 @@ function SaveSetupButton({ currentDevices, setupType }) {
       setIsMainSetup(false);
       
       // Show success message
-      alert(`Setup saved successfully${isMainSetup ? ' and set as your main setup' : ''}!`);
+      toast.success(`Setup saved${isMainSetup ? ' and set as your main setup' : ''}.`);
     } catch (error) {
       console.error('Error saving setup:', error);
       setError('Failed to save setup. Please try again.');

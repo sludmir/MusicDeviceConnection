@@ -1,0 +1,93 @@
+.ui-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+}
+
+.ui-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  animation: ui-sheet-fade var(--dur-std) ease;
+}
+
+.ui-sheet {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bottom (default) — full-screen on mobile, large centered on desktop */
+.ui-sheet-root--bottom {
+  align-items: stretch;
+  justify-content: center;
+}
+.ui-sheet-root--bottom .ui-sheet {
+  width: 100vw;
+  height: 100vh;
+  animation: ui-sheet-rise var(--dur-screen) var(--ease-screen);
+}
+@media (min-width: 768px) {
+  .ui-sheet-root--bottom {
+    align-items: center;
+    padding: var(--space-7);
+  }
+  .ui-sheet-root--bottom .ui-sheet {
+    width: 100%;
+    max-width: 1080px;
+    height: calc(100vh - var(--space-8));
+    border-radius: var(--radius-md);
+  }
+}
+
+/* Right side variant — used by builder add-device sheet later */
+.ui-sheet-root--right {
+  justify-content: flex-end;
+}
+.ui-sheet-root--right .ui-sheet {
+  width: min(480px, 100vw);
+  height: 100vh;
+  animation: ui-sheet-slide-right var(--dur-screen) var(--ease-screen);
+}
+
+.ui-sheet__header {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ui-sheet__title {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.ui-sheet__primary {
+  justify-self: end;
+}
+
+.ui-sheet__body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-5);
+}
+
+@keyframes ui-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ui-sheet-rise {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes ui-sheet-slide-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

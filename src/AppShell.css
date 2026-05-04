@@ -1,0 +1,25 @@
+.app-shell {
+  display: flex;
+  min-height: calc(100vh - 64px); /* leaves room for App-header above */
+  background: #0A0908;
+  color: #F5EFE3;
+}
+
+.app-shell__main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 0;
+  background: #0A0908;
+  overflow-x: hidden;
+}
+
+/* Mobile: hide sidebar, show tab bar, leave room at bottom for tabs */
+@media (max-width: 1023px) {
+  .app-shell .app-sidebar { display: none; }
+  .app-shell__main { padding-bottom: 64px; }
+}
+
+/* Desktop: hide tab bar */
+@media (min-width: 1024px) {
+  .app-shell .app-tabbar { display: none; }
+}

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { attachHls } from '../utils/attachHls';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
-import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo, MdGraphicEq } from 'react-icons/md';
+import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo, MdGraphicEq, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './Feed.css';
 
 const PRELOAD_WINDOW = 2;
@@ -39,6 +40,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const feedAudioRef = useRef(null);
   const pauseTimerRef = useRef(null);
   const fullSetVideoRef = useRef(null);
+  const hlsCleanupsRef = useRef(new Map()); // clipId -> cleanup fn for attached HLS
   const currentUserId = auth.currentUser?.uid;
 
   useEffect(() => {
@@ -58,71 +60,59 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     console.debug('[FeedAudio]', event, payload);
   }, []);
 
-  // ── Scroll-based autoplay ──────────────────────────────────────────
+  // ── Index-driven autoplay (arrow nav, no scrolling) ───────────────
 
   useEffect(() => {
-    const container = feedRef.current;
-    if (!container || !clips.length) return;
-
-    const updateActiveVideo = (index) => {
-      if (index === currentIndex || index < 0 || index >= clips.length) return;
-      setCurrentIndex(index);
-      setPausedOverlay(null);
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-      const clip = clips[index];
-      const start = toFiniteNumberOr(clip?.clipStart, 0);
-      Object.values(videoRefs.current).forEach((vid, idx) => {
-        if (!vid) return;
-        if (idx !== index) {
-          vid.pause();
-        } else {
-          vid.currentTime = start;
-          vid.play().catch(() => {});
-        }
-      });
-    };
-
-    const handleScroll = () => {
-      const h = container.clientHeight;
-      if (!h) return;
-      const scrollTop = container.scrollTop;
-      const newIndex = Math.round(scrollTop / h);
-      const clamped = Math.max(0, Math.min(newIndex, clips.length - 1));
-      if (clamped !== currentIndex) updateActiveVideo(clamped);
-    };
-
-    const snapToNearest = () => {
-      const h = container.clientHeight;
-      if (!h) return;
-      const scrollTop = container.scrollTop;
-      const index = Math.round(scrollTop / h);
-      const clamped = Math.max(0, Math.min(index, clips.length - 1));
-      const targetScroll = clamped * h;
-      if (Math.abs(container.scrollTop - targetScroll) > 2) {
-        container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+    if (!clips.length) return;
+    setPausedOverlay(null);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    const clip = clips[currentIndex];
+    const start = toFiniteNumberOr(clip?.clipStart, 0);
+    clips.forEach((_, idx) => {
+      const vid = videoRefs.current[idx];
+      if (!vid) return;
+      if (idx !== currentIndex) {
+        vid.pause();
+      } else {
+        try { vid.currentTime = start; } catch (_) {}
+        vid.play().catch(() => {});
       }
-      if (clamped !== currentIndex) updateActiveVideo(clamped);
-    };
+    });
+    if (feedAudioRef.current && currentIndex !== 0 && !getClipAudioTrackURL(clip)) {
+      feedAudioRef.current.pause();
+    }
+  }, [currentIndex, clips]);
 
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    container.addEventListener('scrollend', snapToNearest);
-    container.addEventListener('touchend', snapToNearest);
+  const goNext = useCallback(() => {
+    setCurrentIndex((i) => {
+      if (i + 1 >= clips.length) {
+        if (hasMore && !loading) loadClips();
+        return i;
+      }
+      return i + 1;
+    });
+  }, [clips.length, hasMore, loading]);
 
-    let scrollEndTimer;
-    const onScrollEnd = () => {
-      clearTimeout(scrollEndTimer);
-      scrollEndTimer = setTimeout(snapToNearest, 100);
-    };
-    container.addEventListener('scroll', onScrollEnd);
+  const goPrev = useCallback(() => {
+    setCurrentIndex((i) => Math.max(0, i - 1));
+  }, []);
 
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      container.removeEventListener('scrollend', snapToNearest);
-      container.removeEventListener('touchend', snapToNearest);
-      container.removeEventListener('scroll', onScrollEnd);
-      clearTimeout(scrollEndTimer);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (fullSetClip || clipToDelete) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'l') {
+        e.preventDefault();
+        goNext();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'h') {
+        e.preventDefault();
+        goPrev();
+      }
     };
-  }, [currentIndex, clips.length, clips]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [goNext, goPrev, fullSetClip, clipToDelete]);
 
   // ── Clip segment loop ─────────────────────────────────────────────
 
@@ -184,6 +174,49 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     if (!vid || !clip) return;
     return setupClipSegmentLoop(vid, clip);
   }, [currentIndex, clips, setupClipSegmentLoop]);
+
+  // ── HLS attachment for near clips ─────────────────────────────────
+  // Attaches each near clip's playlist via attachHls (handles HLS via hls.js
+  // on non-Safari, or plain MP4 URLs from legacy uploads). Detaches when a
+  // clip leaves the preload window or is removed.
+
+  useEffect(() => {
+    const cleanups = hlsCleanupsRef.current;
+    const wantedByClipId = new Map();
+    clips.forEach((clip, index) => {
+      if (!clip?.id || !clip.videoURL) return;
+      if (Math.abs(index - currentIndex) > PRELOAD_WINDOW) return;
+      const vid = videoRefs.current[index];
+      if (!vid) return;
+      wantedByClipId.set(clip.id, { vid, url: clip.videoURL });
+    });
+
+    // Detach anything no longer wanted (or attached to a different URL/element).
+    for (const [clipId, entry] of cleanups) {
+      const wanted = wantedByClipId.get(clipId);
+      if (!wanted || wanted.url !== entry.url || wanted.vid !== entry.vid) {
+        try { entry.cleanup(); } catch (_) {}
+        cleanups.delete(clipId);
+      }
+    }
+
+    // Attach anything missing.
+    for (const [clipId, { vid, url }] of wantedByClipId) {
+      if (cleanups.has(clipId)) continue;
+      const cleanup = attachHls(vid, url);
+      cleanups.set(clipId, { cleanup, url, vid });
+    }
+  }, [clips, currentIndex]);
+
+  useEffect(() => {
+    const cleanups = hlsCleanupsRef.current;
+    return () => {
+      for (const [, entry] of cleanups) {
+        try { entry.cleanup(); } catch (_) {}
+      }
+      cleanups.clear();
+    };
+  }, []);
 
   // ── Audio sync (drift-tolerant) ───────────────────────────────────
 
@@ -350,7 +383,11 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
       if (sortedClips.length < 10) setHasMore(false);
       if (snapshot.docs.length > 0) setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
-      setClips(prev => [...prev, ...sortedClips]);
+      setClips(prev => {
+        const seen = new Set(prev.map((c) => c.id));
+        const fresh = sortedClips.filter((c) => !seen.has(c.id));
+        return fresh.length === sortedClips.length ? [...prev, ...sortedClips] : [...prev, ...fresh];
+      });
       if (DEBUG_FEED_AUDIO && sortedClips.length > 0) {
         console.debug('[FeedAudio] loadedClipAudioFields', sortedClips.slice(0, 5).map((clip) => ({
           id: clip.id,
@@ -454,13 +491,18 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const closeFullSetModal = () => {
     if (fullSetVideoRef.current) {
       fullSetVideoRef.current.pause();
-      fullSetVideoRef.current.removeAttribute('src');
-      fullSetVideoRef.current.load();
     }
     setFullSetClip(null);
     const v = videoRefs.current[currentIndex];
     if (v) v.play().catch(() => {});
   };
+
+  useEffect(() => {
+    const vid = fullSetVideoRef.current;
+    if (!fullSetClip || !vid) return;
+    const url = fullSetClip.fullVideoURL || fullSetClip.videoURL;
+    return attachHls(vid, url);
+  }, [fullSetClip]);
 
   const handleDeleteClick = (e, clip) => {
     e.stopPropagation();
@@ -532,7 +574,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
         title="Watch the full LiveSet"
       >
         <span className="feed-action-icon"><MdOndemandVideo size={20} /></span>
-        <span>{variant === 'row' ? 'Full Set' : ''}</span>
       </button>
     );
   };
@@ -545,6 +586,30 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
         +
       </button>
       <audio ref={feedAudioRef} style={{ display: 'none' }} />
+      {clips.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="feed-nav-btn feed-nav-btn--prev"
+            onClick={goPrev}
+            disabled={currentIndex === 0}
+            aria-label="Previous clip"
+            title="Previous clip (←)"
+          >
+            <MdChevronLeft size={28} />
+          </button>
+          <button
+            type="button"
+            className="feed-nav-btn feed-nav-btn--next"
+            onClick={goNext}
+            disabled={currentIndex >= clips.length - 1 && !hasMore}
+            aria-label="Next clip"
+            title="Next clip (→)"
+          >
+            <MdChevronRight size={28} />
+          </button>
+        </>
+      )}
       <div className="feed-scroll" ref={feedRef}>
         {clips.length === 0 && !loading ? (
           <div className="feed-empty">
@@ -556,8 +621,11 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
             </button>
           </div>
         ) : (
-          clips.map((clip, index) => {
-          const isNear = Math.abs(index - currentIndex) <= PRELOAD_WINDOW;
+          <div
+            className="feed-track"
+            style={{ transform: `translateX(${-100 * currentIndex}%)` }}
+          >
+          {clips.map((clip, index) => {
           const isCurrent = index === currentIndex;
           const hasExternalAudio = Boolean(getClipAudioTrackURL(clip));
           const externalAudioFailed = clip?.id ? failedExternalAudioClipIds.has(clip.id) : false;
@@ -565,6 +633,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
           return (
           <div key={clip.id} className="feed-item">
+            <div className="feed-card">
             {/* Desktop: creator row above video */}
             <div className="feed-item-meta feed-item-meta-header">
               <div className="feed-meta-top">
@@ -608,7 +677,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
               ) : clip.videoURL ? (
                 <video
                   ref={el => { videoRefs.current[index] = el; }}
-                  src={isNear ? clip.videoURL : undefined}
                   className="feed-video"
                   preload={isCurrent || Math.abs(index - currentIndex) <= 1 ? 'auto' : 'metadata'}
                   muted={shouldMuteVideo}
@@ -696,25 +764,28 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
             {/* Desktop: actions + caption below video */}
             <div className="feed-item-meta feed-item-meta-footer">
               <div className="feed-actions-row">
-                <button
-                  type="button"
-                  className={`feed-action-btn ${likedClips.has(clip.id) ? 'liked' : ''}`}
-                  onClick={() => handleLike(clip.id)}
-                  aria-label={likedClips.has(clip.id) ? 'Unlike' : 'Like'}
-                >
-                  <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
-                  <span>{clip.likes || 0}</span>
-                </button>
-                {renderCopySetupBtn(clip, 'row')}
-                {renderFullSetBtn(clip, 'row')}
-                <button type="button" className="feed-action-btn" aria-label="Comment">
-                  <span className="feed-action-icon"><MdComment size={18} /></span>
-                  <span>Comment</span>
-                </button>
-                <button type="button" className="feed-action-btn" aria-label="Share">
-                  <span className="feed-action-icon"><MdShare size={18} /></span>
-                  <span>Share</span>
-                </button>
+                <div className="feed-actions-left">
+                  <button
+                    type="button"
+                    className={`feed-action-btn ${likedClips.has(clip.id) ? 'liked' : ''}`}
+                    onClick={() => handleLike(clip.id)}
+                    aria-label={likedClips.has(clip.id) ? 'Unlike' : 'Like'}
+                  >
+                    <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
+                    <span>{clip.likes || 0}</span>
+                  </button>
+                  <button type="button" className="feed-action-btn" aria-label="Comment" title="Comment">
+                    <span className="feed-action-icon"><MdComment size={18} /></span>
+                    <span>{clip.commentCount || 0}</span>
+                  </button>
+                  <button type="button" className="feed-action-btn" aria-label="Share" title="Share">
+                    <span className="feed-action-icon"><MdShare size={18} /></span>
+                  </button>
+                </div>
+                <div className="feed-actions-right">
+                  {renderFullSetBtn(clip, 'row')}
+                  {renderCopySetupBtn(clip, 'row')}
+                </div>
               </div>
               <p className="feed-caption">
                 <span className="feed-creator-name-inline">{clip.creatorName || 'Unknown'}</span>
@@ -722,12 +793,14 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
                 {clip.setupId && <span className="feed-caption-badge">🎛️ Setup linked</span>}
               </p>
             </div>
+            </div>
           </div>
           );
-          })
+          })}
+          </div>
         )}
         {loading && <div className="feed-loading">Loading...</div>}
-        {hasMore && !loading && (
+        {hasMore && !loading && currentIndex >= clips.length - 1 && (
           <div className="feed-load-more">
             <button onClick={loadClips}>Load More</button>
           </div>
@@ -761,7 +834,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
             <div className="feed-fullset-video-wrap">
               <video
                 ref={fullSetVideoRef}
-                src={fullSetClip.fullVideoURL || fullSetClip.videoURL}
                 className="feed-fullset-video"
                 controls
                 autoPlay

@@ -3,26 +3,50 @@ import { productManager, PRODUCT_CATEGORIES } from './productManager';
 import ProductManagerForm from './ProductManagerForm';
 import { auth } from './firebaseConfig';
 import { IoArrowBack } from 'react-icons/io5';
-import { MdSync, MdPerson, MdAdminPanelSettings, MdEdit, MdDelete } from 'react-icons/md';
+import { MdEdit, MdDelete } from 'react-icons/md';
+import {
+  Button,
+  IconButton,
+  Input,
+  Card,
+  Chip,
+  SectionHeader,
+  EmptyState,
+  useToast,
+} from './ui';
 import './ProductDashboard.css';
 
+const SETUP_TYPES = ['DJ', 'Producer', 'Musician'];
+
+const getCompatibleSetupTypes = (product) => {
+  if (Array.isArray(product.compatibleSetupTypes)) return product.compatibleSetupTypes;
+  return product.category ? [product.category] : [];
+};
+
+const getCategoryName = (setupType, subcategory) =>
+  PRODUCT_CATEGORIES[setupType]?.[subcategory]?.name || subcategory;
+
+const getInitial = (product) => {
+  const source = product.brand || product.name || '?';
+  return source.trim().charAt(0).toUpperCase();
+};
+
 const ProductDashboard = ({ onClose }) => {
+  const toast = useToast();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [stats, setStats] = useState({});
+  const [stats, setStats] = useState({ total: 0, bySetupType: {} });
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Get current user for ownership checks and admin status
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
       if (user) {
         try {
-          // Check for admin custom claim
           const tokenResult = await user.getIdTokenResult();
           setIsAdmin(tokenResult.claims.admin === true || tokenResult.claims.admin === 'true');
         } catch (error) {
@@ -53,316 +77,225 @@ const ProductDashboard = ({ onClose }) => {
   };
 
   const handleDeleteProduct = async (productId, productName) => {
-    if (window.confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
-      try {
-        const result = await productManager.deleteProduct(productId);
-        if (result.success) {
-          await loadProducts(); // Reload products
-          alert('Product deleted successfully!');
-        } else {
-          alert('Error deleting product: ' + result.error);
-        }
-      } catch (error) {
-        alert('Error deleting product: ' + error.message);
+    if (!window.confirm(`Delete "${productName}"? This action cannot be undone.`)) return;
+    try {
+      const result = await productManager.deleteProduct(productId);
+      if (result.success) {
+        await loadProducts();
+        toast.success('Product deleted.');
+      } else {
+        toast.error('Error deleting product: ' + result.error);
       }
+    } catch (error) {
+      toast.error('Error deleting product: ' + error.message);
     }
   };
 
-  // Get compatible setup types for a product
-  // If product has compatibleSetupTypes array, use that; otherwise use the category field
-  const getCompatibleSetupTypes = (product) => {
-    if (product.compatibleSetupTypes && Array.isArray(product.compatibleSetupTypes)) {
-      return product.compatibleSetupTypes;
-    }
-    // Default: product is compatible with its primary category
-    return product.category ? [product.category] : [];
-  };
-
-  // Filter products based on search term
   const matchesSearch = (product) => {
     if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
+    const q = searchTerm.toLowerCase();
     return (
-      product.name.toLowerCase().includes(searchLower) ||
-      product.brand?.toLowerCase().includes(searchLower) ||
-      product.description?.toLowerCase().includes(searchLower)
+      product.name?.toLowerCase().includes(q) ||
+      product.brand?.toLowerCase().includes(q) ||
+      product.description?.toLowerCase().includes(q)
     );
   };
 
-  // Group products by setup type
-  const setupTypes = ['DJ', 'Producer', 'Musician'];
-  const productsBySetupType = setupTypes.reduce((acc, setupType) => {
-    acc[setupType] = products.filter(product => {
-      const compatibleTypes = getCompatibleSetupTypes(product);
-      return compatibleTypes.includes(setupType) && matchesSearch(product);
-    });
+  const productsBySetupType = SETUP_TYPES.reduce((acc, setupType) => {
+    acc[setupType] = products.filter(
+      (p) => getCompatibleSetupTypes(p).includes(setupType) && matchesSearch(p)
+    );
     return acc;
   }, {});
 
-  const getCategoryName = (setupType, subcategory) => {
-    return PRODUCT_CATEGORIES[setupType]?.[subcategory]?.name || subcategory;
-  };
+  const totalFilteredProducts = Object.values(productsBySetupType).reduce(
+    (sum, arr) => sum + arr.length,
+    0
+  );
 
-  const getCategoryIcon = (setupType, subcategory) => {
-    return PRODUCT_CATEGORIES[setupType]?.[subcategory]?.icon || '📦';
-  };
+  const renderProductCard = (product, setupType) => {
+    const compatibleTypes = getCompatibleSetupTypes(product);
+    const isMultiCompatible = compatibleTypes.length > 1;
+    const isOwner = currentUser && product.ownerId && product.ownerId === currentUser.uid;
+    const canEdit = isAdmin || isOwner;
+    const canDelete = isAdmin || isOwner;
+    const hasModel = !!(product.modelPath || product.modelUrl);
+    const ioCount = `${product.inputs?.length || 0} IN · ${product.outputs?.length || 0} OUT`;
 
-  const totalFilteredProducts = Object.values(productsBySetupType).reduce((sum, products) => sum + products.length, 0);
-
-  if (loading) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: '#ffffff', padding: '40px 20px' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-          <div className="loading">Loading products...</div>
+      <Card key={`${setupType}-${product.id}`} className="pdash-card" padding="md">
+        {(isMultiCompatible || isOwner || (isAdmin && !isOwner)) && (
+          <div className="pdash-card__tags">
+            {isOwner && <Chip className="pdash-chip--success">Yours</Chip>}
+            {isAdmin && !isOwner && <Chip className="pdash-chip--accent">Admin</Chip>}
+            {isMultiCompatible && <Chip>Multi-compat</Chip>}
+          </div>
+        )}
+
+        <div className="pdash-card__head">
+          <div className="pdash-card__thumb" aria-hidden="true">
+            {product.imageUrl ? (
+              <img src={product.imageUrl} alt="" />
+            ) : (
+              getInitial(product)
+            )}
+          </div>
+          <div className="pdash-card__id">
+            <h3 className="pdash-card__name">{product.name}</h3>
+            {product.brand && <p className="pdash-card__brand">{product.brand}</p>}
+          </div>
+          <div className="pdash-card__actions">
+            {canEdit && (
+              <IconButton
+                size="sm"
+                onClick={() => setEditingProduct(product)}
+                title={isAdmin && !isOwner ? 'Edit (Admin)' : 'Edit'}
+                aria-label="Edit product"
+              >
+                <MdEdit size={16} />
+              </IconButton>
+            )}
+            {canDelete && (
+              <IconButton
+                size="sm"
+                onClick={() => handleDeleteProduct(product.id, product.name)}
+                title={isAdmin && !isOwner ? 'Delete (Admin)' : 'Delete'}
+                aria-label="Delete product"
+              >
+                <MdDelete size={16} />
+              </IconButton>
+            )}
+            {!canEdit && !canDelete && <span className="pdash-card__readonly">View</span>}
+          </div>
         </div>
-      </div>
+
+        {product.description && (
+          <p className="pdash-card__desc">{product.description}</p>
+        )}
+
+        <div className="pdash-card__meta">
+          <Chip>{getCategoryName(product.category || setupType, product.subcategory)}</Chip>
+          {product.price > 0 && (
+            <Chip className="pdash-chip--price">${product.price.toLocaleString()}</Chip>
+          )}
+          <Chip>{ioCount}</Chip>
+          {hasModel && <Chip className="pdash-chip--success">3D Model</Chip>}
+        </div>
+
+        {product.createdBy && (
+          <p className="pdash-card__owner">
+            By {product.createdBy === currentUser?.email ? 'You' : product.createdBy}
+          </p>
+        )}
+      </Card>
     );
-  }
+  };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: '#ffffff', padding: '40px 20px' }}>
-      <div className="product-dashboard" style={{ maxWidth: '1400px', margin: '0 auto', maxHeight: 'none', overflow: 'visible' }}>
-        <div className="dashboard-header" style={{ marginBottom: '30px' }}>
+    <div className="pdash">
+      <div className="pdash__inner">
+        <div className="pdash__head">
           <div>
-            <h2 style={{ margin: 0, color: '#00a2ff', fontSize: '32px', fontWeight: '600' }}>Product Management</h2>
-            <p style={{ margin: '8px 0 0 0', opacity: 0.7, fontSize: '14px' }}>
-              Manage all products and their prices
+            <h1 className="pdash__title">Product Management</h1>
+            <p className="pdash__subtitle">
+              Manage all products, their pricing, and 3D models.
             </p>
-          </div>
-          <button 
-            className="close-btn" 
-            onClick={onClose}
-            style={{
-              background: '#333',
-              color: '#fff',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#444'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = '#333'}
-          >
-            <IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back
-          </button>
-        </div>
-
-        {/* Statistics */}
-        <div className="stats-section">
-          <div className="stat-card">
-            <div className="stat-number">{stats.total}</div>
-            <div className="stat-label">Total Products</div>
-          </div>
-          {Object.entries(stats.bySetupType).map(([setupType, count]) => (
-            <div key={setupType} className="stat-card">
-              <div className="stat-number">{count}</div>
-              <div className="stat-label">{setupType} Products</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Controls */}
-        <div className="controls-section">
-          <div className="search-controls">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          
-          <button 
-            className="add-product-btn"
-            onClick={() => setShowAddForm(true)}
-          >
-            + Add New Product
-          </button>
-        </div>
-
-        {/* Products List - Organized by Setup Type */}
-        <div className="products-section">
-          <div className="products-header">
-            <h3>All Products ({totalFilteredProducts})</h3>
-            <p style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>
-              Products are organized by setup type. Products compatible with multiple types appear in all relevant sections.
-            </p>
-          </div>
-          
-          {products.length === 0 ? (
-            <div className="no-products">
-              <div>
-                <p>No products found. Add your first product to get started!</p>
-                <button 
-                  className="add-first-product-btn"
-                  onClick={() => setShowAddForm(true)}
-                >
-                  Add First Product
-                </button>
+            {!loading && (
+              <div className="pdash__stat-strip mono-label">
+                <span><strong>{stats.total || 0}</strong> Total</span>
+                {SETUP_TYPES.map((t) => (
+                  <span key={t}><strong>{stats.bySetupType?.[t] || 0}</strong> {t}</span>
+                ))}
               </div>
-            </div>
-          ) : (
-            <div className="products-by-setup-type">
-              {setupTypes.map(setupType => {
-                const setupProducts = productsBySetupType[setupType] || [];
-                if (setupProducts.length === 0 && searchTerm) return null; // Hide empty sections when searching
-                
-                return (
-                  <div key={setupType} className="setup-type-section">
-                    <div className="setup-type-header">
-                      <h2>{setupType} Products</h2>
-                      <span className="product-count-badge">{setupProducts.length}</span>
-                    </div>
-                    
-                    {setupProducts.length === 0 ? (
-                      <div className="no-products-in-section">
-                        <p>No {setupType.toLowerCase()} products found.</p>
-                      </div>
-                    ) : (
-                      <div className="products-grid">
-                        {setupProducts.map(product => {
-                          const compatibleTypes = getCompatibleSetupTypes(product);
-                          const isMultiCompatible = compatibleTypes.length > 1;
-                          // Check if user owns this product (handle legacy products without ownerId)
-                          const isOwner = currentUser && product.ownerId && product.ownerId === currentUser.uid;
-                          // Admin can delete/edit any product, or if user owns it
-                          const canEdit = isAdmin || isOwner;
-                          const canDelete = isAdmin || isOwner;
-                          
-                          return (
-                            <div key={`${setupType}-${product.id}`} className="product-card">
-                              {isMultiCompatible && (
-                                <div className="multi-compatible-badge" title="Compatible with multiple setup types">
-                                  <MdSync size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Multi-compatible
-                                </div>
-                              )}
-                              {isOwner && (
-                                <div className="owner-badge" title="You created this product">
-                                  <MdPerson size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Your Product
-                                </div>
-                              )}
-                              {isAdmin && !isOwner && (
-                                <div className="admin-badge" title="Admin - You can manage this product">
-                                  <MdAdminPanelSettings size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />Admin
-                                </div>
-                              )}
-                              <div className="product-header">
-                                <div className="product-icon">
-                                  {getCategoryIcon(product.category || setupType, product.subcategory)}
-                                </div>
-                                <div className="product-info">
-                                  <h4>{product.name}</h4>
-                                  <p className="product-brand">{product.brand}</p>
-                                </div>
-                                <div className="product-actions">
-                                  {canEdit && (
-                                    <button 
-                                      className="edit-btn"
-                                      onClick={() => setEditingProduct(product)}
-                                      title={isAdmin ? "Edit Product (Admin)" : "Edit Product"}
-                                    >
-                                      <MdEdit size={18} />
-                                    </button>
-                                  )}
-                                  {canDelete && (
-                                    <button 
-                                      className="delete-btn"
-                                      onClick={() => handleDeleteProduct(product.id, product.name)}
-                                      title={isAdmin ? "Delete Product (Admin)" : "Delete Product"}
-                                    >
-                                      <MdDelete size={18} />
-                                    </button>
-                                  )}
-                                  {!canEdit && !canDelete && (
-                                    <span className="read-only-indicator" title="You can only delete products you created">
-                                      View Only
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="product-details">
-                                <div className="product-category">
-                                  <span className="category-badge">
-                                    {product.category || setupType} • {getCategoryName(product.category || setupType, product.subcategory)}
-                                  </span>
-                                  {isMultiCompatible && (
-                                    <span className="compatible-badge" title={`Also compatible with: ${compatibleTypes.filter(t => t !== setupType).join(', ')}`}>
-                                      Also: {compatibleTypes.filter(t => t !== setupType).join(', ')}
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                {product.description && (
-                                  <p className="product-description">{product.description}</p>
-                                )}
-                                
-                                <div className="product-specs">
-                                  {product.price > 0 && (
-                                    <span className="price">${product.price.toLocaleString()}</span>
-                                  )}
-                                  <span className="type">{product.type}</span>
-                                </div>
-                                
-                                <div className="product-connections">
-                                  <span className="connection-count">
-                                    {product.inputs?.length || 0} inputs, {product.outputs?.length || 0} outputs
-                                  </span>
-                                </div>
-                                
-                                {(product.modelPath || product.modelUrl) && (
-                                  <div className="model-status">
-                                    <span className="model-indicator">3D Model ✓</span>
-                                  </div>
-                                )}
-                                
-                                {product.createdBy && (
-                                  <div className="product-owner">
-                                    <span className="owner-info" title={`Created by: ${product.createdBy}`}>
-                                      Created by: {product.createdBy === currentUser?.email ? 'You' : product.createdBy}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            )}
+          </div>
+          <Button variant="ghost" onClick={onClose}>
+            <IoArrowBack size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            Back
+          </Button>
         </div>
 
-        {/* Forms */}
-        {showAddForm && (
-          <ProductManagerForm
-            onClose={() => {
-              setShowAddForm(false);
-              loadProducts();
-            }}
+        <div className="pdash__toolbar">
+          <Input
+            className="pdash__search"
+            type="search"
+            placeholder="Search products by name, brand, or description"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-        )}
-        
-        {editingProduct && (
-          <ProductManagerForm
-            editingProduct={editingProduct}
-            onClose={() => {
-              setEditingProduct(null);
-              loadProducts();
-            }}
+          <Button variant="primary" onClick={() => setShowAddForm(true)}>
+            Add Product
+          </Button>
+        </div>
+
+        {loading ? (
+          <EmptyState eyebrow="Loading" title="Fetching products…" />
+        ) : products.length === 0 ? (
+          <EmptyState
+            eyebrow="Empty"
+            title="No products yet"
+            body="Add your first product to get started."
+            action={
+              <Button variant="primary" onClick={() => setShowAddForm(true)}>
+                Add First Product
+              </Button>
+            }
           />
+        ) : totalFilteredProducts === 0 ? (
+          <EmptyState
+            eyebrow="No matches"
+            title={`No products match "${searchTerm}"`}
+            body="Try a different search term."
+          />
+        ) : (
+          <div className="pdash__sections">
+            {SETUP_TYPES.map((setupType) => {
+              const setupProducts = productsBySetupType[setupType] || [];
+              if (setupProducts.length === 0 && searchTerm) return null;
+
+              return (
+                <section key={setupType}>
+                  <SectionHeader
+                    eyebrow={setupType}
+                    title={`${setupType} Products`}
+                    action={<Chip>{setupProducts.length}</Chip>}
+                  />
+                  {setupProducts.length === 0 ? (
+                    <p className="pdash__section-empty">
+                      No {setupType.toLowerCase()} products yet.
+                    </p>
+                  ) : (
+                    <div className="pdash__grid">
+                      {setupProducts.map((p) => renderProductCard(p, setupType))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {showAddForm && (
+        <ProductManagerForm
+          onClose={() => {
+            setShowAddForm(false);
+            loadProducts();
+          }}
+        />
+      )}
+
+      {editingProduct && (
+        <ProductManagerForm
+          editingProduct={editingProduct}
+          onClose={() => {
+            setEditingProduct(null);
+            loadProducts();
+          }}
+        />
+      )}
     </div>
   );
 };
 
 export default ProductDashboard;
-

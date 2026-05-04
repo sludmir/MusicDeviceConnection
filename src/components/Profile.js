@@ -1,15 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { IoArrowBack } from 'react-icons/io5';
-import { FiArrowRight } from 'react-icons/fi';
-import { MdDelete } from 'react-icons/md';
+import { MdDelete, MdPlayArrow } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
+import {
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  Modal,
+  Tabs,
+  Select,
+  EmptyState,
+  useToast,
+} from '../ui';
 import './Profile.css';
 
-const SETUP_TYPES = ['DJ', 'Producer', 'Musician'];
+const TAB_ITEMS = [
+  { value: 'sets', label: 'SETS' },
+  { value: 'setups', label: 'SETUPS' },
+];
 
-function Profile({ userId, onBack, onSetupSelect }) {
+function formatDate(ts) {
+  if (!ts?.toDate) return '';
+  return ts.toDate().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function Profile({ userId, onSetupSelect }) {
+  const toast = useToast();
   const [profile, setProfile] = useState(null);
   const [sets, setSets] = useState([]);
   const [setups, setSetups] = useState([]);
@@ -21,139 +39,93 @@ function Profile({ userId, onBack, onSetupSelect }) {
   const [faveProduct, setFaveProduct] = useState(null);
   const [setToDelete, setSetToDelete] = useState(null);
   const [deletingSet, setDeletingSet] = useState(false);
+  const [activeTab, setActiveTab] = useState('sets');
+
   const currentUserId = auth.currentUser?.uid;
-  const isOwnProfile = currentUserId && currentUserId === userId;
+  const isOwnProfile = !!currentUserId && currentUserId === userId;
 
   useEffect(() => {
-    loadProfile();
-    loadSets();
-    loadSetups();
-    checkFollowing();
-    if (isOwnProfile) loadProducts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- functions are stable, only depend on userId/isOwnProfile
-  }, [userId, isOwnProfile]);
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        if (cancelled) return;
+        if (userSnap.exists()) {
+          setProfile(userSnap.data());
+          const followersSnap = await getDocs(collection(db, 'users', userId, 'followers'));
+          if (!cancelled) setFollowers(followersSnap.size);
+        } else {
+          setProfile({ displayName: userId.slice(0, 8), bio: '', createdAt: new Date() });
+          setFollowers(0);
+        }
 
-  // Resolve full product for fave (for 3D viewer): from products list (own) or Firestore (visiting)
+        const setsQ = query(collection(db, 'sets'), where('creatorId', '==', userId), orderBy('createdAt', 'desc'));
+        const setsSnap = await getDocs(setsQ);
+        const setsList = [];
+        setsSnap.forEach((d) => setsList.push({ id: d.id, ...d.data() }));
+        if (!cancelled) setSets(setsList);
+
+        const setupsQ = query(collection(db, 'setups'), where('ownerId', '==', userId));
+        const setupsSnap = await getDocs(setupsQ);
+        const setupsList = [];
+        setupsSnap.forEach((d) => setupsList.push({ id: d.id, ...d.data() }));
+        setupsList.sort((a, b) => {
+          const at = a.updatedAt?.toDate?.()?.getTime() ?? a.createdAt?.toDate?.()?.getTime() ?? 0;
+          const bt = b.updatedAt?.toDate?.()?.getTime() ?? b.createdAt?.toDate?.()?.getTime() ?? 0;
+          return bt - at;
+        });
+        if (!cancelled) setSetups(setupsList);
+
+        if (currentUserId && currentUserId !== userId) {
+          const me = await getDoc(doc(db, 'users', currentUserId));
+          if (!cancelled && me.exists()) {
+            setIsFollowing((me.data().following || []).includes(userId));
+          }
+        }
+
+        if (currentUserId && currentUserId === userId) {
+          const productsSnap = await getDocs(collection(db, 'products'));
+          const productsList = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          productsList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          if (!cancelled) setProducts(productsList);
+        }
+      } catch (err) {
+        console.error('Error loading profile:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId, currentUserId]);
+
   useEffect(() => {
     if (!profile?.faveProductId) {
       setFaveProduct(null);
       return;
     }
     if (isOwnProfile && products.length > 0) {
-      const p = products.find((x) => x.id === profile.faveProductId);
-      setFaveProduct(p || null);
+      setFaveProduct(products.find((x) => x.id === profile.faveProductId) || null);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const productRef = doc(db, 'products', profile.faveProductId);
-        const snap = await getDoc(productRef);
+        const snap = await getDoc(doc(db, 'products', profile.faveProductId));
         if (cancelled) return;
         setFaveProduct(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-      } catch (err) {
+      } catch {
         if (!cancelled) setFaveProduct(null);
       }
     })();
     return () => { cancelled = true; };
   }, [profile?.faveProductId, isOwnProfile, products]);
 
-  const loadProfile = async () => {
-    try {
-      const userRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setProfile(userSnap.data());
-        // Count followers from subcollection (avoids needing write on other user's doc)
-        const followersRef = collection(db, 'users', userId, 'followers');
-        const followersSnap = await getDocs(followersRef);
-        setFollowers(followersSnap.size);
-      } else {
-        const basicProfile = {
-          displayName: userId.slice(0, 8),
-          bio: '',
-          createdAt: new Date()
-        };
-        setProfile(basicProfile);
-        setFollowers(0);
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
-
-  const loadSets = async () => {
-    try {
-      setLoading(true);
-      const setsRef = collection(db, 'sets');
-      const q = query(
-        setsRef,
-        where('creatorId', '==', userId),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      const userSets = [];
-      snapshot.forEach((docSnap) => {
-        userSets.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      setSets(userSets);
-    } catch (error) {
-      console.error('Error loading sets:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSetups = async () => {
-    try {
-      const setupsRef = collection(db, 'setups');
-      const q = query(setupsRef, where('ownerId', '==', userId));
-      const snapshot = await getDocs(q);
-      const list = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      list.sort((a, b) => {
-        const at = a.updatedAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
-        const bt = b.updatedAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
-        return bt - at;
-      });
-      setSetups(list);
-    } catch (error) {
-      console.error('Error loading setups:', error);
-    }
-  };
-
-  const loadProducts = async () => {
-    try {
-      const productsRef = collection(db, 'products');
-      const snapshot = await getDocs(productsRef);
-      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setProducts(list);
-    } catch (error) {
-      console.error('Error loading products:', error);
-    }
-  };
-
-  const checkFollowing = async () => {
-    if (!currentUserId || currentUserId === userId) return;
-    try {
-      const currentUserRef = doc(db, 'users', currentUserId);
-      const currentUserSnap = await getDoc(currentUserRef);
-      if (currentUserSnap.exists()) {
-        const following = currentUserSnap.data().following || [];
-        setIsFollowing(following.includes(userId));
-      }
-    } catch (error) {
-      console.error('Error checking follow status:', error);
-    }
-  };
-
   const refreshFollowerCount = async () => {
     try {
-      const followersRef = collection(db, 'users', userId, 'followers');
-      const snap = await getDocs(followersRef);
+      const snap = await getDocs(collection(db, 'users', userId, 'followers'));
       setFollowers(snap.size);
     } catch (err) {
       console.error('Error refreshing follower count:', err);
@@ -162,54 +134,36 @@ function Profile({ userId, onBack, onSetupSelect }) {
 
   const handleFollow = async () => {
     if (!currentUserId || currentUserId === userId) return;
-    const currentUserRef = doc(db, 'users', currentUserId);
-    const targetFollowersRef = doc(db, 'users', userId, 'followers', currentUserId);
-    const currentUserSnap = await getDoc(currentUserRef);
-    const currentDisplayName = currentUserSnap.exists() ? (currentUserSnap.data().displayName || auth.currentUser?.email?.split('@')[0] || 'Someone') : 'Someone';
+    const meRef = doc(db, 'users', currentUserId);
+    const targetFollowerRef = doc(db, 'users', userId, 'followers', currentUserId);
     try {
+      const me = await getDoc(meRef);
+      const myName = me.exists() ? (me.data().displayName || auth.currentUser?.email?.split('@')[0] || 'Someone') : 'Someone';
       if (isFollowing) {
-        await updateDoc(currentUserRef, {
-          following: arrayRemove(userId)
-        });
-        await deleteDoc(targetFollowersRef);
+        await updateDoc(meRef, { following: arrayRemove(userId) });
+        await deleteDoc(targetFollowerRef);
         setIsFollowing(false);
-        await refreshFollowerCount();
       } else {
-        await updateDoc(currentUserRef, {
-          following: arrayUnion(userId)
-        });
-        await setDoc(targetFollowersRef, { createdAt: serverTimestamp() });
-        // Notify the user they have a new follower (best-effort; don't block UI)
+        await updateDoc(meRef, { following: arrayUnion(userId) });
+        await setDoc(targetFollowerRef, { createdAt: serverTimestamp() });
         try {
-          const notificationsRef = collection(db, 'users', userId, 'notifications');
-          await addDoc(notificationsRef, {
+          await addDoc(collection(db, 'users', userId, 'notifications'), {
             type: 'follow',
             fromUserId: currentUserId,
-            fromUserName: currentDisplayName,
+            fromUserName: myName,
             createdAt: serverTimestamp(),
-            read: false
+            read: false,
           });
-        } catch (notifErr) {
-          console.warn('Could not create follow notification:', notifErr);
+        } catch (e) {
+          console.warn('Could not create follow notification:', e);
         }
         setIsFollowing(true);
-        await refreshFollowerCount();
       }
-    } catch (error) {
-      console.error('Error updating follow status:', error);
+      await refreshFollowerCount();
+    } catch (err) {
+      console.error('Error updating follow status:', err);
+      toast.error('Could not update follow status.');
     }
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp?.toDate) return '';
-    const d = timestamp.toDate();
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  };
-
-  const handleDeleteSetClick = (e, set) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isOwnProfile) setSetToDelete(set);
   };
 
   const handleConfirmDeleteSet = async () => {
@@ -219,233 +173,213 @@ function Profile({ userId, onBack, onSetupSelect }) {
     }
     setDeletingSet(true);
     try {
-      const clipsRef = collection(db, 'clips');
-      const q = query(clipsRef, where('fullSetId', '==', setToDelete.id));
-      const clipsSnap = await getDocs(q);
-      const batch = clipsSnap.docs.map((d) => deleteDoc(doc(db, 'clips', d.id)));
-      await Promise.all(batch);
+      const clipsSnap = await getDocs(query(collection(db, 'clips'), where('fullSetId', '==', setToDelete.id)));
+      await Promise.all(clipsSnap.docs.map((d) => deleteDoc(doc(db, 'clips', d.id))));
       await deleteDoc(doc(db, 'sets', setToDelete.id));
       setSets((prev) => prev.filter((s) => s.id !== setToDelete.id));
+      toast.success('Set removed.');
     } catch (err) {
       console.error('Error deleting set:', err);
+      toast.error('Failed to remove set.');
     } finally {
       setDeletingSet(false);
       setSetToDelete(null);
     }
   };
 
-  const handleCancelDeleteSet = () => {
-    setSetToDelete(null);
-  };
-
   const handleFaveChange = async (productId) => {
-    if (!currentUserId || currentUserId !== userId) return;
+    if (!isOwnProfile) return;
     const product = products.find((p) => p.id === productId);
     setFaveSaving(true);
     try {
-      const userRef = doc(db, 'users', currentUserId);
-      await updateDoc(userRef, {
+      await updateDoc(doc(db, 'users', currentUserId), {
         faveProductId: productId || null,
-        faveProductName: product?.name || null
+        faveProductName: product?.name || null,
       });
       setProfile((prev) => ({
         ...prev,
         faveProductId: productId || null,
-        faveProductName: product?.name || null
+        faveProductName: product?.name || null,
       }));
-    } catch (error) {
-      console.error('Error saving fave product:', error);
+    } catch (err) {
+      console.error('Error saving fave product:', err);
+      toast.error('Could not save fave product.');
     } finally {
       setFaveSaving(false);
     }
   };
 
-  const setupsByType = SETUP_TYPES.map((type) => ({
-    type,
-    list: setups.filter((s) => (s.setupType || 'DJ') === type)
-  }));
+  const displayName = profile?.displayName || userId?.slice(0, 12) || 'User';
+
+  const setupsList = useMemo(() => setups, [setups]);
 
   return (
-    <div className="profile-container">
-      <div className="profile-header">
-        {onBack && (
-          <button className="profile-back-btn" onClick={onBack}><IoArrowBack size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Back</button>
-        )}
-        <h1>Profile</h1>
+    <div className="profile">
+      <div className="profile__inner">
+        <aside className="profile__identity">
+          <div className="profile__avatar">
+            <Avatar name={displayName} size={96} />
+          </div>
+          <h1 className="profile__name">{displayName}</h1>
+          {profile?.bio && <p className="profile__bio">{profile.bio}</p>}
+          <div className="profile__stats">
+            <div className="profile__stat">
+              <span className="profile__stat-value">{sets.length}</span>
+              <span className="profile__stat-label mono-label">Sets</span>
+            </div>
+            <div className="profile__stat">
+              <span className="profile__stat-value">{followers}</span>
+              <span className="profile__stat-label mono-label">Followers</span>
+            </div>
+            <div className="profile__stat">
+              <span className="profile__stat-value">{setups.length}</span>
+              <span className="profile__stat-label mono-label">Setups</span>
+            </div>
+          </div>
+          {!isOwnProfile && currentUserId && (
+            <Button
+              variant={isFollowing ? 'secondary' : 'primary'}
+              onClick={handleFollow}
+              size="md"
+              className="profile__follow"
+            >
+              {isFollowing ? 'Following' : 'Follow'}
+            </Button>
+          )}
+
+          <div className="profile__divider" />
+
+          <div className="profile__fave">
+            <span className="mono-label profile__fave-eyebrow">Fave product</span>
+            {isOwnProfile && (
+              <Select
+                aria-label="Choose a fave product"
+                value={profile?.faveProductId || ''}
+                onChange={(e) => handleFaveChange(e.target.value || null)}
+                disabled={faveSaving}
+              >
+                <option value="">— None —</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name || p.id}</option>
+                ))}
+              </Select>
+            )}
+            {profile?.faveProductId && faveProduct ? (
+              <>
+                <div className="profile__fave-name">{profile.faveProductName || faveProduct.name}</div>
+                <div className="profile__fave-viewer">
+                  <FaveProductViewer product={faveProduct} />
+                </div>
+              </>
+            ) : !isOwnProfile ? (
+              <div className="profile__fave-empty">No fave product set.</div>
+            ) : null}
+          </div>
+        </aside>
+
+        <main className="profile__main">
+          <Tabs items={TAB_ITEMS} value={activeTab} onChange={setActiveTab} />
+
+          {loading ? (
+            <div className="profile__loading">Loading…</div>
+          ) : activeTab === 'sets' ? (
+            sets.length === 0 ? (
+              <EmptyState
+                eyebrow="NO SETS"
+                title="No live sets posted yet"
+                body={isOwnProfile ? "Post a full set from the feed to see it here." : "This user hasn't posted yet."}
+              />
+            ) : (
+              <div className="profile__sets-grid">
+                {sets.map((set) => (
+                  <a
+                    key={set.id}
+                    href={set.videoURL || '#'}
+                    target={set.videoURL ? '_blank' : undefined}
+                    rel={set.videoURL ? 'noopener noreferrer' : undefined}
+                    onClick={(e) => { if (!set.videoURL) e.preventDefault(); }}
+                    className="profile-set"
+                  >
+                    <div className="profile-set__thumb">
+                      {set.videoURL ? (
+                        <video src={set.videoURL} muted preload="metadata" />
+                      ) : (
+                        <div className="profile-set__placeholder">No preview</div>
+                      )}
+                      <div className="profile-set__overlay">
+                        <div className="profile-set__play"><MdPlayArrow size={24} /></div>
+                      </div>
+                      {isOwnProfile && (
+                        <button
+                          type="button"
+                          className="profile-set__delete"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSetToDelete(set); }}
+                          aria-label="Remove this set"
+                        >
+                          <MdDelete size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="profile-set__meta">
+                      <div className="profile-set__title">{set.title || 'Untitled set'}</div>
+                      <div className="profile-set__date mono-label">{formatDate(set.createdAt)}</div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )
+          ) : (
+            setupsList.length === 0 ? (
+              <EmptyState
+                eyebrow="NO SETUPS"
+                title="No saved setups"
+                body={isOwnProfile ? "Build a setup from the Hub to see it here." : "This user hasn't saved any setups yet."}
+              />
+            ) : (
+              <div className="profile__setups-grid">
+                {setupsList.map((setup) => (
+                  <Card
+                    key={setup.id}
+                    padding="md"
+                    className="profile-setup-card"
+                    onClick={() => onSetupSelect && onSetupSelect(setup)}
+                  >
+                    <div className="profile-setup-card__top">
+                      <Chip>{(setup.setupType || 'DJ').toUpperCase()}</Chip>
+                      {setup.isMainSetup && <Chip>MAIN</Chip>}
+                    </div>
+                    <h4 className="profile-setup-card__name">{setup.name || 'Untitled Setup'}</h4>
+                    <div className="profile-setup-card__meta mono-label">
+                      {(setup.devices?.length || 0)} DEVICES
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          )}
+        </main>
       </div>
 
-      {loading ? (
-        <div className="profile-loading">Loading...</div>
-      ) : (
-        <div className="profile-content">
-          <div className="profile-info">
-            <div className="profile-avatar">
-              {profile?.displayName?.[0]?.toUpperCase() || userId?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="profile-details">
-              <h2>{profile?.displayName || userId?.slice(0, 12) || 'User'}</h2>
-              {profile?.bio && <p className="profile-bio">{profile.bio}</p>}
-              <div className="profile-stats">
-                <div className="profile-stat">
-                  <div className="profile-stat-value">{sets.length}</div>
-                  <div className="profile-stat-label">Sets</div>
-                </div>
-                <div className="profile-stat">
-                  <div className="profile-stat-value">{followers}</div>
-                  <div className="profile-stat-label">Followers</div>
-                </div>
-              </div>
-              {currentUserId && currentUserId !== userId && (
-                <button
-                  className={`profile-follow-btn ${isFollowing ? 'following' : ''}`}
-                  onClick={handleFollow}
-                >
-                  {isFollowing ? 'Following' : 'Follow'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="profile-setups">
-            <h3>Setups</h3>
-            {setups.length === 0 ? (
-              <div className="profile-empty">No setups saved yet</div>
-            ) : (
-              <div className="profile-setups-by-type">
-                {setupsByType.map(({ type, list }) => (
-                  <div key={type} className="profile-setup-type-block">
-                    <h4 className="profile-setup-type-title">{type}</h4>
-                    {list.length === 0 ? (
-                      <div className="profile-setup-empty">No {type} setups</div>
-                    ) : (
-                      <div className="profile-setup-cards">
-                        {list.map((setup) => (
-                          <button
-                            key={setup.id}
-                            type="button"
-                            className="profile-setup-card"
-                            onClick={() => onSetupSelect && onSetupSelect(setup)}
-                          >
-                            <div className="profile-setup-name">{setup.name || `Unnamed ${type}`}</div>
-                            <div className="profile-setup-meta">
-                              {Array.isArray(setup.devices) ? setup.devices.length : 0} device(s)
-                              {setup.isMainSetup && <span className="profile-setup-main">Main</span>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="profile-sets">
-            <h3>Recently uploaded live sets</h3>
-            {sets.length === 0 ? (
-              <div className="profile-empty">No sets uploaded yet</div>
-            ) : (
-              <div className="profile-sets-grid">
-                {sets.map((set) => (
-                  <div key={set.id} className="profile-set-card-wrap">
-                    <a
-                      className="profile-set-card"
-                      href={set.videoURL || '#'}
-                      target={set.videoURL ? '_blank' : undefined}
-                      rel={set.videoURL ? 'noopener noreferrer' : undefined}
-                      onClick={(e) => { if (!set.videoURL) e.preventDefault(); }}
-                    >
-                      {set.videoURL ? (
-                        <video
-                          src={set.videoURL}
-                          className="profile-set-thumbnail"
-                          muted
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        <div className="profile-set-placeholder">No preview</div>
-                      )}
-                      <div className="profile-set-info">
-                        <div className="profile-set-title">{set.title || 'Untitled Set'}</div>
-                        <div className="profile-set-date">{formatDate(set.createdAt)}</div>
-                        {set.videoURL && <div className="profile-set-link-hint">Watch full set <FiArrowRight size={14} style={{ verticalAlign: 'middle' }} /></div>}
-                      </div>
-                    </a>
-                    {isOwnProfile && (
-                      <button
-                        type="button"
-                        className="profile-set-delete-btn"
-                        onClick={(e) => handleDeleteSetClick(e, set)}
-                        aria-label="Remove this set"
-                        title="Remove this set from your profile"
-                      >
-                        <MdDelete size={20} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="profile-fave">
-            <h3>{isOwnProfile ? 'Your fave product' : 'Fave product'}</h3>
-            {isOwnProfile ? (
-              <>
-                <p className="profile-fave-hint">Choose one product to showcase on your profile.</p>
-                <div className="profile-fave-picker">
-                  <select
-                    value={profile?.faveProductId || ''}
-                    onChange={(e) => handleFaveChange(e.target.value || null)}
-                    disabled={faveSaving}
-                    className="profile-fave-select"
-                  >
-                    <option value="">— None —</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name || p.id}</option>
-                    ))}
-                  </select>
-                  {faveSaving && <span className="profile-fave-saving">Saving…</span>}
-                </div>
-              </>
-            ) : null}
-            {(profile?.faveProductName || profile?.faveProductId) ? (
-              <>
-                <div className="profile-fave-current">
-                  {isOwnProfile ? 'Current: ' : ''}<strong>{profile.faveProductName || 'Fave product'}</strong>
-                </div>
-                {faveProduct && (
-                  <FaveProductViewer product={faveProduct} />
-                )}
-              </>
-            ) : (
-              !isOwnProfile && <div className="profile-empty profile-fave-empty">No fave product set</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Delete set confirm */}
-      {setToDelete && (
-        <div className="profile-delete-set-overlay" onClick={handleCancelDeleteSet}>
-          <div className="profile-delete-set-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="profile-delete-set-title">Remove this live set?</h3>
-            <p className="profile-delete-set-message">
-              This set will be removed from your profile and its clips will be removed from the feed. The video file will not be deleted from storage.
-            </p>
-            <div className="profile-delete-set-actions">
-              <button type="button" className="profile-delete-set-cancel" onClick={handleCancelDeleteSet} disabled={deletingSet}>
-                Cancel
-              </button>
-              <button type="button" className="profile-delete-set-confirm" onClick={handleConfirmDeleteSet} disabled={deletingSet}>
-                {deletingSet ? 'Removing…' : 'Remove'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!setToDelete}
+        onClose={() => !deletingSet && setSetToDelete(null)}
+        title="Remove this live set?"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSetToDelete(null)} disabled={deletingSet}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDeleteSet} loading={deletingSet}>
+              Remove
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>
+          This set will be removed from your profile and its clips will be removed from the feed.
+          The video file will not be deleted from storage.
+        </p>
+      </Modal>
     </div>
   );
 }
