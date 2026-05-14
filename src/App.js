@@ -11,6 +11,8 @@ import { initializeDatabase } from './firebaseUtils';
 import AppShell from './AppShell';
 import ProductImporter from './ProductImporter';
 import SetupTimelineImport from './SetupTimeline';
+import { getDefaultVariant } from './utils/sceneVariants';
+import SceneVariantSwitcherImport from './components/SceneVariantSwitcher';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
 import SettingsImport from './Settings';
@@ -33,6 +35,7 @@ const ThreeScene = lazy(() =>
 );
 const unwrap = (m) => (m && typeof m.default === 'function' ? m.default : m);
 const SetupTimeline = unwrap(SetupTimelineImport);
+const SceneVariantSwitcher = unwrap(SceneVariantSwitcherImport);
 const SaveSetupButton = unwrap(SaveSetupButtonImport);
 const ConnectionGuideButton = unwrap(ConnectionGuideButtonImport);
 const ProductDashboard = unwrap(ProductDashboardImport);
@@ -52,6 +55,7 @@ function isValidComponent(C) {
 }
 const APP_COMPONENTS = [
   ['SetupTimeline', SetupTimeline],
+  ['SceneVariantSwitcher', SceneVariantSwitcher],
   ['SaveSetupButton', SaveSetupButton],
   ['ProductDashboard', ProductDashboard],
   ['MySets', MySets],
@@ -88,6 +92,7 @@ async function testFirebaseConnection() {
 function App() {
   const [user, setUser] = useState(null);
   const [selectedSetup, setSelectedSetup] = useState(null);
+  const [sceneVariant, setSceneVariant] = useState(null);
   const [setupDevices, setSetupDevices] = useState({ DJ: [], Producer: [], Musician: [] });
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +115,12 @@ function App() {
       localStorage.setItem('livet-set-theme', theme);
     } catch (_) {}
   }, [theme]);
+
+  useEffect(() => {
+    if (selectedSetup && sceneVariant === null) {
+      setSceneVariant(getDefaultVariant(selectedSetup));
+    }
+  }, [selectedSetup, sceneVariant]);
 
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
@@ -242,6 +253,8 @@ function App() {
         toggleTheme={toggleTheme}
         selectedSetup={selectedSetup}
         setSelectedSetup={setSelectedSetup}
+        sceneVariant={sceneVariant}
+        setSceneVariant={setSceneVariant}
         setupDevices={setupDevices}
         setSetupDevices={setSetupDevices}
         actualDevices={actualDevices}
@@ -266,6 +279,8 @@ function AppRoutes({
   toggleTheme,
   selectedSetup,
   setSelectedSetup,
+  sceneVariant,
+  setSceneVariant,
   setupDevices,
   setSetupDevices,
   actualDevices,
@@ -312,6 +327,7 @@ function AppRoutes({
     setSelectedSetup(type);
     setActualDevices(setup.devices || []);
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
+    setSceneVariant(setup.sceneVariant || getDefaultVariant(type));
     navigate('/builder');
   };
 
@@ -542,6 +558,8 @@ function AppRoutes({
                       setupType={selectedSetup}
                       onDevicesChange={handleDevicesChange}
                       onCategoryToggle={handleThreeSceneToggleSetup}
+                      sceneVariant={sceneVariant}
+                      onSceneVariantChange={setSceneVariant}
                     />
                   </div>
                   <SetupTimeline
@@ -551,6 +569,13 @@ function AppRoutes({
                     selectedCategory={selectedCategory}
                     onToggleCategory={handleCategoryToggle}
                   />
+                  {SceneVariantSwitcher && (
+                    <SceneVariantSwitcher
+                      setupType={selectedSetup}
+                      value={sceneVariant || getDefaultVariant(selectedSetup)}
+                      onChange={setSceneVariant}
+                    />
+                  )}
                 </div>
               </Suspense>
             ) : (
