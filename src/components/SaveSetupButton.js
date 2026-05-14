@@ -5,7 +5,7 @@ import { buildMobileDiagram } from '../utils/buildMobileDiagram';
 import { useToast } from '../ui';
 import './SaveSetupButton.css';
 
-function SaveSetupButton({ currentDevices, setupType }) {
+function SaveSetupButton({ currentDevices, setupType, sceneVariant }) {
   const toast = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [setupName, setSetupName] = useState('');
@@ -75,6 +75,7 @@ function SaveSetupButton({ currentDevices, setupType }) {
         devices: devicesData,
         mobileDiagram,
         isMainSetup: isMainSetup,
+        sceneVariant: sceneVariant || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };

@@ -550,7 +550,7 @@ function AppRoutes({
                         Feed
                       </button>
                       <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
-                      <SaveSetupButton currentDevices={actualDevices} setupType={selectedSetup} />
+                      <SaveSetupButton currentDevices={actualDevices} setupType={selectedSetup} sceneVariant={sceneVariant} />
                     </div>
                     <ThreeScene
                       devices={setupDevices[selectedSetup]}
