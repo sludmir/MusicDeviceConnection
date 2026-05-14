@@ -1,0 +1,27 @@
+/* src/components/SceneVariantSwitcher.css */
+.svs-root {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 2500;
+}
+.svs-trigger {
+  background: rgba(20,23,28,0.92); color: #fff;
+  border: 1px solid #2a313b; border-radius: 999px;
+  padding: 8px 16px; font-size: 13px;
+  display: inline-flex; gap: 8px; align-items: center; cursor: pointer;
+}
+.svs-trigger:hover { background: #232932; }
+.svs-caret { font-size: 10px; transition: transform 0.15s; }
+.svs-root.is-open .svs-caret { transform: rotate(180deg); }
+.svs-menu {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  margin: 0 0 8px; padding: 6px;
+  list-style: none;
+  background: rgba(20,23,28,0.96); border: 1px solid #2a313b; border-radius: 12px;
+  min-width: 200px;
+  box-shadow: 0 -6px 18px rgba(0,0,0,0.35);
+}
+.svs-item {
+  padding: 8px 12px; border-radius: 8px; color: #e3e6ec; cursor: pointer; font-size: 13px;
+}
+.svs-item:hover { background: #1f242d; }
+.svs-item.is-active { background: #15303d; color: #00a2ff; }
