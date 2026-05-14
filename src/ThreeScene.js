@@ -13,7 +13,6 @@ import ModelPreviewPanel from './ModelPreviewPanel';
 import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
 import MobileNavigation from './MobileNavigation';
-import { getConnectionSuggestions } from './chatGPTService';
 import { computeAutoScale } from './dimensionScaler';
 import { buildEnvironment } from './scenes';
 import { getDefaultVariant } from './utils/sceneVariants';
@@ -53,17 +52,12 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [basicSetupComplete, setBasicSetupComplete] = useState(false);
     const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
     const effectiveVariant = sceneVariant || getDefaultVariant(currentSetupType);
-    const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
-    const [connectionAdvice, setConnectionAdvice] = useState('');
-    const [isAdviceLoading, setIsAdviceLoading] = useState(false);
-    const [hasQuotaError, setHasQuotaError] = useState(false);
     const [showMiniProfile, setShowMiniProfile] = useState(false);
     const [miniProfileDevice, setMiniProfileDevice] = useState(null);
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
     const [cameraView, setCameraView] = useState('set');
-    const [lastApiCall, setLastApiCall] = useState(0);
     const [highlightedCategory, setHighlightedCategory] = useState(null);
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
@@ -3035,38 +3029,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         setShowSuggestionForm(true);
     };
 
-    useEffect(() => {
-      // Prevent API calls if we have a quota error
-      if (hasQuotaError) {
-        return;
-      }
-
-      // Debounce API calls - only call if it's been at least 5 seconds since last call
-      const now = Date.now();
-      if (now - lastApiCall < 5000) {
-        return;
-      }
-
-      if (placedDevicesList && placedDevicesList.length >= 3) {
-        setIsAdviceLoading(true);
-        setLastApiCall(now);
-        
-        getConnectionSuggestions(placedDevicesList)
-          .then(setConnectionAdvice)
-          .catch((error) => {
-            console.error('ChatGPT API error:', error);
-            if (error.message.includes('quota') || error.message.includes('429')) {
-              setHasQuotaError(true);
-              setConnectionAdvice('API quota exceeded. Please try again later or upgrade your OpenAI plan.');
-            } else {
-              setConnectionAdvice('Could not get connection advice. Please try again.');
-            }
-          })
-          .finally(() => setIsAdviceLoading(false));
-      } else {
-        setConnectionAdvice('');
-      }
-    }, [placedDevicesList, hasQuotaError, lastApiCall]);
 
     // Handle category toggle for device visibility
     const handleCategoryToggle = (categoryId) => {
@@ -3423,90 +3385,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     />
                 )}
 
-                {/* Setup List Box - Bottom right, only on desktop */}
-                {!isMobile && (
-                    <div className={`setup-list-box ${isSetupListExpanded ? 'expanded' : ''}`}
-                        style={{
-                            position: 'fixed',
-                            right: 'max(24px, env(safe-area-inset-right))',
-                            bottom: 'max(100px, env(safe-area-inset-bottom))',
-                            maxHeight: isSetupListExpanded ? '70vh' : '48px',
-                            overflow: 'hidden',
-                            transition: 'max-height 0.3s ease'
-                        }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            marginBottom: isSetupListExpanded ? '12px' : '0'
-                        }}
-                        onClick={() => setIsSetupListExpanded(!isSetupListExpanded)}>
-                            <h3>Current Setup</h3>
-                            <span style={{
-                                transform: isSetupListExpanded ? 'rotate(180deg)' : 'rotate(0)',
-                                transition: 'transform 0.3s ease'
-                            }}>▲</span>
-                        </div>
-                        {isSetupListExpanded && (
-                            <div className="setup-list-box-inner" style={{
-                                overflowY: 'auto',
-                                maxHeight: 'calc(70vh - 80px)',
-                                paddingRight: '4px'
-                            }}>
-                                <div className="fade-in">
-                                    {placedDevicesList.map((device) => (
-                                        <div key={device.uniqueId} className="setup-list-item">
-                                            <span>{device.name}</span>
-                                            <button onClick={() => removeDevice(device.uniqueId)}>Remove</button>
-                                        </div>
-                                    ))}
-                                    {placedDevicesList.length === 0 && (
-                                        <div style={{
-                                            textAlign: 'center',
-                                            opacity: 0.7,
-                                            padding: '12px 0'
-                                        }}>
-                                            No devices added yet
-                                        </div>
-                                    )}
-                                </div>
-                                <div style={{ marginTop: '16px' }}>
-                                    <h4 style={{ color: '#89CFF0', marginBottom: '8px' }}>Connection Guide</h4>
-                                    {placedDevicesList.length < 3 ? (
-                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>
-                                            Add at least 3 devices to get connection advice
-                                        </div>
-                                    ) : hasQuotaError ? (
-                                        <div>
-                                            <div style={{ color: '#ff6b6b', marginBottom: '8px' }}>
-                                                {connectionAdvice}
-                                            </div>
-                                            <button
-                                                onClick={() => setHasQuotaError(false)}
-                                                style={{
-                                                    background: 'rgba(0, 162, 255, 0.2)',
-                                                    border: '1px solid rgba(0, 162, 255, 0.3)',
-                                                    color: '#00a2ff',
-                                                    padding: '4px 8px',
-                                                    fontSize: '12px',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                Try Again
-                                            </button>
-                                        </div>
-                                    ) : isAdviceLoading ? (
-                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading connection advice...</div>
-                                    ) : (
-                                        <div style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{connectionAdvice}</div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Camera Controls - Set / Connections - Only show on desktop */}
                 {!isMobile && (
