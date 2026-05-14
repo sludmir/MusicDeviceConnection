@@ -1,0 +1,29 @@
+/* src/components/DeviceHoverMenu.css */
+.dhm-anchor {
+  position: absolute;
+  transform: translate(-50%, -110%);
+  z-index: 3000;
+  pointer-events: auto;
+}
+.dhm-bubble {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(20, 23, 28, 0.92);
+  border: 1px solid #2a313b; border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  color: #fff;
+  white-space: nowrap;
+}
+.dhm-label { font-size: 12px; color: #c8cdd6; }
+.dhm-actions { display: flex; gap: 8px; }
+.dhm-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #1b1f26; border: 1px solid #2a313b; color: #fff;
+  font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.dhm-btn:hover { background: #232932; }
+.dhm-remove { color: #ff5566; }
+.dhm-remove:hover { background: #3a1f24; border-color: #ff5566; }
+.dhm-swap { color: #00a2ff; }
+.dhm-swap:hover { background: #15303d; border-color: #00a2ff; }
