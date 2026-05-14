@@ -17,7 +17,7 @@ import { computeAutoScale } from './dimensionScaler';
 import { buildEnvironment } from './scenes';
 import { getDefaultVariant } from './utils/sceneVariants';
 
-function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCategoryToggle, sceneVariant, onSceneVariantChange }) {
+function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneVariant, onSceneVariantChange }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -58,7 +58,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [miniProfileDevice, setMiniProfileDevice] = useState(null);
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
     const [cameraView, setCameraView] = useState('set');
-    const [highlightedCategory, setHighlightedCategory] = useState(null);
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
     const [menuDevice, setMenuDevice] = useState(null);
@@ -3030,18 +3029,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     };
 
 
-    // Handle category toggle for device visibility
-    const handleCategoryToggle = (categoryId) => {
-        setHighlightedCategory(prev => prev === categoryId ? null : categoryId);
-    };
-
-    // Expose the toggle function to parent (only once)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (onCategoryToggle) {
-            onCategoryToggle(handleCategoryToggle);
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (showMiniProfile && miniProfileDevice?.uniqueId) {
@@ -3064,94 +3051,6 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens, zoom to device
     }, [showMiniProfile]);
 
-    useEffect(() => {
-        if (!sceneRef.current || placedDevicesList.length === 0) return;
-
-        placedDevicesList.forEach(device => {
-            const deviceRef = devicesRef.current[device.uniqueId];
-            if (!deviceRef?.model) return;
-
-            const deviceCategory = getDeviceCategory(device);
-            const isHighlighted = highlightedCategory && deviceCategory === highlightedCategory;
-
-            deviceRef.model.visible = true;
-            deviceRef.model.traverse(child => {
-                if (!child.isMesh) return;
-                if (isHighlighted) {
-                    if (!child.userData._origEmissive) {
-                        child.userData._origEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0, 0, 0);
-                        child.userData._origEmissiveIntensity = child.material.emissiveIntensity ?? 0;
-                    }
-                    child.material.emissive = new THREE.Color(0x00a2ff);
-                    child.material.emissiveIntensity = 0.35;
-                } else if (child.userData._origEmissive) {
-                    child.material.emissive = child.userData._origEmissive;
-                    child.material.emissiveIntensity = child.userData._origEmissiveIntensity;
-                    delete child.userData._origEmissive;
-                    delete child.userData._origEmissiveIntensity;
-                }
-            });
-        });
-
-        if (rendererRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getDeviceCategory is stable within a setupType
-    }, [highlightedCategory, placedDevicesList]);
-
-    const getDeviceCategory = (device) => {
-        const name = (device.name || '').toLowerCase();
-        const sub = (device.subcategory || '').toLowerCase();
-        const type = (device.type || '').toLowerCase();
-        const spot = (device.spotType || '').toLowerCase();
-
-        const spotMap = {
-            middle: 'mixers', middle_back: 'mixers',
-            middle_left: 'players', middle_right: 'players', far_left: 'players', far_right: 'players',
-            middle_left_inner: 'players', middle_right_inner: 'players',
-            fx_top: 'effects', fx_left: 'effects', fx_right: 'effects', fx_front: 'effects',
-            speaker_left: 'speakers', speaker_right: 'speakers',
-            desk_center: 'audio-interface', desk_left: 'controllers', desk_right: 'controllers',
-            rack_left_1: 'effects', rack_left_2: 'effects', rack_left_3: 'effects', rack_left_4: 'effects',
-            rack_right_1: 'effects', rack_right_2: 'effects', rack_right_3: 'effects', rack_right_4: 'effects',
-            monitor_left: 'monitors', monitor_right: 'monitors',
-            stage_center: 'instruments', stage_left: 'instruments', stage_right: 'instruments',
-            stage_back_left: 'instruments', stage_back_right: 'instruments', stage_back_center: 'instruments',
-            pedal_1: 'effects', pedal_2: 'effects', pedal_3: 'effects', pedal_4: 'effects',
-            amp_left: 'amplifiers', amp_right: 'amplifiers',
-        };
-
-        if (currentSetupType === 'DJ') {
-            if (sub === 'players' || sub === 'mixers' || sub === 'effects' || sub === 'speakers' || sub === 'cables' || sub === 'accessories') return sub;
-            if (name.includes('djm') || name.includes('mixer') || name.includes('xone') || type.includes('mixer')) return 'mixers';
-            if (name.includes('cdj') || name.includes('player') || name.includes('turntable') || name.includes('xdj') || name.includes('ddj') || type.includes('player') || type.includes('controller')) return 'players';
-            if (name.includes('rmx') || name.includes('sp-1') || name.includes('effect') || type.includes('fx') || type.includes('effect')) return 'effects';
-            if (name.includes('speaker') || name.includes('monitor') || name.includes('pa ') || type.includes('speaker')) return 'speakers';
-            if (name.includes('cable') || name.includes('rca') || name.includes('xlr') || type.includes('cable')) return 'cables';
-            if (name.includes('headphone') || name.includes('case') || name.includes('laptop') || type.includes('headphone')) return 'accessories';
-        }
-        if (currentSetupType === 'Producer') {
-            if (sub === 'audio-interface' || sub === 'synthesizers' || sub === 'controllers' || sub === 'monitors' || sub === 'microphones' || sub === 'software') return sub;
-            if (name.includes('interface') || name.includes('focusrite') || name.includes('scarlett') || name.includes('apollo') || type.includes('interface')) return 'audio-interface';
-            if (name.includes('synth') || name.includes('moog') || name.includes('korg') || type.includes('synth')) return 'synthesizers';
-            if (name.includes('controller') || name.includes('midi') || name.includes('pad') || name.includes('push') || type.includes('controller')) return 'controllers';
-            if (name.includes('monitor') || name.includes('speaker') || name.includes('genelec') || name.includes('krk') || type.includes('monitor')) return 'monitors';
-            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
-            if (name.includes('daw') || name.includes('laptop') || name.includes('software') || type.includes('daw')) return 'software';
-        }
-        if (currentSetupType === 'Musician') {
-            if (sub === 'instruments' || sub === 'amplifiers' || sub === 'effects' || sub === 'microphones' || sub === 'cables' || sub === 'accessories') return sub;
-            if (name.includes('guitar') || name.includes('bass') || name.includes('keyboard') || name.includes('piano') || name.includes('drum') || name.includes('synth') || type.includes('guitar') || type.includes('bass') || type.includes('drum')) return 'instruments';
-            if (name.includes('amp') || name.includes('amplifier') || name.includes('combo') || name.includes('cabinet') || type.includes('amp')) return 'amplifiers';
-            if (name.includes('pedal') || name.includes('stomp') || name.includes('effect') || name.includes('overdrive') || name.includes('delay') || name.includes('reverb') || type.includes('pedal') || type.includes('effect')) return 'effects';
-            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
-            if (name.includes('cable') || type.includes('cable')) return 'cables';
-            if (name.includes('stand') || name.includes('case') || name.includes('tuner') || type.includes('stand')) return 'accessories';
-        }
-
-        if (spot && spotMap[spot]) return spotMap[spot];
-        return 'accessories';
-    };
 
     return (
         <>
