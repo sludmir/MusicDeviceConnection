@@ -1,0 +1,38 @@
+/* src/components/ProductSelectorModal.css */
+.psm-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; z-index: 4000;
+}
+.psm-modal {
+  width: min(880px, 92vw); max-height: 86vh; overflow: hidden;
+  background: #14171c; color: #fff; border-radius: 14px;
+  display: flex; flex-direction: column;
+}
+.psm-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; }
+.psm-header h2 { margin: 0; font-size: 18px; }
+.psm-close { background: transparent; border: 0; color: #fff; font-size: 24px; cursor: pointer; }
+.psm-controls { display: flex; gap: 12px; padding: 0 20px 12px; align-items: center; }
+.psm-search {
+  flex: 1; background: #1c2128; border: 1px solid #2a313b; color: #fff;
+  border-radius: 8px; padding: 8px 12px; font-size: 14px;
+}
+.psm-show-all { display: flex; gap: 6px; align-items: center; font-size: 13px; color: #c8cdd6; }
+.psm-grid {
+  list-style: none; margin: 0; padding: 12px 20px 20px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px; overflow-y: auto;
+}
+.psm-card {
+  background: #1b1f26; border: 1px solid #262c36; border-radius: 10px;
+  padding: 12px; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+.psm-card:hover { border-color: #3a4658; background: #1f242d; }
+.psm-card.is-current { border-color: #00a2ff; }
+.psm-thumb { width: 100%; height: 90px; object-fit: contain; }
+.psm-name { font-size: 13px; text-align: center; color: #e3e6ec; }
+.psm-badge {
+  position: absolute; top: 6px; right: 6px;
+  background: #00a2ff; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 6px;
+}
+.psm-empty { grid-column: 1 / -1; text-align: center; color: #8a91a0; padding: 24px; }
