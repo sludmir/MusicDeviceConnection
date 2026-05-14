@@ -11,6 +11,7 @@ import { updateAllModelPaths, getStorageModelURL } from './firebaseUtils'; // Ad
 import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
 import ProductSelectorModal from './components/ProductSelectorModal';
+import DeviceHoverMenu from './components/DeviceHoverMenu';
 import MobileNavigation from './MobileNavigation';
 import { getConnectionSuggestions } from './chatGPTService';
 import { computeAutoScale } from './dimensionScaler';
@@ -66,6 +67,11 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [highlightedCategory, setHighlightedCategory] = useState(null);
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
+    const [menuDevice, setMenuDevice] = useState(null);
+    const [menuScreenPos, setMenuScreenPos] = useState({ x: 0, y: 0 });
+    const hoveredDeviceUniqueIdRef = useRef(null);
+    const hoverHighlightStateRef = useRef(new Map());
+    const menuDeviceRef = useRef(null);
 
     // Removed unused PRODUCT_TYPES constant
 
@@ -1521,10 +1527,24 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 setSceneInitialized(true);
 
                 // Animation loop
+                let lastMenuPos = { x: -9999, y: -9999 };
                 const animate = () => {
             requestAnimationFrame(animate);
             controls.update();
             renderer.render(scene, camera);
+            // Keep hover menu anchor synced while menu is open (only update when moved > 1px)
+            if (menuDeviceRef.current) {
+                const uid = menuDeviceRef.current.uniqueId;
+                const newPos = projectMenuAnchor(uid);
+                const dx = newPos.x - lastMenuPos.x;
+                const dy = newPos.y - lastMenuPos.y;
+                if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                    lastMenuPos = newPos;
+                    setMenuScreenPos(newPos);
+                }
+            } else {
+                lastMenuPos = { x: -9999, y: -9999 };
+            }
         };
         animate();
 
@@ -2489,23 +2509,43 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(mouse, cameraRef.current);
 
-            // When not mapping connections, check for click on a placed device first (open product profile)
+            const isClick = event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current);
+            const isMove = event.type === 'mousemove';
+
+            // When not mapping connections, check for hit on a placed device
             if (!isConnectionMapping) {
                 const deviceMeshes = Object.values(devicesRef.current).map(r => r.model).filter(Boolean);
                 if (deviceMeshes.length > 0) {
                     const deviceHits = raycaster.intersectObjects(deviceMeshes, true);
-                    if (deviceHits.length > 0) {
+
+                    // --- Hover highlight (mousemove only) ---
+                    if (isMove) {
+                        let newHoverId = null;
+                        if (deviceHits.length > 0) {
+                            let node = deviceHits[0].object;
+                            while (node && !node.userData?.uniqueId) node = node.parent;
+                            newHoverId = node?.userData?.uniqueId || null;
+                        }
+                        if (newHoverId !== hoveredDeviceUniqueIdRef.current) {
+                            if (hoveredDeviceUniqueIdRef.current) clearHoverHighlight(hoveredDeviceUniqueIdRef.current);
+                            if (newHoverId) applyHoverHighlight(newHoverId);
+                            hoveredDeviceUniqueIdRef.current = newHoverId;
+                            if (rendererRef.current?.domElement) {
+                                rendererRef.current.domElement.style.cursor = newHoverId ? 'pointer' : '';
+                            }
+                        }
+                    }
+
+                    // --- Click: open hover menu ---
+                    if (isClick && deviceHits.length > 0) {
                         let obj = deviceHits[0].object;
                         while (obj && !obj.userData?.uniqueId) obj = obj.parent;
                         const uniqueId = obj?.userData?.uniqueId;
                         if (uniqueId) {
                             const ref = devicesRef.current[uniqueId];
-                            if (ref?.data && (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current))) {
-                                setShowSearch(false);
-                                setSearchMode('');
-                                setMiniProfileDevice(ref.data);
-                                setShowMiniProfile(true);
-                                setEditConnectionsMode(false);
+                            if (ref?.data) {
+                                setMenuDevice(ref.data);
+                                setMenuScreenPos(projectMenuAnchor(uniqueId));
                                 return;
                             }
                         }
@@ -2525,7 +2565,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                 hoveredSquare.material.color.setHex(hoveredSquare.userData.hoverColor);
                 hoveredSquare.material.opacity = 0.6;
 
-                if (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current)) {
+                if (isClick) {
                     const clickedIndex = intersects[0].object.userData.index;
                     handleGhostSquareClick(clickedIndex);
                 }
@@ -2611,6 +2651,68 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
             }
         }
     };
+
+    // Hover highlight helpers
+    const applyHoverHighlight = (uniqueId) => {
+        const entry = devicesRef.current[uniqueId];
+        if (!entry || !entry.model) return;
+        const saved = [];
+        entry.model.traverse((node) => {
+            if (node.isMesh && node.material && 'emissive' in node.material) {
+                saved.push({ mesh: node, emissive: node.material.emissive.clone(), intensity: node.material.emissiveIntensity });
+                node.material.emissive.setHex(0x00a2ff);
+                node.material.emissiveIntensity = 0.35;
+            }
+        });
+        hoverHighlightStateRef.current.set(uniqueId, saved);
+    };
+
+    const clearHoverHighlight = (uniqueId) => {
+        const saved = hoverHighlightStateRef.current.get(uniqueId);
+        if (!saved) return;
+        saved.forEach(({ mesh, emissive, intensity }) => {
+            if (mesh.material && 'emissive' in mesh.material) {
+                mesh.material.emissive.copy(emissive);
+                mesh.material.emissiveIntensity = intensity;
+            }
+        });
+        hoverHighlightStateRef.current.delete(uniqueId);
+    };
+
+    const projectMenuAnchor = (uniqueId) => {
+        const entry = devicesRef.current[uniqueId];
+        if (!entry?.model || !cameraRef.current || !mountRef.current) return { x: 0, y: 0 };
+        const box = new THREE.Box3().setFromObject(entry.model);
+        const top = new THREE.Vector3(
+            (box.min.x + box.max.x) / 2,
+            box.max.y,
+            (box.min.z + box.max.z) / 2
+        );
+        top.project(cameraRef.current);
+        const rect = mountRef.current.getBoundingClientRect();
+        return {
+            x: rect.left + ((top.x + 1) / 2) * rect.width,
+            y: rect.top + ((1 - top.y) / 2) * rect.height,
+        };
+    };
+
+    // Keep menuDeviceRef in sync for use inside animation loop closures
+    useEffect(() => {
+        menuDeviceRef.current = menuDevice;
+    }, [menuDevice]);
+
+    // Dismiss hover menu on Escape or outside click
+    useEffect(() => {
+        if (!menuDevice) return;
+        const onKey = (e) => { if (e.key === 'Escape') setMenuDevice(null); };
+        const onDown = () => setMenuDevice(null);
+        window.addEventListener('keydown', onKey);
+        window.addEventListener('mousedown', onDown);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('mousedown', onDown);
+        };
+    }, [menuDevice]);
 
     // Update currentSetupType when setupType prop changes
     useEffect(() => {
@@ -3469,6 +3571,26 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                         />
                     );
                 })()}
+
+                {/* Device hover action menu */}
+                <DeviceHoverMenu
+                    device={menuDevice}
+                    screenPosition={menuScreenPos}
+                    onRemove={(d) => {
+                        removeDevice(d.uniqueId);
+                        setMenuDevice(null);
+                    }}
+                    onSwap={(d) => {
+                        swapTargetUniqueIdRef.current = d.uniqueId;
+                        const entry = placedDevicesListRef.current.find((x) => x.uniqueId === d.uniqueId);
+                        if (entry) {
+                            setSelectedGhostIndex(entry.placementIndex);
+                            setShowSearch(true);
+                        }
+                        setMenuDevice(null);
+                    }}
+                    onClose={() => setMenuDevice(null)}
+                />
             </div>
         </>
     );
