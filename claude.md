@@ -42,9 +42,8 @@ LiveSet is a web app where DJs, producers, and musicians can **build virtual set
 src/
 ├── App.js                    # Root component: auth, navigation, state management
 ├── App.css                   # Global layout styles
-├── ThreeScene.js             # Core 3D scene builder (~4600 lines)
+├── ThreeScene.js             # Core 3D scene builder (orchestration only — env extracted to scenes/)
 ├── ModelPreviewPanel.js      # 3D preview for product suggestion form
-├── SetupTimeline.js          # Bottom category bar (Players, Mixers, etc.)
 ├── ProductSuggestionForm.js  # In-scene "Suggest New Product" form
 ├── ProductManagerForm.js     # Admin product add/edit form (two-panel: form + 3D preview)
 ├── ProductDashboard.js       # Admin product list (requires admin claim)
@@ -71,16 +70,27 @@ src/
 │   ├── Upload.js / .css                # Shorter clip upload path
 │   ├── Profile.js / .css               # User profile, follow, sets, fave product
 │   ├── LiveSetPlayer.js / .css         # Full-set video player with audio sync
-│   ├── SaveSetupButton.js / .css       # Saves current 3D setup to Firestore
+│   ├── SaveSetupButton.js / .css       # Saves current 3D setup to Firestore (incl. sceneVariant)
+│   ├── ProductSelectorModal.js / .css  # Spot-aware product picker (hard-filter + swap mode)
+│   ├── DeviceHoverMenu.js / .css       # Floating remove/swap menu anchored above placed devices
+│   ├── SceneVariantSwitcher.js / .css  # Bottom-center upward dropdown for scene variants
 │   ├── FaveProductViewer.js / .css     # 3D viewer for favorite product on profile
 │   ├── UserSearch.js / .css            # Search users by displayName
 │   ├── Notifications.js / .css         # User notifications
 │   └── SetupLandingPage.js / .css      # Alternate setup listing
 │
+├── scenes/
+│   ├── index.js                # buildEnvironment(scene, variantKey, ctx) dispatcher
+│   ├── djClub.js / djRooftop.js
+│   ├── producerStudioDesk.js / producerBedroom.js
+│   └── musicianRehearsal.js / musicianLiveStage.js
+│
 ├── utils/
-│   ├── devicePlacement.js    # DEVICE_ROLES, SPOT_PRIORITIES, placement logic
-│   ├── mobileDetection.js    # Mobile/iPhone detection helpers
-│   └── productSearch.js      # Firestore product lookup utilities
+│   ├── devicePlacement.js          # DEVICE_ROLES, SPOT_PRIORITIES, placement logic
+│   ├── mobileDetection.js          # Mobile/iPhone detection helpers
+│   ├── productSearch.js            # Firestore product lookup utilities
+│   ├── productRecommendation.js    # isProductRecommended / filterByRecommendedType / sortProductsByRecommendation
+│   └── sceneVariants.js            # VARIANTS_BY_SETUP metadata + helpers
 │
 └── (legacy/maintenance scripts)
     ├── deviceLibrary.js, migrateProducts.js, categorizeProducts.js
@@ -99,7 +109,7 @@ No React Router. `App.js` manages a `currentView` state:
 | Value | Screen |
 |-------|--------|
 | `null` (no setup selected) | `HubLandingPage` — choose to build or post |
-| `null` (setup selected) | 3D builder: `ThreeScene` + `SetupTimeline` + `SaveSetupButton` |
+| `null` (setup selected) | 3D builder: `ThreeScene` + `SceneVariantSwitcher` + `SaveSetupButton` |
 | `'feed'` | `Feed` — scrollable video feed |
 | `'profile'` | `Profile` — user profile (own or other via `profileUserId`) |
 | `'mySets'` | `MySets` — list of saved setups |
@@ -145,9 +155,14 @@ Logo click resets to hub.
 
 ---
 
-## 3D Scene System (ThreeScene.js)
+## 3D Scene System (ThreeScene.js + src/scenes/)
 
-This is the largest and most complex file (~4600 lines).
+`ThreeScene.js` orchestrates the 3D viewport (ghost spots, device placement, raycasting, hover menu, product modal). The environment geometry per `(setupType, sceneVariant)` lives in `src/scenes/` — each variant exports `build(scene, ctx)` returning a `{ dispose() }` handle, and `src/scenes/index.js` exposes `buildEnvironment(scene, variantKey, ctx)` as the dispatcher. The selected variant is persisted on `setups.sceneVariant` and surfaced via the bottom-center `SceneVariantSwitcher`.
+
+Available variants:
+- **DJ:** `dj-club` (default), `dj-rooftop`
+- **Producer:** `producer-studio-desk` (default), `producer-bedroom`
+- **Musician:** `musician-rehearsal` (default), `musician-live-stage`
 
 ### Setup Types and Ghost Spots
 
@@ -185,7 +200,7 @@ Ghost spot positions (center-to-center spacing of **1.15 units** between adjacen
 
 | Function | Purpose |
 |----------|---------|
-| `createClubEnvironment(scene)` | Builds the 3D room geometry per setup type |
+| `buildEnvironment(scene, variantKey, ctx)` (from `src/scenes`) | Builds the 3D room geometry for the chosen variant; returns a disposable handle |
 | `createGhostPlacementSpots(scene)` | Creates interactive ghost cubes at predefined positions |
 | `addProductToPosition(product, posIndex)` | Loads GLB model, auto-scales it, places it at ghost spot |
 | `removeDevice(uniqueId)` | Removes model from scene, disposes geometry/materials, cleans up devicesRef and cables, closes mini profile if showing the removed device |
@@ -317,23 +332,20 @@ Each subcategory has: `name`, `description`, `icon` (emoji), `types[]` (for matc
 
 ---
 
-## Setup Timeline (SetupTimeline.js)
+## Device Hover Menu
 
-Fixed bottom bar showing device categories for the current setup type. Each button shows:
-- Category icon and name
-- Count of placed devices in that category
-- Visual states: default, completed (green), glowing/highlighted (blue)
+Hovering a placed device applies a blue emissive rim highlight (`0x00a2ff`, intensity `0.35`) to its meshes (`applyHoverHighlight`/`clearHoverHighlight` in `ThreeScene.js`). Clicking the device opens `DeviceHoverMenu` — a small HTML overlay anchored above the device's bounding-box top-center, kept in sync each render frame. The menu has two actions:
 
-`categorizeDevice()` uses a 3-tier matching strategy:
-1. Product `subcategory` field
-2. `name` + `type` keyword matching
-3. `spotType` fallback via `SPOT_TO_CATEGORY` mapping
+- **✕ Remove** — calls `removeDevice(uniqueId)`.
+- **⟳ Swap** — sets `swapTargetUniqueIdRef.current` to the device's `uniqueId`, opens `ProductSelectorModal` in `swap` mode pre-filtered to that spot's `recommendedType`, and on selection removes the old device and places the chosen product at the same `placementIndex`.
+
+Esc or any outside click dismisses the menu.
 
 ---
 
-## Category Highlight (Glow)
+## Product Selector Modal
 
-`SetupTimeline` buttons trigger `onCategoryToggle` which makes `ThreeScene` apply a blue emissive glow (`0x00a2ff`, intensity `0.35`) to all meshes in models matching the selected category. Original material properties are saved/restored.
+`ProductSelectorModal` is opened either by clicking a ghost spot (place mode) or by the Swap action (swap mode). By default it **hard-filters** the product grid to the spot's `recommendedType` via `filterByRecommendedType` (in `src/utils/productRecommendation.js`). A "Show all products" toggle drops the filter. In swap mode, the current product is shown with a "Current" badge and selecting it is a no-op.
 
 ---
 
@@ -376,7 +388,7 @@ Firebase config uses `REACT_APP_FIREBASE_*` env vars from `.env`.
 
 ## File Size and Complexity Notes
 
-- `ThreeScene.js` is ~4600 lines — the heart of the app. Contains 3D scene setup, product search modal, device placement, cable rendering, mobile gestures, and admin tools.
+- `ThreeScene.js` is ~3400 lines — the heart of the app. Contains 3D scene orchestration, ghost-spot raycasting, device placement, hover menu wiring, cable rendering, mobile gestures, and admin tools. Environment geometry now lives in `src/scenes/`, and the product picker / device hover menu / scene switcher are extracted components.
 - `App.js` is ~800 lines — manages global state, auth, and view switching.
 - `Feed.js` is ~600 lines — complex video playback with audio sync.
 - `PostSetModal.js` is ~500 lines — multi-step upload wizard with waveform alignment.
