@@ -138,7 +138,7 @@ This builds the app and deploys to Firebase (Hosting, Firestore rules, Storage r
 
 ## Live / hosted app
 
-After deploy, the app is served from your Firebase Hosting URLs (e.g. `connectmyset.web.app`, `connectmyset-com.web.app` or your configured sites).
+After deploy, the app is served from `https://liveset.io` (primary) and `https://www.liveset.io`. The previous `connectmyset.com` and `*.web.app` URLs continue to resolve during the transition period.
 
 ---
 

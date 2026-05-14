@@ -1,10 +1,13 @@
 [
     {
       "origin": [
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "http://localhost:3001",
         "https://connectmyset.web.app",
-        "https://connectmyset.com"
+        "https://connectmyset-com.web.app",
+        "https://connectmyset.com",
+        "https://liveset.io",
+        "https://www.liveset.io"
       ],
       "method": ["GET"],
       "maxAgeSeconds": 3600
