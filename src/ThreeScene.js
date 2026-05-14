@@ -2700,10 +2700,12 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneV
         const onKey = (e) => { if (e.key === 'Escape') setMenuDevice(null); };
         const onDown = () => setMenuDevice(null);
         window.addEventListener('keydown', onKey);
-        window.addEventListener('mousedown', onDown);
+        // Use 'click' (not 'mousedown') so the menu's onClick stopPropagation
+        // can prevent dismissal when the user clicks a button inside the menu.
+        window.addEventListener('click', onDown);
         return () => {
             window.removeEventListener('keydown', onKey);
-            window.removeEventListener('mousedown', onDown);
+            window.removeEventListener('click', onDown);
         };
     }, [menuDevice]);
 
