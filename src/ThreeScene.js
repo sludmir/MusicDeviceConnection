@@ -10,6 +10,7 @@ import { gsap } from 'gsap';
 import { updateAllModelPaths, getStorageModelURL } from './firebaseUtils'; // Add this import
 import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
+import ProductSelectorModal from './components/ProductSelectorModal';
 import MobileNavigation from './MobileNavigation';
 import { getConnectionSuggestions } from './chatGPTService';
 import { computeAutoScale } from './dimensionScaler';
@@ -33,6 +34,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const placedDevicesListRef = useRef([]);
     const hasLoadedFromSavedRef = useRef(false);
     const isPinchingRef = useRef(false);
+    const swapTargetUniqueIdRef = useRef(null);
     const [selectedGhostIndex, setSelectedGhostIndex] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -194,6 +196,22 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         setShowSearch(false);
         setSearchMode('');
         setSearchQuery('');
+    };
+
+    const handleProductSelected = (product) => {
+        const swapId = swapTargetUniqueIdRef.current;
+        if (swapId) {
+            const existing = placedDevicesListRef.current.find((d) => d.uniqueId === swapId);
+            if (existing) {
+                const spotIndex = existing.placementIndex;
+                removeDevice(swapId);
+                addProductToPosition(product, spotIndex);
+            }
+            swapTargetUniqueIdRef.current = null;
+        } else {
+            addProductToPosition(product, selectedGhostIndex);
+        }
+        setShowSearch(false);
     };
 
     // Removed unused getConnectionKey function
@@ -3417,191 +3435,26 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
                     </div>
                 )}
 
-                {/* Search Modal */}
-            {showSearch && (() => {
-                    const activeSpot = ghostSpotsRef.current[selectedGhostIndex];
-                    const recType = activeSpot?.userData?.recommendedType || 'Any Device';
-                    const hasBrain = setupHasBrain();
-                    const deviceCount = (placedDevicesListRef.current || []).length;
-                    const needsBrain = !hasBrain && (currentSetupType === 'DJ' || currentSetupType === 'Producer');
-
-                    const brainHints = {
-                        DJ: { icon: '🎛️', text: 'Start with your mixer — everything connects to it' },
-                        Producer: { icon: '🎹', text: 'Start with your audio interface or laptop — it\'s the center of your studio' },
-                    };
-                    const spotHints = {
-                        'Mixer (DJM)': '🎛️ Mixer slot',
-                        'Player (CDJ)': '🎧 Player slot',
-                        'RMX-1000': '🎚️ Effects slot',
-                        'Speaker': '🔊 Speaker slot',
-                        'Audio Interface': '🎤 Audio interface slot',
-                        'Controller / Synth': '🎮 Controller / synth slot',
-                        'Rack Unit / Processor': '⚙️ Rack unit slot',
-                        'Studio Monitor': '🔊 Monitor slot',
-                        'Instrument / Mic': '🎸 Instrument / mic slot',
-                        'Guitar / Bass': '🎸 Guitar / bass stand',
-                        'Keyboard / Instrument': '🎹 Keyboard slot',
-                        'Drums / Instrument': '🥁 Drum riser',
-                        'Effects Pedal': '🎚️ Pedal slot',
-                        'Amplifier / Monitor': '🔊 Amp slot',
-                    };
-
-                    return (
-                    <div className="search-modal fade-in" style={searchModalStyle}>
-                        <style>{`
-                            .search-modal::-webkit-scrollbar { width: 8px; background-color: #000; }
-                            .search-modal::-webkit-scrollbar-thumb { background-color: #333; border-radius: 4px; }
-                            .search-modal::-webkit-scrollbar-track { background-color: #000; }
-                            .search-product-card { transition: background-color 0.15s ease, border-color 0.15s ease; }
-                            .search-product-card:hover { background-color: rgba(255,255,255,0.08) !important; }
-                        `}</style>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontFamily: 'Space Grotesk, sans-serif' }}>
-                                {searchMode === 'ghost' ? 'Add Device' : 'Search Products'}
-                            </h3>
-                            <button
-                                onClick={() => { setShowSearch(false); setSearchMode(''); setSearchQuery(''); setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
-                                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#fff', opacity: 0.7, transition: 'opacity 0.2s ease', lineHeight: 1, padding: '4px' }}
-                            >×</button>
-                        </div>
-
-                        {/* Context banner */}
-                        {searchMode === 'ghost' && (
-                            <div style={{
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                marginBottom: '14px',
-                                background: needsBrain ? 'rgba(255, 180, 50, 0.12)' : 'rgba(0, 162, 255, 0.1)',
-                                border: `1px solid ${needsBrain ? 'rgba(255, 180, 50, 0.25)' : 'rgba(0, 162, 255, 0.2)'}`,
-                            }}>
-                                <div style={{ fontSize: '13px', fontWeight: '600', color: needsBrain ? '#ffb432' : '#4db8ff', marginBottom: '2px' }}>
-                                    {needsBrain
-                                        ? `${brainHints[currentSetupType]?.icon || '🎛️'} ${brainHints[currentSetupType]?.text || 'Add your main device first'}`
-                                        : (spotHints[recType] || `📍 ${recType}`)
-                                    }
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
-                                    {deviceCount === 0 ? 'No devices yet' : `${deviceCount} device${deviceCount !== 1 ? 's' : ''} in setup`}
-                                    {!needsBrain && recType !== 'Any Device' && ` · Showing best matches for this spot`}
-                                </div>
-                            </div>
-                        )}
-
-                        <input
-                            type="text"
-                            placeholder="Search for a product..."
-                            value={searchQuery}
-                            onChange={handleSearchInputChange}
-                            className="fade-in"
-                            style={{
-                                width: '100%',
-                                padding: '10px 14px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                borderRadius: '8px',
-                                color: '#fff',
-                                marginBottom: '14px',
-                                outline: 'none',
-                                fontSize: '14px',
-                                fontFamily: 'inherit',
-                                boxSizing: 'border-box',
-                            }}
-                        />
-
-                        {!showSuggestionForm ? (
-                            <>
-                                <div className="search-results fade-in" style={{ maxHeight: '380px', overflowY: 'auto', marginBottom: '12px' }}>
-                                    {filteredResults.map(product => {
-                                        const isRec = isProductRecommended(product, recType);
-                                        const isBrain = needsBrain && isBrainProduct(product);
-                                        const highlighted = isRec || isBrain;
-
-                                        return (
-                                            <div
-                                                key={product.id}
-                                                className="search-product-card"
-                                                onClick={() => handleProductSelect(product)}
-                                                style={{
-                                                    padding: '10px 12px',
-                                                    marginBottom: '4px',
-                                                    cursor: 'pointer',
-                                                    backgroundColor: highlighted ? 'rgba(39, 174, 96, 0.08)' : 'transparent',
-                                                    borderRadius: '8px',
-                                                    border: highlighted ? '1px solid rgba(39, 174, 96, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)',
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                                    <span style={{ fontWeight: '500', fontSize: '14px', color: highlighted ? '#2ecc71' : '#fff', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {product.name}
-                                                    </span>
-                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                                        {isBrain && (
-                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(255, 180, 50, 0.2)', color: '#ffb432', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
-                                                                BRAIN
-                                                            </span>
-                                                        )}
-                                                        {isRec && (
-                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
-                                                                SUGGESTED
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                                    {product.brand && (
-                                                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{product.brand}</span>
-                                                    )}
-                                                    {product.category && (
-                                                        <span style={{ fontSize: '10px', padding: '1px 6px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '4px', color: 'rgba(255,255,255,0.4)' }}>
-                                                            {product.category}{product.subcategory ? ` · ${product.subcategory}` : ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {filteredResults.length === 0 && (
-                                        <div style={{ textAlign: 'center', padding: '24px 20px', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                                            No products found
-                                        </div>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={handleSuggestNewProduct}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '8px',
-                                        color: 'rgba(255,255,255,0.6)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        fontWeight: '500',
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        fontFamily: 'inherit',
-                                    }}
-                                >
-                                    <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Suggest New Product
-                                </button>
-                            </>
-                        ) : (
-                            <ProductSuggestionForm
-                                onClose={() => { setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
-                                recommendedType={recType}
-                                spotType={activeSpot?.userData?.type || 'standard'}
-                                modelScale={suggestionModelScale}
-                                onModelFileChange={(f) => { setSuggestionModelFile(f); setSuggestionModelScale(1.0); }}
-                                onScaleChange={(s) => setSuggestionModelScale(s)}
-                            />
-                        )}
-                    </div>
-                    );
-                })()}
+                {/* Product Selector Modal */}
+                {showSearch && (
+                  <ProductSelectorModal
+                    isOpen={showSearch}
+                    mode={swapTargetUniqueIdRef.current ? 'swap' : 'place'}
+                    recommendedType={ghostSpotsRef.current[selectedGhostIndex]?.userData?.recommendedType || 'Any Device'}
+                    currentProductId={
+                      swapTargetUniqueIdRef.current
+                        ? placedDevicesListRef.current.find((d) => d.uniqueId === swapTargetUniqueIdRef.current)?.id
+                        : null
+                    }
+                    products={searchResults}
+                    onSelect={(product) => handleProductSelected(product)}
+                    onClose={() => {
+                      setShowSearch(false);
+                      setSearchMode('');
+                      swapTargetUniqueIdRef.current = null;
+                    }}
+                  />
+                )}
 
                 {showSuggestionForm && suggestionModelFile && (() => {
                     const spot = ghostSpotsRef.current[selectedGhostIndex];
