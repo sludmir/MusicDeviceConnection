@@ -4,9 +4,9 @@
 Connect My Set has been successfully deployed to Firebase Hosting with enhanced security measures and proper configuration.
 
 ## Deployment URLs
-- Primary: https://connectmyset.web.app
-- Secondary: https://musicdeviceconnection.web.app
-- Custom Domain: https://connectmyset-com.web.app
+- Primary: https://liveset.io
+- WWW: https://www.liveset.io
+- Legacy (still resolves during transition): https://connectmyset.com, https://connectmyset.web.app, https://connectmyset-com.web.app, https://musicdeviceconnection.web.app
 
 ## Security Status
 

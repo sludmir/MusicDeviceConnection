@@ -18,7 +18,7 @@ The script (`scripts/dumpProducts.js`) uses firebase-admin with Application Defa
 
 LiveSet is a web app where DJs, producers, and musicians can **build virtual setups** of their music gear in an interactive 3D scene, **save and share those setups**, and **browse a social feed** of video performances linked to the gear used. Think "PCPartPicker meets TikTok for music equipment."
 
-**Live URLs:** connectmyset.com (two Firebase Hosting sites: `connectmyset` and `connectmyset-com`)
+**Live URLs:** liveset.io (primary, served from the `connectmyset` Firebase Hosting site). connectmyset.com still resolves during the transition period.
 
 ---
 

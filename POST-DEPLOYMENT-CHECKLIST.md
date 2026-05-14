@@ -6,7 +6,7 @@
 - [ ] Verify HTTPS is enforced
 - [ ] Check security headers using:
   ```bash
-  curl -I https://connectmyset.web.app
+  curl -I https://liveset.io
   ```
 - [ ] Verify the following headers are present:
   - Strict-Transport-Security
@@ -79,6 +79,6 @@
 
 ## Deployment URLs
 
-- Main: https://connectmyset.web.app
-- Backup: https://musicdeviceconnection.web.app
-- Custom Domain: https://connectmyset-com.web.app 
+- Main: https://liveset.io
+- WWW: https://www.liveset.io
+- Legacy (still resolves during transition): https://connectmyset.com, https://connectmyset.web.app, https://connectmyset-com.web.app, https://musicdeviceconnection.web.app
