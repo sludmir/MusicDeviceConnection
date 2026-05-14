@@ -1,6 +1,6 @@
 /* src/components/DeviceHoverMenu.css */
 .dhm-anchor {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -110%);
   z-index: 3000;
   pointer-events: auto;
