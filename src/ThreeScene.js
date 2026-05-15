@@ -16,6 +16,7 @@ import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
 import { buildEnvironment } from './scenes';
 import { getDefaultVariant } from './utils/sceneVariants';
+import useInputDevice from './hooks/useInputDevice';
 
 function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneVariant, onSceneVariantChange }) {
     const mountRef = useRef(null);
@@ -65,6 +66,12 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneV
     const hoveredDeviceUniqueIdRef = useRef(null);
     const hoverHighlightStateRef = useRef(new Map());
     const menuDeviceRef = useRef(null);
+
+    // Input-device-aware camera controls. The wheel handler closure captures
+    // inputDeviceRef so behavior switches without re-running scene setup.
+    const { device: inputDevice } = useInputDevice();
+    const inputDeviceRef = useRef(inputDevice);
+    useEffect(() => { inputDeviceRef.current = inputDevice; }, [inputDevice]);
 
     // Removed unused PRODUCT_TYPES constant
 
@@ -1453,23 +1460,30 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneV
         el.addEventListener('pointerup', onPointerUp, { capture });
         el.addEventListener('pointercancel', onPointerUp, { capture });
         
-        // Wheel: zoom when ctrlKey (trackpad pinch), otherwise rotate
+        // Wheel handling depends on input device:
+        //   trackpad: two-finger scroll = rotate, pinch (ctrlKey) = zoom
+        //   mouse:    wheel = zoom (conventional), drag = rotate (via OrbitControls)
         const handleWheel = (event) => {
             event.preventDefault();
             event.stopImmediatePropagation();
-            
+
             const deltaY = event.deltaY !== undefined ? event.deltaY : (event.wheelDeltaY ? -event.wheelDeltaY / 120 : 0);
             const deltaX = event.deltaX !== undefined ? event.deltaX : (event.wheelDeltaX ? -event.wheelDeltaX / 120 : 0);
-            
-            if (event.ctrlKey) {
-                // Trackpad pinch / zoom gesture: dolly in/out
+
+            const isMouse = inputDeviceRef.current === 'mouse';
+            const wantZoom = event.ctrlKey || isMouse;
+
+            if (wantZoom) {
+                // Mouse wheel notches are big (typically |deltaY| >= 100); trackpad
+                // pinch sends tiny fractional deltas. Use a slower factor for mouse
+                // so each notch isn't a huge dolly.
+                const zoomSpeed = isMouse ? 0.0006 : 0.002;
                 const currentDist = camera.position.distanceTo(controls.target);
-                const zoomSpeed = 0.002;
                 const newDist = Math.max(minDist, Math.min(maxDist, currentDist + deltaY * zoomSpeed * currentDist));
                 const dir = camera.position.clone().sub(controls.target).normalize();
                 camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
             } else {
-                // Normal scroll: rotate
+                // Trackpad two-finger scroll: orbit
                 const rotationSpeed = 0.002;
                 const spherical = new THREE.Spherical();
                 const offset = camera.position.clone().sub(controls.target);
@@ -2697,6 +2711,24 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneV
     useEffect(() => {
         menuDeviceRef.current = menuDevice;
     }, [menuDevice]);
+
+    // Apply input-device-specific OrbitControls tuning whenever the device
+    // classification changes (e.g., after first wheel event detects a mouse).
+    useEffect(() => {
+        const controls = controlsRef.current;
+        if (!controls) return;
+        if (inputDevice === 'mouse') {
+            // Conventional mouse: left drag rotates, slower rotate, more damping.
+            controls.mouseButtons.LEFT = 0; // ROTATE
+            controls.rotateSpeed = 0.7;
+            controls.dampingFactor = 0.08;
+        } else {
+            // Trackpad: left drag pans, default rotate speed; wheel handler does rotate.
+            controls.mouseButtons.LEFT = 2; // PAN
+            controls.rotateSpeed = 1.0;
+            controls.dampingFactor = 0.05;
+        }
+    }, [inputDevice]);
 
     // Dismiss hover menu on Escape or outside click
     useEffect(() => {
