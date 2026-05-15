@@ -2539,6 +2539,10 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, sceneV
                             if (ref?.data) {
                                 setMenuDevice(ref.data);
                                 setMenuScreenPos(projectMenuAnchor(uniqueId));
+                                // Prevent this click from bubbling to the window-level
+                                // dismiss listener that would otherwise close the menu
+                                // before the user sees it.
+                                event.stopPropagation();
                                 return;
                             }
                         }
