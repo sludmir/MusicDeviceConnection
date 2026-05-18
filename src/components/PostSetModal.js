@@ -18,6 +18,8 @@ const MAX_VIDEO_SIZE_MB = 5000; // Firebase Storage practical limit (5GB)
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 const LARGE_VIDEO_WARN_MB = 1000; // Warn above 1GB for UX/perf
 const LARGE_VIDEO_WARN_BYTES = LARGE_VIDEO_WARN_MB * 1024 * 1024;
+const MAX_THUMBNAIL_SIZE_MB = 5;
+const MAX_THUMBNAIL_SIZE_BYTES = MAX_THUMBNAIL_SIZE_MB * 1024 * 1024;
 
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 B';
@@ -66,6 +68,8 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const [videoURL, setVideoURL] = useState(null);
   const [audioFile, setAudioFile] = useState(null);
   const [audioURL, setAudioURL] = useState(null);
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailURL, setThumbnailURL] = useState(null);
   const [audioBuffer, setAudioBuffer] = useState(null);
   const [offsetSeconds, setOffsetSeconds] = useState(0);
   const [waveformReady, setWaveformReady] = useState(false);
@@ -92,6 +96,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const timelineRef = useRef(null);
   const step2VideoRef = useRef(null);
   const audioInputRef = useRef(null);
+  const thumbnailInputRef = useRef(null);
   const clipRangesRef = useRef(clipRanges);
   clipRangesRef.current = clipRanges;
 
@@ -126,16 +131,46 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
 
   const videoURLRef = useRef(null);
   const audioURLRef = useRef(null);
+  const thumbnailURLRef = useRef(null);
   videoURLRef.current = videoURL;
   audioURLRef.current = audioURL;
+  thumbnailURLRef.current = thumbnailURL;
 
   useEffect(() => {
     return () => {
       if (videoURLRef.current) URL.revokeObjectURL(videoURLRef.current);
       if (audioURLRef.current) URL.revokeObjectURL(audioURLRef.current);
+      if (thumbnailURLRef.current) URL.revokeObjectURL(thumbnailURLRef.current);
       if (audioContextRef.current) audioContextRef.current.close();
     };
   }, []);
+
+  const handleThumbnailChange = (e) => {
+    const file = e.target.files?.[0];
+    const input = e.target;
+    if (input) input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file (JPG, PNG, or WebP).');
+      return;
+    }
+    if (file.size > MAX_THUMBNAIL_SIZE_BYTES) {
+      setError(`Thumbnail too large (${formatFileSize(file.size)}). Max ${MAX_THUMBNAIL_SIZE_MB} MB.`);
+      return;
+    }
+    if (thumbnailURLRef.current) URL.revokeObjectURL(thumbnailURLRef.current);
+    const url = URL.createObjectURL(file);
+    setError(null);
+    setThumbnailFile(file);
+    setThumbnailURL(url);
+  };
+
+  const handleRemoveThumbnail = () => {
+    if (thumbnailURLRef.current) URL.revokeObjectURL(thumbnailURLRef.current);
+    setThumbnailFile(null);
+    setThumbnailURL(null);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+  };
 
   const handleVideoChange = (e) => {
     const file = e.target.files?.[0];
@@ -611,6 +646,15 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         audioTrackURL = await getDownloadURL(audioStorageRef);
       }
 
+      // 3b. Custom thumbnail (optional) — Firebase Storage, overrides Bunny's auto-thumbnail.
+      let customThumbnailURL = null;
+      if (thumbnailFile) {
+        const thumbName = (thumbnailFile.name || 'thumb').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const thumbStorageRef = ref(storage, `sets/thumbnails/${userId}_${Date.now()}_${thumbName}`);
+        await uploadBytes(thumbStorageRef, thumbnailFile);
+        customThumbnailURL = await getDownloadURL(thumbStorageRef);
+      }
+
       // 4. Write the Firestore docs. status='processing' until Bunny webhook flips to 'ready'.
       const linkedSetup = savedSetups.find(s => s.id === selectedSetupId);
       const setData = {
@@ -619,7 +663,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         title: (title || 'Untitled Set').trim(),
         description: '',
         videoURL: bunny.hlsUrl,
-        thumbnailURL: bunny.thumbnailUrl,
+        thumbnailURL: customThumbnailURL || bunny.thumbnailUrl,
         bunnyVideoGuid: bunny.videoGuid,
         bunnyLibraryId: bunny.libraryId,
         status: 'processing',
@@ -627,6 +671,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         createdAt: serverTimestamp(),
         views: 0,
       };
+      if (customThumbnailURL) {
+        setData.customThumbnailURL = customThumbnailURL;
+        setData.autoThumbnailURL = bunny.thumbnailUrl;
+      }
       if (selectedSetupId && linkedSetup) {
         setData.setupId = selectedSetupId;
         setData.setupName = linkedSetup.name || '';
@@ -635,6 +683,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       if (audioTrackURL != null) {
         setData.audioTrackURL = audioTrackURL;
         setData.audioOffsetSeconds = offsetSeconds;
+        setData.audioReplacesVideo = true;
       }
       const setDocRef = await addDoc(collection(db, 'sets'), setData);
 
@@ -645,7 +694,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         description: '',
         fullVideoURL: bunny.hlsUrl,
         videoURL: bunny.hlsUrl,
-        thumbnailURL: bunny.thumbnailUrl,
+        thumbnailURL: customThumbnailURL || bunny.thumbnailUrl,
         bunnyVideoGuid: bunny.videoGuid,
         bunnyLibraryId: bunny.libraryId,
         status: 'processing',
@@ -654,6 +703,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         likedBy: [],
         views: 0,
       };
+      if (customThumbnailURL) {
+        baseClipData.customThumbnailURL = customThumbnailURL;
+        baseClipData.autoThumbnailURL = bunny.thumbnailUrl;
+      }
       if (selectedSetupId && linkedSetup) {
         baseClipData.setupId = selectedSetupId;
         baseClipData.setupName = linkedSetup.name || '';
@@ -662,6 +715,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       if (audioTrackURL != null) {
         baseClipData.audioTrackURL = audioTrackURL;
         baseClipData.audioOffsetSeconds = offsetSeconds;
+        baseClipData.audioReplacesVideo = true;
       }
 
       for (const r of rangesToPost) {
@@ -906,6 +960,53 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   <span>{((clipRanges[activeClipIndex] || {}).end ?? 0).toFixed(1)}s</span>
                 </div>
               </div>
+              <div className="post-set-thumbnail-row">
+                <label className="post-set-title-label">Thumbnail (optional)</label>
+                <p className="post-set-hint" style={{ marginTop: 0 }}>
+                  Upload a custom image, or leave blank to use an auto-generated frame from the video. 16:9 recommended.
+                </p>
+                <div className="post-set-thumbnail-picker">
+                  {thumbnailURL ? (
+                    <div className="post-set-thumbnail-preview">
+                      <img src={thumbnailURL} alt="Custom thumbnail preview" />
+                      <div className="post-set-thumbnail-actions">
+                        <button
+                          type="button"
+                          className="post-set-thumbnail-btn"
+                          onClick={() => thumbnailInputRef.current?.click()}
+                        >
+                          Replace
+                        </button>
+                        <button
+                          type="button"
+                          className="post-set-thumbnail-btn post-set-thumbnail-btn--danger"
+                          onClick={handleRemoveThumbnail}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="post-set-thumbnail-empty"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                    >
+                      <span className="post-set-thumbnail-empty-icon">+</span>
+                      <span className="post-set-thumbnail-empty-label">Upload thumbnail</span>
+                      <span className="post-set-thumbnail-empty-hint">JPG, PNG, or WebP · up to {MAX_THUMBNAIL_SIZE_MB} MB</span>
+                    </button>
+                  )}
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleThumbnailChange}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+
               <div className="post-set-title-row">
                 <label className="post-set-title-label">Title (optional)</label>
                 <input

@@ -24,6 +24,7 @@ import UploadImport from './components/Upload';
 import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
+import SetEditorImport from './components/SetEditor';
 
 const ThreeScene = lazy(() =>
   import('./ThreeScene').then((m) => {
@@ -46,6 +47,7 @@ const Upload = unwrap(UploadImport);
 const Profile = unwrap(ProfileImport);
 const UserSearch = unwrap(UserSearchImport);
 const Notifications = unwrap(NotificationsImport);
+const SetEditor = unwrap(SetEditorImport);
 
 function isValidComponent(C) {
   return typeof C === 'function' || (C && typeof C === 'object' && typeof C.$$typeof === 'symbol');
@@ -63,6 +65,7 @@ const APP_COMPONENTS = [
   ['Profile', Profile],
   ['UserSearch', UserSearch],
   ['Notifications', Notifications],
+  ['SetEditor', SetEditor],
 ];
 const INVALID_COMPONENTS = APP_COMPONENTS.filter(([, C]) => !isValidComponent(C)).map(([name]) => name);
 
@@ -516,6 +519,7 @@ function AppRoutes({
             <Route path="/admin/products" element={<ProductDashboard onClose={() => navigate('/hub')} />} />
             <Route path="/admin/products-import" element={<ProductImporter onBack={() => navigate('/hub')} />} />
             <Route path="/upload" element={<Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />} />
+            <Route path="/set-editor" element={<SetEditor onBack={() => navigate('/hub')} theme={theme} />} />
             <Route path="*" element={<Navigate to="/hub" replace />} />
           </Route>
           <Route path="/builder" element={

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { attachHls } from '../utils/attachHls';
+import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
 import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo, MdGraphicEq, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './Feed.css';
@@ -376,6 +377,19 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
         });
       });
 
+      // Sign Bunny URLs in parallel. Falls back to the original URL if the
+      // function call fails (lets non-Bunny / legacy clips keep working).
+      await Promise.all(allClips.map(async (clip) => {
+        try {
+          const signed = await getSignedBunnyUrls('clip', clip.id);
+          if (signed.videoURL) clip.videoURL = signed.videoURL;
+          if (signed.fullVideoURL) clip.fullVideoURL = signed.fullVideoURL;
+          if (signed.audioTrackURL) clip.audioTrackURL = signed.audioTrackURL;
+        } catch (e) {
+          // leave clip URLs as-is
+        }
+      }));
+
       const clipsFromSets = allClips.filter((clip) => clip.fullSetId);
       const followedClips = clipsFromSets.filter(clip => following.includes(clip.creatorId));
       const suggestedClips = clipsFromSets.filter(clip => !following.includes(clip.creatorId));
@@ -629,7 +643,8 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
           const isCurrent = index === currentIndex;
           const hasExternalAudio = Boolean(getClipAudioTrackURL(clip));
           const externalAudioFailed = clip?.id ? failedExternalAudioClipIds.has(clip.id) : false;
-          const shouldMuteVideo = !isCurrent || (hasExternalAudio && !externalAudioFailed);
+          const audioReplacesVideo = hasExternalAudio && (clip?.audioReplacesVideo !== false);
+          const shouldMuteVideo = !isCurrent || (audioReplacesVideo && !externalAudioFailed);
 
           return (
           <div key={clip.id} className="feed-item">

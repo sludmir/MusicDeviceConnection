@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff } from 'react-icons/md';
 import { attachHls } from '../utils/attachHls';
+import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import './LiveSetPlayer.css';
 
 function formatTime(seconds) {
@@ -21,9 +22,29 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const [dragging, setDragging] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const videoURL = set?.videoURL;
-  const audioTrackURL = set?.audioTrackURL;
+  // Sign Bunny URLs (no-op for non-Bunny URLs). signed is null until
+  // the cloud function returns; we hold off attaching HLS until then.
+  const [signed, setSigned] = useState(null);
+  useEffect(() => {
+    if (!set?.id) { setSigned(null); return; }
+    let cancelled = false;
+    getSignedBunnyUrls('set', set.id)
+      .then((urls) => { if (!cancelled) setSigned(urls); })
+      .catch(() => {
+        if (!cancelled) setSigned({
+          videoURL: set.videoURL,
+          audioTrackURL: set.audioTrackURL,
+        });
+      });
+    return () => { cancelled = true; };
+  }, [set?.id, set?.videoURL, set?.audioTrackURL]);
+
+  const videoURL = signed?.videoURL;
+  const audioTrackURL = signed?.audioTrackURL;
   const audioOffsetSeconds = Number(set?.audioOffsetSeconds) || 0;
+  const audioReplacesVideo = audioTrackURL
+    ? (set?.audioReplacesVideo !== false)
+    : false;
   const title = set?.title || 'Live set';
 
   const isDark = theme === 'dark';
@@ -182,7 +203,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             ref={videoRef}
             className="live-set-player-video"
             preload="metadata"
-            muted={!!audioTrackURL || muted}
+            muted={audioReplacesVideo || muted}
             playsInline
             onLoadedMetadata={syncAudioToVideo}
           />
@@ -195,7 +216,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           <button type="button" className="live-set-player-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? <MdPause size={24} /> : <MdPlayArrow size={24} />}
           </button>
-          {!audioTrackURL && (
+          {!audioReplacesVideo && (
             <button type="button" className="live-set-player-btn" onClick={toggleMuted} aria-label={muted ? 'Unmute' : 'Mute'}>
               {muted ? <MdVolumeOff size={22} /> : <MdVolumeUp size={22} />}
             </button>

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    },
+    {
+      "name": "dev-alt",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=3001 BROWSER=none npm start"],
+      "port": 3001
+    }
+  ]
+}

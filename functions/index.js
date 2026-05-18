@@ -2,6 +2,7 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 admin.initializeApp();
 
@@ -11,8 +12,51 @@ const BUNNY_API_KEY = defineSecret('BUNNY_API_KEY');
 const BUNNY_LIBRARY_ID = defineSecret('BUNNY_LIBRARY_ID');
 const BUNNY_CDN_HOSTNAME = defineSecret('BUNNY_CDN_HOSTNAME');
 const BUNNY_WEBHOOK_SECRET = defineSecret('BUNNY_WEBHOOK_SECRET');
+// Bunny CDN "URL Token Authentication Key" (Stream library → Security).
+// Set with: firebase functions:secrets:set BUNNY_TOKEN_KEY
+const BUNNY_TOKEN_KEY = defineSecret('BUNNY_TOKEN_KEY');
 
 const ALLOWED_KINDS = new Set(['set', 'clip']);
+
+/**
+ * Sign a Bunny CDN URL with a path-scoped token (what "CDN token
+ * authentication" expects in the Stream library Security tab).
+ *
+ *   hashable  = security_key + token_path + expires
+ *   token     = base64url( sha256_raw( hashable ) )
+ *   final URL = original?token=<token>&expires=<unix>&token_path=<urlencoded path>
+ *
+ * token_path is the directory containing the file (e.g. "/<guid>/") so a
+ * single token authorizes the manifest and all HLS segment requests under it.
+ */
+function signBunnyUrl(rawUrl, securityKey, expiresInSeconds = 4 * 3600) {
+  const u = new URL(rawUrl);
+  const tokenPath = u.pathname.replace(/[^/]+$/, '') || '/'; // "/<guid>/"
+  const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
+
+  const hashBytes = crypto
+    .createHash('sha256')
+    .update(securityKey + tokenPath + expires)
+    .digest();
+  const token = hashBytes
+    .toString('base64')
+    .replace(/=+$/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+
+  const sep = u.search ? '&' : '?';
+  return `${rawUrl}${sep}token=${token}&expires=${expires}&token_path=${encodeURIComponent(tokenPath)}`;
+}
+
+function isBunnyUrl(url, cdnHost) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const u = new URL(url);
+    return u.hostname === cdnHost;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Creates a Bunny Stream video record and returns a short-lived TUS-signed
@@ -69,6 +113,55 @@ exports.createBunnyVideo = onCall(
       previewUrl: `https://${cdnHost}/${videoGuid}/preview.webp`,
       iframeUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}`,
       uploaderUid: request.auth.uid,
+    };
+  }
+);
+
+/**
+ * getSignedBunnyUrl
+ *
+ * Returns short-lived signed Bunny URLs for a given set or clip. Required
+ * once the Bunny Stream library has Token Authentication enabled — bare
+ * playlist URLs return 403 in that mode.
+ *
+ * Input:  { kind: 'set' | 'clip', id: string }
+ * Output: { videoURL, audioTrackURL?, thumbnailURL?, expiresAt }
+ *         Non-Bunny URLs (e.g. legacy Firebase Storage) are returned as-is.
+ */
+exports.getSignedBunnyUrl = onCall(
+  { secrets: [BUNNY_TOKEN_KEY, BUNNY_CDN_HOSTNAME] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be signed in.');
+    }
+    const { kind, id } = request.data || {};
+    if (!ALLOWED_KINDS.has(kind)) {
+      throw new HttpsError('invalid-argument', 'kind must be "set" or "clip".');
+    }
+    if (!id || typeof id !== 'string') {
+      throw new HttpsError('invalid-argument', 'id is required.');
+    }
+
+    const collection = kind === 'set' ? 'sets' : 'clips';
+    const snap = await admin.firestore().collection(collection).doc(id).get();
+    if (!snap.exists) {
+      throw new HttpsError('not-found', `${kind} not found.`);
+    }
+    const data = snap.data();
+
+    const securityKey = BUNNY_TOKEN_KEY.value();
+    const cdnHost = BUNNY_CDN_HOSTNAME.value();
+    const expiresInSeconds = 4 * 3600;
+
+    const signIfBunny = (url) =>
+      isBunnyUrl(url, cdnHost) ? signBunnyUrl(url, securityKey, expiresInSeconds) : url || null;
+
+    return {
+      videoURL: signIfBunny(data.videoURL),
+      fullVideoURL: signIfBunny(data.fullVideoURL),
+      audioTrackURL: signIfBunny(data.audioTrackURL),
+      thumbnailURL: signIfBunny(data.thumbnailURL),
+      expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
     };
   }
 );

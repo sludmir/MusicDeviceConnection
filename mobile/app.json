@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "LiveSet",
+    "slug": "liveset-mobile",
+    "scheme": "liveset",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.connectmyset.liveset"
+    },
+    "android": {
+      "package": "com.connectmyset.liveset",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-video",
+      "expo-audio",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow LiveSet to access your photos to upload sets and clips.",
+          "cameraPermission": "Allow LiveSet to use your camera to record sets."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow LiveSet to use your camera to record sets.",
+          "microphonePermission": "Allow LiveSet to use your microphone to record audio with your sets.",
+          "recordAudioAndroid": true
+        }
+      ]
+    ]
+  }
+}
