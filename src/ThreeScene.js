@@ -2,7 +2,9 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { TOUCH } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { SETTINGS, defaultSettingFor, getSetting, listSettings, hasMultipleSettings } from './data/settings';
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore methods
 import { db } from "./firebaseConfig"; // Import Firestore
 import { auth } from "./firebaseConfig"; // Add auth import at the top
@@ -14,7 +16,32 @@ import MobileNavigation from './MobileNavigation';
 import { getConnectionSuggestions } from './chatGPTService';
 import { computeAutoScale } from './dimensionScaler';
 
-function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCategoryToggle }) {
+// Module-level shared DRACOLoader. Decoder served from the unpkg CDN to avoid
+// bundling the wasm/js. Configured once and reused by every GLB-backed setting.
+const dracoLoaderShared = new DRACOLoader();
+dracoLoaderShared.setDecoderPath('https://unpkg.com/three@0.162.0/examples/jsm/libs/draco/');
+dracoLoaderShared.setDecoderConfig({ type: 'js' });
+
+function disposeObject3DTree(root) {
+    if (!root) return;
+    root.traverse((obj) => {
+        if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+            obj.geometry.dispose();
+        }
+        if (obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m) => {
+                if (!m) return;
+                ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((k) => {
+                    if (m[k] && typeof m[k].dispose === 'function') m[k].dispose();
+                });
+                if (typeof m.dispose === 'function') m.dispose();
+            });
+        }
+    });
+}
+
+function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -24,6 +51,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const prevDevicesRef = useRef(devices);
     const cablesRef = useRef([]);
     const djTableRef = useRef(null);
+    const environmentRootRef = useRef(null);
     const ghostSpotsRef = useRef([]);
     const placedDevices = useRef([]);
     const onDevicesChangeRef = useRef(onDevicesChange);
@@ -46,6 +74,7 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     const [placedDevicesList, setPlacedDevicesList] = useState([]);
     const [basicSetupComplete, setBasicSetupComplete] = useState(false);
     const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
+    const [currentSetting, setCurrentSetting] = useState(setting || defaultSettingFor(setupType || 'DJ'));
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
@@ -1489,9 +1518,12 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         
         controls.update();
 
-                // Create environment
-                createClubEnvironment(scene);
-                
+                // Create environment via the setting registry (defaults to
+                // the current setupType's first setting key).
+                const initialSettingKey = currentSetting || defaultSettingFor(currentSetupType);
+                buildSetting(scene, initialSettingKey);
+                applySettingCamera(getSetting(currentSetupType, initialSettingKey));
+
                 // Create ghost spots and setup raycasting
                 createGhostPlacementSpots(scene);
                 const cleanupRaycasting = setupRaycasting();
@@ -2177,9 +2209,99 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
     // Removed unused isCompatibleConnection function
 
+    function disposeEnvironment() {
+        const root = environmentRootRef.current;
+        if (root) {
+            disposeObject3DTree(root);
+            if (root.parent) root.parent.remove(root);
+        }
+        environmentRootRef.current = null;
+        djTableRef.current = null;
+    }
+
+    function loadGlbEnvironment(envRoot, settingConfig) {
+        const loader = new GLTFLoader();
+        if (settingConfig.draco) loader.setDRACOLoader(dracoLoaderShared);
+        loader.load(
+            settingConfig.source,
+            (gltf) => {
+                if (environmentRootRef.current !== envRoot) {
+                    // Another setting swap happened while we were loading; discard.
+                    disposeObject3DTree(gltf.scene);
+                    return;
+                }
+                gltf.scene.traverse((obj) => {
+                    if (obj.isMesh) {
+                        obj.castShadow = false;
+                        obj.receiveShadow = true;
+                    }
+                });
+                envRoot.add(gltf.scene);
+                if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                    rendererRef.current.render(sceneRef.current, cameraRef.current);
+                }
+            },
+            undefined,
+            (err) => {
+                console.error('Failed to load GLB setting:', settingConfig.source, err);
+            }
+        );
+    }
+
+    function buildSetting(scene, settingKey) {
+        if (!scene) return;
+        const settingConfig = getSetting(currentSetupType, settingKey);
+        if (!settingConfig) return;
+
+        disposeEnvironment();
+
+        const envRoot = new THREE.Group();
+        envRoot.name = 'environmentRoot';
+        environmentRootRef.current = envRoot;
+        scene.add(envRoot);
+
+        // Anchor for ghost-spot logic. Procedural settings will overwrite this
+        // with the real table-top mesh; GLB settings rely on this placeholder
+        // since the booth zone is at world origin per the GLB contract.
+        const tableAnchor = new THREE.Mesh(
+            new THREE.PlaneGeometry(8, 1.4),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        tableAnchor.rotation.x = -Math.PI / 2;
+        tableAnchor.position.set(0, 0.95, -0.25);
+        envRoot.add(tableAnchor);
+        djTableRef.current = tableAnchor;
+
+        if (settingConfig.type === 'procedural') {
+            // Redirect scene.add() into envRoot for the duration of the
+            // procedural build so existing createClubEnvironment internals
+            // (87+ scene.add calls) land inside the swappable group.
+            const origAdd = scene.add.bind(scene);
+            scene.add = function (...objs) {
+                objs.forEach((o) => envRoot.add(o));
+                return scene;
+            };
+            try {
+                createClubEnvironment(scene);
+            } finally {
+                scene.add = origAdd;
+            }
+        } else if (settingConfig.type === 'glb') {
+            loadGlbEnvironment(envRoot, settingConfig);
+        }
+    }
+
+    function applySettingCamera(settingConfig) {
+        if (!cameraRef.current || !controlsRef.current || !settingConfig?.camera) return;
+        const { position, target } = settingConfig.camera;
+        cameraRef.current.position.set(position[0], position[1], position[2]);
+        controlsRef.current.target.set(target[0], target[1], target[2]);
+        controlsRef.current.update();
+    }
+
     function createClubEnvironment(scene) {
         // Clear any existing environment elements
-        scene.children = scene.children.filter(child => 
+        scene.children = scene.children.filter(child =>
             child.userData.type !== 'environment'
         );
 
@@ -3844,10 +3966,17 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
         }
     };
 
-    // Update currentSetupType when setupType prop changes
+    // Update currentSetupType when setupType prop changes. Reset the setting
+    // to that type's default unless a setting prop is supplied explicitly.
     useEffect(() => {
-        setCurrentSetupType(setupType || 'DJ');
-    }, [setupType]);
+        const nextType = setupType || 'DJ';
+        setCurrentSetupType(nextType);
+        if (setting && SETTINGS[nextType]?.[setting]) {
+            setCurrentSetting(setting);
+        } else {
+            setCurrentSetting(defaultSettingFor(nextType));
+        }
+    }, [setupType, setting]);
 
     // Add function to determine recommended product types based on setup and position
     const getRecommendedProductType = (spotType) => {
@@ -4083,15 +4212,16 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (sceneRef.current && sceneInitialized) {
-            console.log('Setup type changed to:', currentSetupType);
-            createClubEnvironment(sceneRef.current);
-            
+            console.log('Setup type / setting changed to:', currentSetupType, currentSetting);
+            buildSetting(sceneRef.current, currentSetting);
+            applySettingCamera(getSetting(currentSetupType, currentSetting));
+
             // Force a re-render
             if (rendererRef.current && cameraRef.current) {
                 rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
         }
-    }, [currentSetupType, sceneInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [currentSetupType, currentSetting, sceneInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Removed unused handleGhostHover function
 
@@ -4314,12 +4444,60 @@ function ThreeScene({ devices, isInitialized, setupType, onDevicesChange, onCate
 
     return (
         <>
-            <div ref={mountRef} style={{ 
-                width: "100%", 
+            <div ref={mountRef} style={{
+                width: "100%",
                 height: isMobile ? "calc(100vh - 60px)" : "100%",
                 touchAction: "none",
                 backgroundColor: "#0a0a0a"
             }}>
+                {hasMultipleSettings(currentSetupType) && (
+                    <div
+                        className="setting-switcher"
+                        style={{
+                            position: 'absolute',
+                            top: '20px',
+                            left: '20px',
+                            zIndex: 250,
+                            display: 'inline-flex',
+                            padding: '4px',
+                            borderRadius: '999px',
+                            background: 'rgba(15, 15, 20, 0.72)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                            gap: '2px',
+                        }}
+                        role="group"
+                        aria-label="Scene setting"
+                    >
+                        {listSettings(currentSetupType).map((s) => {
+                            const active = s.key === currentSetting;
+                            return (
+                                <button
+                                    key={s.key}
+                                    type="button"
+                                    onClick={() => setCurrentSetting(s.key)}
+                                    style={{
+                                        appearance: 'none',
+                                        border: 'none',
+                                        padding: '6px 14px',
+                                        borderRadius: '999px',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        letterSpacing: '0.02em',
+                                        cursor: 'pointer',
+                                        color: active ? '#0a0a0a' : 'rgba(255,255,255,0.78)',
+                                        background: active ? '#fff' : 'transparent',
+                                        transition: 'background 0.15s ease, color 0.15s ease',
+                                    }}
+                                    aria-pressed={active}
+                                >
+                                    {s.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
                 {error && (
                     <div className="error-message fade-in" style={{
                         position: 'absolute',
