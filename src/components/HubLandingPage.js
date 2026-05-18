@@ -6,6 +6,7 @@ import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
 import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
 import { attachHls } from '../utils/attachHls';
+import { listSettings, hasMultipleSettings, defaultSettingFor } from '../data/settings';
 import './HubLandingPage.css';
 
 const SETUP_TYPES = [
@@ -40,6 +41,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showPostSetModal, setShowPostSetModal] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [pendingSettingType, setPendingSettingType] = useState(null);
   const [playingSet, setPlayingSet] = useState(null);
   const playerVideoRef = useRef(null);
 
@@ -61,7 +63,18 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
 
   const startNewSetup = (type) => {
     setShowTypePicker(false);
-    onNewSetup && onNewSetup(type);
+    if (hasMultipleSettings(type)) {
+      setPendingSettingType(type);
+      return;
+    }
+    onNewSetup && onNewSetup(type, defaultSettingFor(type));
+  };
+
+  const pickSettingAndStart = (settingKey) => {
+    const type = pendingSettingType;
+    setPendingSettingType(null);
+    if (!type) return;
+    onNewSetup && onNewSetup(type, settingKey);
   };
 
   useEffect(() => {
@@ -396,6 +409,29 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               <h3 className="hub-type-card__title">{type}</h3>
               <p className="hub-type-card__blurb">{blurb}</p>
               <span className="hub-type-card__cta mono-label">START BUILDING →</span>
+            </Card>
+          ))}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!pendingSettingType}
+        onClose={() => setPendingSettingType(null)}
+        title={pendingSettingType ? `Pick a ${pendingSettingType} setting` : ''}
+      >
+        <div className="hub-types hub-types--in-modal">
+          {pendingSettingType && listSettings(pendingSettingType).map((s) => (
+            <Card
+              key={s.key}
+              padding="lg"
+              className="hub-type-card"
+              onClick={() => pickSettingAndStart(s.key)}
+            >
+              <h3 className="hub-type-card__title">{s.label}</h3>
+              <p className="hub-type-card__blurb">
+                {s.type === 'glb' ? 'Custom 3D environment' : 'Default environment'}
+              </p>
+              <span className="hub-type-card__cta mono-label">USE THIS →</span>
             </Card>
           ))}
         </div>

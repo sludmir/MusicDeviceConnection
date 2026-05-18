@@ -8,6 +8,7 @@ import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
+import { defaultSettingFor } from './data/settings';
 import AppShell from './AppShell';
 import ProductImporter from './ProductImporter';
 import SetupTimelineImport from './SetupTimeline';
@@ -91,6 +92,7 @@ async function testFirebaseConnection() {
 function App() {
   const [user, setUser] = useState(null);
   const [selectedSetup, setSelectedSetup] = useState(null);
+  const [selectedSetting, setSelectedSetting] = useState(null);
   const [setupDevices, setSetupDevices] = useState({ DJ: [], Producer: [], Musician: [] });
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -245,6 +247,8 @@ function App() {
         toggleTheme={toggleTheme}
         selectedSetup={selectedSetup}
         setSelectedSetup={setSelectedSetup}
+        selectedSetting={selectedSetting}
+        setSelectedSetting={setSelectedSetting}
         setupDevices={setupDevices}
         setSetupDevices={setSetupDevices}
         actualDevices={actualDevices}
@@ -269,6 +273,8 @@ function AppRoutes({
   toggleTheme,
   selectedSetup,
   setSelectedSetup,
+  selectedSetting,
+  setSelectedSetting,
   setupDevices,
   setSetupDevices,
   actualDevices,
@@ -313,13 +319,15 @@ function AppRoutes({
   const handleSetupSelectFromLanding = (setup) => {
     const type = setup.setupType || 'DJ';
     setSelectedSetup(type);
+    setSelectedSetting(setup.setting || defaultSettingFor(type));
     setActualDevices(setup.devices || []);
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
     navigate('/builder');
   };
 
-  const handleNewSetupFromLanding = (setupType) => {
+  const handleNewSetupFromLanding = (setupType, setting) => {
     setSelectedSetup(setupType);
+    setSelectedSetting(setting || defaultSettingFor(setupType));
     setActualDevices([]);
     setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
     navigate('/builder');
@@ -538,12 +546,17 @@ function AppRoutes({
                         Feed
                       </button>
                       <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
-                      <SaveSetupButton currentDevices={actualDevices} setupType={selectedSetup} />
+                      <SaveSetupButton
+                        currentDevices={actualDevices}
+                        setupType={selectedSetup}
+                        setting={selectedSetting}
+                      />
                     </div>
                     <ThreeScene
                       devices={setupDevices[selectedSetup]}
                       isInitialized={isFirebaseConnected}
                       setupType={selectedSetup}
+                      setting={selectedSetting}
                       onDevicesChange={handleDevicesChange}
                       onCategoryToggle={handleThreeSceneToggleSetup}
                     />
