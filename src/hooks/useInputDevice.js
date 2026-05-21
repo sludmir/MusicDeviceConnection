@@ -5,52 +5,44 @@
 // ambiguous, the user is stuck with the wrong controls. Instead we classify
 // every wheel event and let the active device switch on the fly.
 
+// Magnitude threshold above which a vertical-only wheel event is treated as a
+// mouse-wheel notch. Real-world data: a smooth-scroll mouse emits fractional
+// deltas that ramp to peaks of 150–360 per notch, while a trackpad's normal
+// two-finger scroll stays well below this. Fractionality is NOT a useful
+// signal — both devices produce fractional pixel deltas in Chrome.
+const MOUSE_DELTA_THRESHOLD = 80;
+
 // Classify a single wheel event.
 //   'pinch'    — trackpad pinch gesture (browser sets ctrlKey); always a zoom
-//   'trackpad' — high-confidence trackpad signal (horizontal delta, or a
-//                fractional / small vertical delta from inertial scrolling)
-//   'mouse'    — large, integer, purely-vertical delta = a mouse wheel notch
-//   'unknown'  — no signal (e.g. deltaY 0)
+//   'trackpad' — horizontal component present (a plain wheel can't do this)
+//   'mouse'    — large vertical magnitude = a mouse wheel notch
+//   'soft'     — small vertical, no horizontal → ambiguous, leave mode as-is
 export function classifyWheelEvent(e) {
   if (e.ctrlKey) return 'pinch';
   const dy = Math.abs(e.deltaY || 0);
   const dx = Math.abs(e.deltaX || 0);
   // A plain mouse wheel cannot produce horizontal movement.
   if (dx > 0.5) return 'trackpad';
-  // Inertial trackpad scrolling produces fractional pixel deltas.
-  const fractional = Math.abs((e.deltaY || 0) - Math.round(e.deltaY || 0)) > 0.0001;
-  if (fractional) return 'trackpad';
-  // Small discrete steps are trackpad; big notches (100/120/...) are a mouse.
-  if (dy > 0 && dy < 50) return 'trackpad';
-  if (dy >= 50) return 'mouse';
-  return 'unknown';
+  // Large vertical magnitude is the reliable mouse-wheel signal.
+  if (dy >= MOUSE_DELTA_THRESHOLD) return 'mouse';
+  return 'soft';
 }
 
-// Number of consecutive mouse-like events required to switch INTO mouse mode.
-// Trackpad signals are high-confidence and switch back immediately; mouse
-// signals need confirmation so a single hard trackpad flick can't flip modes.
-const MOUSE_CONFIRM = 2;
-
-// Stateful detector with hysteresis. Feed it wheel events; it returns the
-// current best-guess device. Not a React hook — usable inside event handlers
-// and refs without re-renders.
+// Stateful detector. Feed it wheel events; it returns the current best-guess
+// device. Not a React hook — usable inside event handlers and refs without
+// re-renders. 'mouse' and 'trackpad' are high-confidence and switch the mode;
+// 'soft' / 'pinch' leave the current mode unchanged (so a notch's small
+// leading/trailing events don't flap the mode mid-gesture).
 export function createWheelDeviceDetector(initial = 'trackpad') {
   let device = initial;
-  let mouseStreak = 0;
   return {
     get device() {
       return device;
     },
     feed(e) {
       const cls = classifyWheelEvent(e);
-      if (cls === 'trackpad') {
-        mouseStreak = 0;
-        device = 'trackpad';
-      } else if (cls === 'mouse') {
-        mouseStreak += 1;
-        if (mouseStreak >= MOUSE_CONFIRM) device = 'mouse';
-      }
-      // 'pinch' and 'unknown' leave the current device unchanged.
+      if (cls === 'mouse') device = 'mouse';
+      else if (cls === 'trackpad') device = 'trackpad';
       return device;
     },
   };
