@@ -16,7 +16,7 @@ import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
 import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
-import useInputDevice from './hooks/useInputDevice';
+import { createWheelDeviceDetector } from './hooks/useInputDevice';
 
 // Module-level shared DRACOLoader. Decoder served from the unpkg CDN to avoid
 // bundling the wasm/js. Configured once and reused by every GLB-backed setting.
@@ -93,11 +93,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const hoverHighlightStateRef = useRef(new Map());
     const menuDeviceRef = useRef(null);
 
-    // Input-device-aware camera controls. The wheel handler closure captures
-    // inputDeviceRef so behavior switches without re-running scene setup.
-    const { device: inputDevice } = useInputDevice();
-    const inputDeviceRef = useRef(inputDevice);
-    useEffect(() => { inputDeviceRef.current = inputDevice; }, [inputDevice]);
+    // Live trackpad-vs-mouse detector. Re-classifies every wheel event (with
+    // hysteresis) so camera controls self-correct instead of relying on a
+    // one-time cached guess. The applied-mode ref avoids redundant control
+    // mutations when the device hasn't changed.
+    const wheelDetectorRef = useRef(createWheelDeviceDetector());
+    const appliedInputModeRef = useRef(null);
 
     // Removed unused PRODUCT_TYPES constant
 
@@ -1496,7 +1497,22 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             const deltaY = event.deltaY !== undefined ? event.deltaY : (event.wheelDeltaY ? -event.wheelDeltaY / 120 : 0);
             const deltaX = event.deltaX !== undefined ? event.deltaX : (event.wheelDeltaX ? -event.wheelDeltaX / 120 : 0);
 
-            const isMouse = inputDeviceRef.current === 'mouse';
+            // Live device classification — adapts on every event, no caching.
+            const device = wheelDetectorRef.current.feed(event);
+            if (device !== appliedInputModeRef.current) {
+                appliedInputModeRef.current = device;
+                if (device === 'mouse') {
+                    controls.mouseButtons.LEFT = 0; // ROTATE — conventional for mouse
+                    controls.rotateSpeed = 0.7;
+                    controls.dampingFactor = 0.08;
+                } else {
+                    controls.mouseButtons.LEFT = 2; // PAN — keeps trackpad feel
+                    controls.rotateSpeed = 1.0;
+                    controls.dampingFactor = 0.05;
+                }
+            }
+
+            const isMouse = device === 'mouse';
             const wantZoom = event.ctrlKey || isMouse;
 
             if (wantZoom) {
@@ -4084,24 +4100,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     useEffect(() => {
         menuDeviceRef.current = menuDevice;
     }, [menuDevice]);
-
-    // Apply input-device-specific OrbitControls tuning whenever the device
-    // classification changes (e.g., after first wheel event detects a mouse).
-    useEffect(() => {
-        const controls = controlsRef.current;
-        if (!controls) return;
-        if (inputDevice === 'mouse') {
-            // Conventional mouse: left drag rotates, slower rotate, more damping.
-            controls.mouseButtons.LEFT = 0; // ROTATE
-            controls.rotateSpeed = 0.7;
-            controls.dampingFactor = 0.08;
-        } else {
-            // Trackpad: left drag pans, default rotate speed; wheel handler does rotate.
-            controls.mouseButtons.LEFT = 2; // PAN
-            controls.rotateSpeed = 1.0;
-            controls.dampingFactor = 0.05;
-        }
-    }, [inputDevice]);
 
     // Dismiss hover menu on Escape or outside click
     useEffect(() => {
