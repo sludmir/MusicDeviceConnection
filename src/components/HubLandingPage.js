@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, deleteDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose, MdVideocam } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
 import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
 import { attachHls } from '../utils/attachHls';
+import { listSettings, hasMultipleSettings, defaultSettingFor } from '../data/settings';
 import './HubLandingPage.css';
 
 const SETUP_TYPES = [
@@ -40,6 +41,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showPostSetModal, setShowPostSetModal] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [pendingSettingType, setPendingSettingType] = useState(null);
   const [playingSet, setPlayingSet] = useState(null);
   const playerVideoRef = useRef(null);
 
@@ -61,7 +63,18 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
 
   const startNewSetup = (type) => {
     setShowTypePicker(false);
-    onNewSetup && onNewSetup(type);
+    if (hasMultipleSettings(type)) {
+      setPendingSettingType(type);
+      return;
+    }
+    onNewSetup && onNewSetup(type, defaultSettingFor(type));
+  };
+
+  const pickSettingAndStart = (settingKey) => {
+    const type = pendingSettingType;
+    setPendingSettingType(null);
+    if (!type) return;
+    onNewSetup && onNewSetup(type, settingKey);
   };
 
   useEffect(() => {
@@ -215,15 +228,42 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
           )}
 
           <div className="hub-post-cta">
-            <Button
-              variant="primary"
-              size="lg"
+            <button
+              type="button"
+              className="hub-post-card"
               onClick={() => setShowPostSetModal(true)}
             >
-              <MdFileUpload size={18} style={{ marginRight: 8, verticalAlign: '-3px' }} />
-              Post a set
-            </Button>
-            <span className="hub-post-cta__hint">Share your performance with the community</span>
+              <div className="hub-post-card__icon">
+                <MdFileUpload size={26} />
+              </div>
+              <div className="hub-post-card__body">
+                <div className="hub-post-card__title">Quick post</div>
+                <div className="hub-post-card__subtitle">One video, mark a few clips, share in minutes.</div>
+              </div>
+              <div className="hub-post-card__arrow" aria-hidden="true">
+                <MdArrowForward size={18} />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="hub-post-card hub-post-card--featured"
+              onClick={() => window.location.assign('/set-editor')}
+            >
+              <div className="hub-post-card__icon">
+                <MdVideocam size={26} />
+              </div>
+              <div className="hub-post-card__body">
+                <div className="hub-post-card__title">
+                  Multi-angle edit
+                  <span className="hub-post-card__badge">New</span>
+                </div>
+                <div className="hub-post-card__subtitle">Up to 3 cameras + lossless master audio.</div>
+              </div>
+              <div className="hub-post-card__arrow" aria-hidden="true">
+                <MdArrowForward size={18} />
+              </div>
+            </button>
           </div>
         </section>
 
@@ -369,6 +409,29 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               <h3 className="hub-type-card__title">{type}</h3>
               <p className="hub-type-card__blurb">{blurb}</p>
               <span className="hub-type-card__cta mono-label">START BUILDING →</span>
+            </Card>
+          ))}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!pendingSettingType}
+        onClose={() => setPendingSettingType(null)}
+        title={pendingSettingType ? `Pick a ${pendingSettingType} setting` : ''}
+      >
+        <div className="hub-types hub-types--in-modal">
+          {pendingSettingType && listSettings(pendingSettingType).map((s) => (
+            <Card
+              key={s.key}
+              padding="lg"
+              className="hub-type-card"
+              onClick={() => pickSettingAndStart(s.key)}
+            >
+              <h3 className="hub-type-card__title">{s.label}</h3>
+              <p className="hub-type-card__blurb">
+                {s.type === 'glb' ? 'Custom 3D environment' : 'Default environment'}
+              </p>
+              <span className="hub-type-card__cta mono-label">USE THIS →</span>
             </Card>
           ))}
         </div>

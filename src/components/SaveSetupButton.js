@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { buildMobileDiagram } from '../utils/buildMobileDiagram';
+import { defaultSettingFor } from '../data/settings';
 import { useToast } from '../ui';
 import './SaveSetupButton.css';
 
-function SaveSetupButton({ currentDevices, setupType, sceneVariant }) {
+function SaveSetupButton({ currentDevices, setupType, setting }) {
   const toast = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [setupName, setSetupName] = useState('');
@@ -72,10 +73,10 @@ function SaveSetupButton({ currentDevices, setupType, sceneVariant }) {
         name: setupName.trim(),
         ownerId: auth.currentUser.uid,
         setupType: setupType || 'DJ',
+        setting: setting || defaultSettingFor(setupType || 'DJ'),
         devices: devicesData,
         mobileDiagram,
         isMainSetup: isMainSetup,
-        sceneVariant: sceneVariant || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };

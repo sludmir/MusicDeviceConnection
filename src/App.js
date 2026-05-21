@@ -8,9 +8,9 @@ import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
+import { defaultSettingFor } from './data/settings';
 import AppShell from './AppShell';
 import ProductImporter from './ProductImporter';
-import { getDefaultVariant } from './utils/sceneVariants';
 import SceneVariantSwitcherImport from './components/SceneVariantSwitcher';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
@@ -25,6 +25,7 @@ import UploadImport from './components/Upload';
 import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
+import SetEditorImport from './components/SetEditor';
 
 const ThreeScene = lazy(() =>
   import('./ThreeScene').then((m) => {
@@ -47,6 +48,7 @@ const Upload = unwrap(UploadImport);
 const Profile = unwrap(ProfileImport);
 const UserSearch = unwrap(UserSearchImport);
 const Notifications = unwrap(NotificationsImport);
+const SetEditor = unwrap(SetEditorImport);
 
 function isValidComponent(C) {
   return typeof C === 'function' || (C && typeof C === 'object' && typeof C.$$typeof === 'symbol');
@@ -64,6 +66,7 @@ const APP_COMPONENTS = [
   ['Profile', Profile],
   ['UserSearch', UserSearch],
   ['Notifications', Notifications],
+  ['SetEditor', SetEditor],
 ];
 const INVALID_COMPONENTS = APP_COMPONENTS.filter(([, C]) => !isValidComponent(C)).map(([name]) => name);
 
@@ -89,7 +92,7 @@ async function testFirebaseConnection() {
 function App() {
   const [user, setUser] = useState(null);
   const [selectedSetup, setSelectedSetup] = useState(null);
-  const [sceneVariant, setSceneVariant] = useState(null);
+  const [selectedSetting, setSelectedSetting] = useState(null);
   const [setupDevices, setSetupDevices] = useState({ DJ: [], Producer: [], Musician: [] });
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,10 +115,10 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (selectedSetup && sceneVariant === null) {
-      setSceneVariant(getDefaultVariant(selectedSetup));
+    if (selectedSetup && selectedSetting == null) {
+      setSelectedSetting(defaultSettingFor(selectedSetup));
     }
-  }, [selectedSetup, sceneVariant]);
+  }, [selectedSetup, selectedSetting]);
 
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
@@ -239,8 +242,8 @@ function App() {
         toggleTheme={toggleTheme}
         selectedSetup={selectedSetup}
         setSelectedSetup={setSelectedSetup}
-        sceneVariant={sceneVariant}
-        setSceneVariant={setSceneVariant}
+        selectedSetting={selectedSetting}
+        setSelectedSetting={setSelectedSetting}
         setupDevices={setupDevices}
         setSetupDevices={setSetupDevices}
         actualDevices={actualDevices}
@@ -260,8 +263,8 @@ function AppRoutes({
   toggleTheme,
   selectedSetup,
   setSelectedSetup,
-  sceneVariant,
-  setSceneVariant,
+  selectedSetting,
+  setSelectedSetting,
   setupDevices,
   setSetupDevices,
   actualDevices,
@@ -300,14 +303,15 @@ function AppRoutes({
   const handleSetupSelectFromLanding = (setup) => {
     const type = setup.setupType || 'DJ';
     setSelectedSetup(type);
+    setSelectedSetting(setup.setting || defaultSettingFor(type));
     setActualDevices(setup.devices || []);
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
-    setSceneVariant(setup.sceneVariant || getDefaultVariant(type));
     navigate('/builder');
   };
 
-  const handleNewSetupFromLanding = (setupType) => {
+  const handleNewSetupFromLanding = (setupType, setting) => {
     setSelectedSetup(setupType);
+    setSelectedSetting(setting || defaultSettingFor(setupType));
     setActualDevices([]);
     setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
     navigate('/builder');
@@ -507,6 +511,7 @@ function AppRoutes({
             <Route path="/admin/products" element={<ProductDashboard onClose={() => navigate('/hub')} />} />
             <Route path="/admin/products-import" element={<ProductImporter onBack={() => navigate('/hub')} />} />
             <Route path="/upload" element={<Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />} />
+            <Route path="/set-editor" element={<SetEditor onBack={() => navigate('/hub')} theme={theme} />} />
             <Route path="*" element={<Navigate to="/hub" replace />} />
           </Route>
           <Route path="/builder" element={
@@ -525,22 +530,26 @@ function AppRoutes({
                         Feed
                       </button>
                       <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
-                      <SaveSetupButton currentDevices={actualDevices} setupType={selectedSetup} sceneVariant={sceneVariant} />
+                      <SaveSetupButton
+                        currentDevices={actualDevices}
+                        setupType={selectedSetup}
+                        setting={selectedSetting}
+                      />
                     </div>
                     <ThreeScene
                       devices={setupDevices[selectedSetup]}
                       isInitialized={isFirebaseConnected}
                       setupType={selectedSetup}
+                      setting={selectedSetting}
+                      onSettingChange={setSelectedSetting}
                       onDevicesChange={handleDevicesChange}
-                      sceneVariant={sceneVariant}
-                      onSceneVariantChange={setSceneVariant}
                     />
                   </div>
                   {SceneVariantSwitcher && (
                     <SceneVariantSwitcher
                       setupType={selectedSetup}
-                      value={sceneVariant || getDefaultVariant(selectedSetup)}
-                      onChange={setSceneVariant}
+                      value={selectedSetting || defaultSettingFor(selectedSetup)}
+                      onChange={setSelectedSetting}
                     />
                   )}
                 </div>

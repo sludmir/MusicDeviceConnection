@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm run:*)",
+      "Bash(npm start:*)",
+      "Bash(npx --yes create-expo-app@latest mobile --template blank)",
+      "Bash(npx expo *)",
+      "Bash(node -e \"const fb = require\\('firebase/auth'\\); console.log\\('getReactNativePersistence:', typeof fb.getReactNativePersistence\\); console.log\\('initializeAuth:', typeof fb.initializeAuth\\); console.log\\('version:', require\\('firebase/package.json'\\).version\\);\")",
+      "Bash(node -e \"const m = require\\('firebase/auth'\\); const keys = Object.keys\\(m\\).filter\\(k => k.toLowerCase\\(\\).includes\\('persist'\\) || k.toLowerCase\\(\\).includes\\('native'\\)\\); console.log\\('persist/native keys:', keys\\); console.log\\('version:', require\\('firebase/package.json'\\).version\\);\")",
+      "Read(//Users/sebastianludmir/Desktop/MusicDeviceConnection/node_modules/**)",
+      "Bash(node -e \"try { require\\('./node_modules/metro-cache/src/stores/HttpStore.js'\\); console.log\\('HttpStore loaded OK'\\); } catch\\(e\\) { console.log\\('HttpStore load error:', e.message\\); console.log\\(e.stack.split\\('\\\\n'\\).slice\\(0,5\\).join\\('\\\\n'\\)\\); }\")",
+      "Bash(node -e \"try { require\\('./node_modules/metro-cache/src/index.js'\\); console.log\\('metro-cache index loaded OK'\\); } catch\\(e\\) { console.log\\('metro-cache load error:', e.message\\); console.log\\(e.stack.split\\('\\\\n'\\).slice\\(0,8\\).join\\('\\\\n'\\)\\); }\")"
+    ]
+  }
+}

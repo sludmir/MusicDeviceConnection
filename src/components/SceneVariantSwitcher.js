@@ -1,25 +1,29 @@
 import React, { useState } from 'react';
-import { getVariantsForSetup, getVariantLabel } from '../utils/sceneVariants';
+import { listSettings, getSetting } from '../data/settings';
 import './SceneVariantSwitcher.css';
 
+// Bottom-center upward dropdown for switching the scene environment (setting)
+// while building. Reads available settings for the current setup type from the
+// settings registry. Hidden when a setup type only has one setting.
 export default function SceneVariantSwitcher({ setupType, value, onChange }) {
-  const variants = getVariantsForSetup(setupType);
+  const settings = listSettings(setupType);
   const [open, setOpen] = useState(false);
-  if (!variants.length) return null;
+  if (settings.length <= 1) return null;
 
-  const currentLabel = getVariantLabel(value) || variants[0].label;
+  const current = getSetting(setupType, value);
+  const currentLabel = (current && current.label) || settings[0].label;
 
   return (
     <div className={`svs-root ${open ? 'is-open' : ''}`}>
       {open && (
         <ul className="svs-menu">
-          {variants.map((v) => (
+          {settings.map((s) => (
             <li
-              key={v.key}
-              className={`svs-item ${v.key === value ? 'is-active' : ''}`}
-              onClick={() => { onChange(v.key); setOpen(false); }}
+              key={s.key}
+              className={`svs-item ${s.key === value ? 'is-active' : ''}`}
+              onClick={() => { onChange(s.key); setOpen(false); }}
             >
-              {v.label}
+              {s.label}
             </li>
           ))}
         </ul>

@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, initializeFirestore, persistentLocalCache, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -32,5 +33,6 @@ try {
 }
 
 const storage = getStorage(app);
+const functions = getFunctions(app, 'us-central1');
 
-export { app, auth, provider, db, storage };
+export { app, auth, provider, db, storage, functions };
