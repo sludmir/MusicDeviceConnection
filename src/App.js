@@ -11,7 +11,7 @@ import { initializeDatabase } from './firebaseUtils';
 import { defaultSettingFor } from './data/settings';
 import AppShell from './AppShell';
 import ProductImporter from './ProductImporter';
-import SetupTimelineImport from './SetupTimeline';
+import SceneVariantSwitcherImport from './components/SceneVariantSwitcher';
 import ProductDashboardImport from './ProductDashboard';
 import MySetsImport from './MySets';
 import SettingsImport from './Settings';
@@ -34,7 +34,7 @@ const ThreeScene = lazy(() =>
   })
 );
 const unwrap = (m) => (m && typeof m.default === 'function' ? m.default : m);
-const SetupTimeline = unwrap(SetupTimelineImport);
+const SceneVariantSwitcher = unwrap(SceneVariantSwitcherImport);
 const SaveSetupButton = unwrap(SaveSetupButtonImport);
 const ConnectionGuideButton = unwrap(ConnectionGuideButtonImport);
 const ProductDashboard = unwrap(ProductDashboardImport);
@@ -54,7 +54,7 @@ function isValidComponent(C) {
   return typeof C === 'function' || (C && typeof C === 'object' && typeof C.$$typeof === 'symbol');
 }
 const APP_COMPONENTS = [
-  ['SetupTimeline', SetupTimeline],
+  ['SceneVariantSwitcher', SceneVariantSwitcher],
   ['SaveSetupButton', SaveSetupButton],
   ['ProductDashboard', ProductDashboard],
   ['MySets', MySets],
@@ -97,9 +97,7 @@ function App() {
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const [actualDevices, setActualDevices] = useState([]);
-  const [threeSceneToggleFunction, setThreeSceneToggleFunction] = useState(null);
   const [showFeedPostSetModal, setShowFeedPostSetModal] = useState(false);
   const [theme, setTheme] = useState(() => {
     try {
@@ -115,6 +113,12 @@ function App() {
       localStorage.setItem('livet-set-theme', theme);
     } catch (_) {}
   }, [theme]);
+
+  useEffect(() => {
+    if (selectedSetup && selectedSetting == null) {
+      setSelectedSetting(defaultSettingFor(selectedSetup));
+    }
+  }, [selectedSetup, selectedSetting]);
 
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
@@ -160,19 +164,10 @@ function App() {
     window.setupDevices = setupDevices;
   }, [setupDevices]);
 
-  const handleCategorySelect = (categoryId) => setSelectedCategory(categoryId);
-
   const handleDevicesChange = useCallback((devices) => {
     setActualDevices(devices);
   }, []);
 
-  const handleCategoryToggle = (categoryId) => {
-    if (threeSceneToggleFunction) threeSceneToggleFunction(categoryId);
-  };
-
-  const handleThreeSceneToggleSetup = (toggleFunction) => {
-    setThreeSceneToggleFunction(() => toggleFunction);
-  };
 
   if (isLoading) {
     return (
@@ -253,15 +248,10 @@ function App() {
         setSetupDevices={setSetupDevices}
         actualDevices={actualDevices}
         setActualDevices={setActualDevices}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
         isFirebaseConnected={isFirebaseConnected}
         showFeedPostSetModal={showFeedPostSetModal}
         setShowFeedPostSetModal={setShowFeedPostSetModal}
         handleDevicesChange={handleDevicesChange}
-        handleCategorySelect={handleCategorySelect}
-        handleCategoryToggle={handleCategoryToggle}
-        handleThreeSceneToggleSetup={handleThreeSceneToggleSetup}
       />
     </BrowserRouter>
   );
@@ -279,15 +269,10 @@ function AppRoutes({
   setSetupDevices,
   actualDevices,
   setActualDevices,
-  selectedCategory,
-  setSelectedCategory,
   isFirebaseConnected,
   showFeedPostSetModal,
   setShowFeedPostSetModal,
   handleDevicesChange,
-  handleCategorySelect,
-  handleCategoryToggle,
-  handleThreeSceneToggleSetup,
 }) {
   const navigate = useNavigate();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -311,7 +296,6 @@ function AppRoutes({
 
   const handleLogoClick = () => {
     setSelectedSetup(null);
-    setSelectedCategory(null);
     setActualDevices([]);
     navigate('/hub');
   };
@@ -557,17 +541,17 @@ function AppRoutes({
                       isInitialized={isFirebaseConnected}
                       setupType={selectedSetup}
                       setting={selectedSetting}
+                      onSettingChange={setSelectedSetting}
                       onDevicesChange={handleDevicesChange}
-                      onCategoryToggle={handleThreeSceneToggleSetup}
                     />
                   </div>
-                  <SetupTimeline
-                    setupType={selectedSetup}
-                    currentDevices={actualDevices}
-                    onCategorySelect={handleCategorySelect}
-                    selectedCategory={selectedCategory}
-                    onToggleCategory={handleCategoryToggle}
-                  />
+                  {SceneVariantSwitcher && (
+                    <SceneVariantSwitcher
+                      setupType={selectedSetup}
+                      value={selectedSetting || defaultSettingFor(selectedSetup)}
+                      onChange={setSelectedSetting}
+                    />
+                  )}
                 </div>
               </Suspense>
             ) : (

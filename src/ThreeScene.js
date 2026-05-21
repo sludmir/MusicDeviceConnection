@@ -12,9 +12,11 @@ import { gsap } from 'gsap';
 import { updateAllModelPaths, getStorageModelURL } from './firebaseUtils'; // Add this import
 import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
+import ProductSelectorModal from './components/ProductSelectorModal';
+import DeviceHoverMenu from './components/DeviceHoverMenu';
 import MobileNavigation from './MobileNavigation';
-import { getConnectionSuggestions } from './chatGPTService';
 import { computeAutoScale } from './dimensionScaler';
+import { createWheelDeviceDetector } from './hooks/useInputDevice';
 
 // Module-level shared DRACOLoader. Decoder served from the unpkg CDN to avoid
 // bundling the wasm/js. Configured once and reused by every GLB-backed setting.
@@ -58,6 +60,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const placedDevicesListRef = useRef([]);
     const hasLoadedFromSavedRef = useRef(false);
     const isPinchingRef = useRef(false);
+    const swapTargetUniqueIdRef = useRef(null);
     const [selectedGhostIndex, setSelectedGhostIndex] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -78,17 +81,24 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
-    const [connectionAdvice, setConnectionAdvice] = useState('');
-    const [isAdviceLoading, setIsAdviceLoading] = useState(false);
-    const [hasQuotaError, setHasQuotaError] = useState(false);
     const [showMiniProfile, setShowMiniProfile] = useState(false);
     const [miniProfileDevice, setMiniProfileDevice] = useState(null);
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
     const [cameraView, setCameraView] = useState('set');
-    const [lastApiCall, setLastApiCall] = useState(0);
-    const [highlightedCategory, setHighlightedCategory] = useState(null);
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
+    const [menuDevice, setMenuDevice] = useState(null);
+    const [menuScreenPos, setMenuScreenPos] = useState({ x: 0, y: 0 });
+    const hoveredDeviceUniqueIdRef = useRef(null);
+    const hoverHighlightStateRef = useRef(new Map());
+    const menuDeviceRef = useRef(null);
+
+    // Live trackpad-vs-mouse detector. Re-classifies every wheel event (with
+    // hysteresis) so camera controls self-correct instead of relying on a
+    // one-time cached guess. The applied-mode ref avoids redundant control
+    // mutations when the device hasn't changed.
+    const wheelDetectorRef = useRef(createWheelDeviceDetector());
+    const appliedInputModeRef = useRef(null);
 
     // Removed unused PRODUCT_TYPES constant
 
@@ -219,6 +229,22 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         setShowSearch(false);
         setSearchMode('');
         setSearchQuery('');
+    };
+
+    const handleProductSelected = (product) => {
+        const swapId = swapTargetUniqueIdRef.current;
+        if (swapId) {
+            const existing = placedDevicesListRef.current.find((d) => d.uniqueId === swapId);
+            if (existing) {
+                const spotIndex = existing.placementIndex;
+                removeDevice(swapId);
+                addProductToPosition(product, spotIndex);
+            }
+            swapTargetUniqueIdRef.current = null;
+        } else {
+            addProductToPosition(product, selectedGhostIndex);
+        }
+        setShowSearch(false);
     };
 
     // Removed unused getConnectionKey function
@@ -1461,23 +1487,45 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         el.addEventListener('pointerup', onPointerUp, { capture });
         el.addEventListener('pointercancel', onPointerUp, { capture });
         
-        // Wheel: zoom when ctrlKey (trackpad pinch), otherwise rotate
+        // Wheel handling depends on input device:
+        //   trackpad: two-finger scroll = rotate, pinch (ctrlKey) = zoom
+        //   mouse:    wheel = zoom (conventional), drag = rotate (via OrbitControls)
         const handleWheel = (event) => {
             event.preventDefault();
             event.stopImmediatePropagation();
-            
+
             const deltaY = event.deltaY !== undefined ? event.deltaY : (event.wheelDeltaY ? -event.wheelDeltaY / 120 : 0);
             const deltaX = event.deltaX !== undefined ? event.deltaX : (event.wheelDeltaX ? -event.wheelDeltaX / 120 : 0);
-            
-            if (event.ctrlKey) {
-                // Trackpad pinch / zoom gesture: dolly in/out
+
+            // Live device classification — adapts on every event, no caching.
+            const device = wheelDetectorRef.current.feed(event);
+            if (device !== appliedInputModeRef.current) {
+                appliedInputModeRef.current = device;
+                if (device === 'mouse') {
+                    controls.mouseButtons.LEFT = 0; // ROTATE — conventional for mouse
+                    controls.rotateSpeed = 0.7;
+                    controls.dampingFactor = 0.08;
+                } else {
+                    controls.mouseButtons.LEFT = 2; // PAN — keeps trackpad feel
+                    controls.rotateSpeed = 1.0;
+                    controls.dampingFactor = 0.05;
+                }
+            }
+
+            const isMouse = device === 'mouse';
+            const wantZoom = event.ctrlKey || isMouse;
+
+            if (wantZoom) {
+                // Mouse wheel notches are big (typically |deltaY| >= 100); trackpad
+                // pinch sends tiny fractional deltas. Use a slower factor for mouse
+                // so each notch isn't a huge dolly.
+                const zoomSpeed = isMouse ? 0.0006 : 0.002;
                 const currentDist = camera.position.distanceTo(controls.target);
-                const zoomSpeed = 0.002;
                 const newDist = Math.max(minDist, Math.min(maxDist, currentDist + deltaY * zoomSpeed * currentDist));
                 const dir = camera.position.clone().sub(controls.target).normalize();
                 camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
             } else {
-                // Normal scroll: rotate
+                // Trackpad two-finger scroll: orbit
                 const rotationSpeed = 0.002;
                 const spherical = new THREE.Spherical();
                 const offset = camera.position.clone().sub(controls.target);
@@ -1530,10 +1578,24 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 setSceneInitialized(true);
 
                 // Animation loop
+                let lastMenuPos = { x: -9999, y: -9999 };
                 const animate = () => {
             requestAnimationFrame(animate);
             controls.update();
             renderer.render(scene, camera);
+            // Keep hover menu anchor synced while menu is open (only update when moved > 1px)
+            if (menuDeviceRef.current) {
+                const uid = menuDeviceRef.current.uniqueId;
+                const newPos = projectMenuAnchor(uid);
+                const dx = newPos.x - lastMenuPos.x;
+                const dy = newPos.y - lastMenuPos.y;
+                if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                    lastMenuPos = newPos;
+                    setMenuScreenPos(newPos);
+                }
+            } else {
+                lastMenuPos = { x: -9999, y: -9999 };
+            }
         };
         animate();
 
@@ -3843,23 +3905,47 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(mouse, cameraRef.current);
 
-            // When not mapping connections, check for click on a placed device first (open product profile)
+            const isClick = event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current);
+            const isMove = event.type === 'mousemove';
+
+            // When not mapping connections, check for hit on a placed device
             if (!isConnectionMapping) {
                 const deviceMeshes = Object.values(devicesRef.current).map(r => r.model).filter(Boolean);
                 if (deviceMeshes.length > 0) {
                     const deviceHits = raycaster.intersectObjects(deviceMeshes, true);
-                    if (deviceHits.length > 0) {
+
+                    // --- Hover highlight (mousemove only) ---
+                    if (isMove) {
+                        let newHoverId = null;
+                        if (deviceHits.length > 0) {
+                            let node = deviceHits[0].object;
+                            while (node && !node.userData?.uniqueId) node = node.parent;
+                            newHoverId = node?.userData?.uniqueId || null;
+                        }
+                        if (newHoverId !== hoveredDeviceUniqueIdRef.current) {
+                            if (hoveredDeviceUniqueIdRef.current) clearHoverHighlight(hoveredDeviceUniqueIdRef.current);
+                            if (newHoverId) applyHoverHighlight(newHoverId);
+                            hoveredDeviceUniqueIdRef.current = newHoverId;
+                            if (rendererRef.current?.domElement) {
+                                rendererRef.current.domElement.style.cursor = newHoverId ? 'pointer' : '';
+                            }
+                        }
+                    }
+
+                    // --- Click: open hover menu ---
+                    if (isClick && deviceHits.length > 0) {
                         let obj = deviceHits[0].object;
                         while (obj && !obj.userData?.uniqueId) obj = obj.parent;
                         const uniqueId = obj?.userData?.uniqueId;
                         if (uniqueId) {
                             const ref = devicesRef.current[uniqueId];
-                            if (ref?.data && (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current))) {
-                                setShowSearch(false);
-                                setSearchMode('');
-                                setMiniProfileDevice(ref.data);
-                                setShowMiniProfile(true);
-                                setEditConnectionsMode(false);
+                            if (ref?.data) {
+                                setMenuDevice(ref.data);
+                                setMenuScreenPos(projectMenuAnchor(uniqueId));
+                                // Prevent this click from bubbling to the window-level
+                                // dismiss listener that would otherwise close the menu
+                                // before the user sees it.
+                                event.stopPropagation();
                                 return;
                             }
                         }
@@ -3879,7 +3965,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 hoveredSquare.material.color.setHex(hoveredSquare.userData.hoverColor);
                 hoveredSquare.material.opacity = 0.6;
 
-                if (event.type === 'click' || (event.type === 'touchend' && !isPinchingRef.current)) {
+                if (isClick) {
                     const clickedIndex = intersects[0].object.userData.index;
                     handleGhostSquareClick(clickedIndex);
                 }
@@ -3965,6 +4051,70 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             }
         }
     };
+
+    // Hover highlight helpers
+    const applyHoverHighlight = (uniqueId) => {
+        const entry = devicesRef.current[uniqueId];
+        if (!entry || !entry.model) return;
+        const saved = [];
+        entry.model.traverse((node) => {
+            if (node.isMesh && node.material && 'emissive' in node.material) {
+                saved.push({ mesh: node, emissive: node.material.emissive.clone(), intensity: node.material.emissiveIntensity });
+                node.material.emissive.setHex(0x00a2ff);
+                node.material.emissiveIntensity = 0.35;
+            }
+        });
+        hoverHighlightStateRef.current.set(uniqueId, saved);
+    };
+
+    const clearHoverHighlight = (uniqueId) => {
+        const saved = hoverHighlightStateRef.current.get(uniqueId);
+        if (!saved) return;
+        saved.forEach(({ mesh, emissive, intensity }) => {
+            if (mesh.material && 'emissive' in mesh.material) {
+                mesh.material.emissive.copy(emissive);
+                mesh.material.emissiveIntensity = intensity;
+            }
+        });
+        hoverHighlightStateRef.current.delete(uniqueId);
+    };
+
+    const projectMenuAnchor = (uniqueId) => {
+        const entry = devicesRef.current[uniqueId];
+        if (!entry?.model || !cameraRef.current || !mountRef.current) return { x: 0, y: 0 };
+        const box = new THREE.Box3().setFromObject(entry.model);
+        const top = new THREE.Vector3(
+            (box.min.x + box.max.x) / 2,
+            box.max.y,
+            (box.min.z + box.max.z) / 2
+        );
+        top.project(cameraRef.current);
+        const rect = mountRef.current.getBoundingClientRect();
+        return {
+            x: rect.left + ((top.x + 1) / 2) * rect.width,
+            y: rect.top + ((1 - top.y) / 2) * rect.height,
+        };
+    };
+
+    // Keep menuDeviceRef in sync for use inside animation loop closures
+    useEffect(() => {
+        menuDeviceRef.current = menuDevice;
+    }, [menuDevice]);
+
+    // Dismiss hover menu on Escape or outside click
+    useEffect(() => {
+        if (!menuDevice) return;
+        const onKey = (e) => { if (e.key === 'Escape') setMenuDevice(null); };
+        const onDown = () => setMenuDevice(null);
+        window.addEventListener('keydown', onKey);
+        // Use 'click' (not 'mousedown') so the menu's onClick stopPropagation
+        // can prevent dismissal when the user clicks a button inside the menu.
+        window.addEventListener('click', onDown);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('click', onDown);
+        };
+    }, [menuDevice]);
 
     // Update currentSetupType when setupType prop changes. Reset the setting
     // to that type's default unless a setting prop is supplied explicitly.
@@ -4286,51 +4436,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         setShowSuggestionForm(true);
     };
 
-    useEffect(() => {
-      // Prevent API calls if we have a quota error
-      if (hasQuotaError) {
-        return;
-      }
 
-      // Debounce API calls - only call if it's been at least 5 seconds since last call
-      const now = Date.now();
-      if (now - lastApiCall < 5000) {
-        return;
-      }
-
-      if (placedDevicesList && placedDevicesList.length >= 3) {
-        setIsAdviceLoading(true);
-        setLastApiCall(now);
-        
-        getConnectionSuggestions(placedDevicesList)
-          .then(setConnectionAdvice)
-          .catch((error) => {
-            console.error('ChatGPT API error:', error);
-            if (error.message.includes('quota') || error.message.includes('429')) {
-              setHasQuotaError(true);
-              setConnectionAdvice('API quota exceeded. Please try again later or upgrade your OpenAI plan.');
-            } else {
-              setConnectionAdvice('Could not get connection advice. Please try again.');
-            }
-          })
-          .finally(() => setIsAdviceLoading(false));
-      } else {
-        setConnectionAdvice('');
-      }
-    }, [placedDevicesList, hasQuotaError, lastApiCall]);
-
-    // Handle category toggle for device visibility
-    const handleCategoryToggle = (categoryId) => {
-        setHighlightedCategory(prev => prev === categoryId ? null : categoryId);
-    };
-
-    // Expose the toggle function to parent (only once)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (onCategoryToggle) {
-            onCategoryToggle(handleCategoryToggle);
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (showMiniProfile && miniProfileDevice?.uniqueId) {
@@ -4353,94 +4459,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens, zoom to device
     }, [showMiniProfile]);
 
-    useEffect(() => {
-        if (!sceneRef.current || placedDevicesList.length === 0) return;
-
-        placedDevicesList.forEach(device => {
-            const deviceRef = devicesRef.current[device.uniqueId];
-            if (!deviceRef?.model) return;
-
-            const deviceCategory = getDeviceCategory(device);
-            const isHighlighted = highlightedCategory && deviceCategory === highlightedCategory;
-
-            deviceRef.model.visible = true;
-            deviceRef.model.traverse(child => {
-                if (!child.isMesh) return;
-                if (isHighlighted) {
-                    if (!child.userData._origEmissive) {
-                        child.userData._origEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0, 0, 0);
-                        child.userData._origEmissiveIntensity = child.material.emissiveIntensity ?? 0;
-                    }
-                    child.material.emissive = new THREE.Color(0x00a2ff);
-                    child.material.emissiveIntensity = 0.35;
-                } else if (child.userData._origEmissive) {
-                    child.material.emissive = child.userData._origEmissive;
-                    child.material.emissiveIntensity = child.userData._origEmissiveIntensity;
-                    delete child.userData._origEmissive;
-                    delete child.userData._origEmissiveIntensity;
-                }
-            });
-        });
-
-        if (rendererRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getDeviceCategory is stable within a setupType
-    }, [highlightedCategory, placedDevicesList]);
-
-    const getDeviceCategory = (device) => {
-        const name = (device.name || '').toLowerCase();
-        const sub = (device.subcategory || '').toLowerCase();
-        const type = (device.type || '').toLowerCase();
-        const spot = (device.spotType || '').toLowerCase();
-
-        const spotMap = {
-            middle: 'mixers', middle_back: 'mixers',
-            middle_left: 'players', middle_right: 'players', far_left: 'players', far_right: 'players',
-            middle_left_inner: 'players', middle_right_inner: 'players',
-            fx_top: 'effects', fx_left: 'effects', fx_right: 'effects', fx_front: 'effects',
-            speaker_left: 'speakers', speaker_right: 'speakers',
-            desk_center: 'audio-interface', desk_left: 'controllers', desk_right: 'controllers',
-            rack_left_1: 'effects', rack_left_2: 'effects', rack_left_3: 'effects', rack_left_4: 'effects',
-            rack_right_1: 'effects', rack_right_2: 'effects', rack_right_3: 'effects', rack_right_4: 'effects',
-            monitor_left: 'monitors', monitor_right: 'monitors',
-            stage_center: 'instruments', stage_left: 'instruments', stage_right: 'instruments',
-            stage_back_left: 'instruments', stage_back_right: 'instruments', stage_back_center: 'instruments',
-            pedal_1: 'effects', pedal_2: 'effects', pedal_3: 'effects', pedal_4: 'effects',
-            amp_left: 'amplifiers', amp_right: 'amplifiers',
-        };
-
-        if (currentSetupType === 'DJ') {
-            if (sub === 'players' || sub === 'mixers' || sub === 'effects' || sub === 'speakers' || sub === 'cables' || sub === 'accessories') return sub;
-            if (name.includes('djm') || name.includes('mixer') || name.includes('xone') || type.includes('mixer')) return 'mixers';
-            if (name.includes('cdj') || name.includes('player') || name.includes('turntable') || name.includes('xdj') || name.includes('ddj') || type.includes('player') || type.includes('controller')) return 'players';
-            if (name.includes('rmx') || name.includes('sp-1') || name.includes('effect') || type.includes('fx') || type.includes('effect')) return 'effects';
-            if (name.includes('speaker') || name.includes('monitor') || name.includes('pa ') || type.includes('speaker')) return 'speakers';
-            if (name.includes('cable') || name.includes('rca') || name.includes('xlr') || type.includes('cable')) return 'cables';
-            if (name.includes('headphone') || name.includes('case') || name.includes('laptop') || type.includes('headphone')) return 'accessories';
-        }
-        if (currentSetupType === 'Producer') {
-            if (sub === 'audio-interface' || sub === 'synthesizers' || sub === 'controllers' || sub === 'monitors' || sub === 'microphones' || sub === 'software') return sub;
-            if (name.includes('interface') || name.includes('focusrite') || name.includes('scarlett') || name.includes('apollo') || type.includes('interface')) return 'audio-interface';
-            if (name.includes('synth') || name.includes('moog') || name.includes('korg') || type.includes('synth')) return 'synthesizers';
-            if (name.includes('controller') || name.includes('midi') || name.includes('pad') || name.includes('push') || type.includes('controller')) return 'controllers';
-            if (name.includes('monitor') || name.includes('speaker') || name.includes('genelec') || name.includes('krk') || type.includes('monitor')) return 'monitors';
-            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
-            if (name.includes('daw') || name.includes('laptop') || name.includes('software') || type.includes('daw')) return 'software';
-        }
-        if (currentSetupType === 'Musician') {
-            if (sub === 'instruments' || sub === 'amplifiers' || sub === 'effects' || sub === 'microphones' || sub === 'cables' || sub === 'accessories') return sub;
-            if (name.includes('guitar') || name.includes('bass') || name.includes('keyboard') || name.includes('piano') || name.includes('drum') || name.includes('synth') || type.includes('guitar') || type.includes('bass') || type.includes('drum')) return 'instruments';
-            if (name.includes('amp') || name.includes('amplifier') || name.includes('combo') || name.includes('cabinet') || type.includes('amp')) return 'amplifiers';
-            if (name.includes('pedal') || name.includes('stomp') || name.includes('effect') || name.includes('overdrive') || name.includes('delay') || name.includes('reverb') || type.includes('pedal') || type.includes('effect')) return 'effects';
-            if (name.includes('mic') || name.includes('microphone') || type.includes('mic')) return 'microphones';
-            if (name.includes('cable') || type.includes('cable')) return 'cables';
-            if (name.includes('stand') || name.includes('case') || name.includes('tuner') || type.includes('stand')) return 'accessories';
-        }
-
-        if (spot && spotMap[spot]) return spotMap[spot];
-        return 'accessories';
-    };
 
     return (
         <>
@@ -4722,90 +4740,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     />
                 )}
 
-                {/* Setup List Box - Bottom right, only on desktop */}
-                {!isMobile && (
-                    <div className={`setup-list-box ${isSetupListExpanded ? 'expanded' : ''}`}
-                        style={{
-                            position: 'fixed',
-                            right: 'max(24px, env(safe-area-inset-right))',
-                            bottom: 'max(100px, env(safe-area-inset-bottom))',
-                            maxHeight: isSetupListExpanded ? '70vh' : '48px',
-                            overflow: 'hidden',
-                            transition: 'max-height 0.3s ease'
-                        }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            marginBottom: isSetupListExpanded ? '12px' : '0'
-                        }}
-                        onClick={() => setIsSetupListExpanded(!isSetupListExpanded)}>
-                            <h3>Current Setup</h3>
-                            <span style={{
-                                transform: isSetupListExpanded ? 'rotate(180deg)' : 'rotate(0)',
-                                transition: 'transform 0.3s ease'
-                            }}>▲</span>
-                        </div>
-                        {isSetupListExpanded && (
-                            <div className="setup-list-box-inner" style={{
-                                overflowY: 'auto',
-                                maxHeight: 'calc(70vh - 80px)',
-                                paddingRight: '4px'
-                            }}>
-                                <div className="fade-in">
-                                    {placedDevicesList.map((device) => (
-                                        <div key={device.uniqueId} className="setup-list-item">
-                                            <span>{device.name}</span>
-                                            <button onClick={() => removeDevice(device.uniqueId)}>Remove</button>
-                                        </div>
-                                    ))}
-                                    {placedDevicesList.length === 0 && (
-                                        <div style={{
-                                            textAlign: 'center',
-                                            opacity: 0.7,
-                                            padding: '12px 0'
-                                        }}>
-                                            No devices added yet
-                                        </div>
-                                    )}
-                                </div>
-                                <div style={{ marginTop: '16px' }}>
-                                    <h4 style={{ color: '#89CFF0', marginBottom: '8px' }}>Connection Guide</h4>
-                                    {placedDevicesList.length < 3 ? (
-                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>
-                                            Add at least 3 devices to get connection advice
-                                        </div>
-                                    ) : hasQuotaError ? (
-                                        <div>
-                                            <div style={{ color: '#ff6b6b', marginBottom: '8px' }}>
-                                                {connectionAdvice}
-                                            </div>
-                                            <button
-                                                onClick={() => setHasQuotaError(false)}
-                                                style={{
-                                                    background: 'rgba(0, 162, 255, 0.2)',
-                                                    border: '1px solid rgba(0, 162, 255, 0.3)',
-                                                    color: '#00a2ff',
-                                                    padding: '4px 8px',
-                                                    fontSize: '12px',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                Try Again
-                                            </button>
-                                        </div>
-                                    ) : isAdviceLoading ? (
-                                        <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading connection advice...</div>
-                                    ) : (
-                                        <div style={{ color: '#fff', whiteSpace: 'pre-wrap' }}>{connectionAdvice}</div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Camera Controls - Set / Connections - Only show on desktop */}
                 {!isMobile && (
@@ -4836,191 +4770,26 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     </div>
                 )}
 
-                {/* Search Modal */}
-            {showSearch && (() => {
-                    const activeSpot = ghostSpotsRef.current[selectedGhostIndex];
-                    const recType = activeSpot?.userData?.recommendedType || 'Any Device';
-                    const hasBrain = setupHasBrain();
-                    const deviceCount = (placedDevicesListRef.current || []).length;
-                    const needsBrain = !hasBrain && (currentSetupType === 'DJ' || currentSetupType === 'Producer');
-
-                    const brainHints = {
-                        DJ: { icon: '🎛️', text: 'Start with your mixer — everything connects to it' },
-                        Producer: { icon: '🎹', text: 'Start with your audio interface or laptop — it\'s the center of your studio' },
-                    };
-                    const spotHints = {
-                        'Mixer (DJM)': '🎛️ Mixer slot',
-                        'Player (CDJ)': '🎧 Player slot',
-                        'RMX-1000': '🎚️ Effects slot',
-                        'Speaker': '🔊 Speaker slot',
-                        'Audio Interface': '🎤 Audio interface slot',
-                        'Controller / Synth': '🎮 Controller / synth slot',
-                        'Rack Unit / Processor': '⚙️ Rack unit slot',
-                        'Studio Monitor': '🔊 Monitor slot',
-                        'Instrument / Mic': '🎸 Instrument / mic slot',
-                        'Guitar / Bass': '🎸 Guitar / bass stand',
-                        'Keyboard / Instrument': '🎹 Keyboard slot',
-                        'Drums / Instrument': '🥁 Drum riser',
-                        'Effects Pedal': '🎚️ Pedal slot',
-                        'Amplifier / Monitor': '🔊 Amp slot',
-                    };
-
-                    return (
-                    <div className="search-modal fade-in" style={searchModalStyle}>
-                        <style>{`
-                            .search-modal::-webkit-scrollbar { width: 8px; background-color: #000; }
-                            .search-modal::-webkit-scrollbar-thumb { background-color: #333; border-radius: 4px; }
-                            .search-modal::-webkit-scrollbar-track { background-color: #000; }
-                            .search-product-card { transition: background-color 0.15s ease, border-color 0.15s ease; }
-                            .search-product-card:hover { background-color: rgba(255,255,255,0.08) !important; }
-                        `}</style>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontFamily: 'Space Grotesk, sans-serif' }}>
-                                {searchMode === 'ghost' ? 'Add Device' : 'Search Products'}
-                            </h3>
-                            <button
-                                onClick={() => { setShowSearch(false); setSearchMode(''); setSearchQuery(''); setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
-                                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#fff', opacity: 0.7, transition: 'opacity 0.2s ease', lineHeight: 1, padding: '4px' }}
-                            >×</button>
-                        </div>
-
-                        {/* Context banner */}
-                        {searchMode === 'ghost' && (
-                            <div style={{
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                marginBottom: '14px',
-                                background: needsBrain ? 'rgba(255, 180, 50, 0.12)' : 'rgba(0, 162, 255, 0.1)',
-                                border: `1px solid ${needsBrain ? 'rgba(255, 180, 50, 0.25)' : 'rgba(0, 162, 255, 0.2)'}`,
-                            }}>
-                                <div style={{ fontSize: '13px', fontWeight: '600', color: needsBrain ? '#ffb432' : '#4db8ff', marginBottom: '2px' }}>
-                                    {needsBrain
-                                        ? `${brainHints[currentSetupType]?.icon || '🎛️'} ${brainHints[currentSetupType]?.text || 'Add your main device first'}`
-                                        : (spotHints[recType] || `📍 ${recType}`)
-                                    }
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
-                                    {deviceCount === 0 ? 'No devices yet' : `${deviceCount} device${deviceCount !== 1 ? 's' : ''} in setup`}
-                                    {!needsBrain && recType !== 'Any Device' && ` · Showing best matches for this spot`}
-                                </div>
-                            </div>
-                        )}
-
-                        <input
-                            type="text"
-                            placeholder="Search for a product..."
-                            value={searchQuery}
-                            onChange={handleSearchInputChange}
-                            className="fade-in"
-                            style={{
-                                width: '100%',
-                                padding: '10px 14px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                borderRadius: '8px',
-                                color: '#fff',
-                                marginBottom: '14px',
-                                outline: 'none',
-                                fontSize: '14px',
-                                fontFamily: 'inherit',
-                                boxSizing: 'border-box',
-                            }}
-                        />
-
-                        {!showSuggestionForm ? (
-                            <>
-                                <div className="search-results fade-in" style={{ maxHeight: '380px', overflowY: 'auto', marginBottom: '12px' }}>
-                                    {filteredResults.map(product => {
-                                        const isRec = isProductRecommended(product, recType);
-                                        const isBrain = needsBrain && isBrainProduct(product);
-                                        const highlighted = isRec || isBrain;
-
-                                        return (
-                                            <div
-                                                key={product.id}
-                                                className="search-product-card"
-                                                onClick={() => handleProductSelect(product)}
-                                                style={{
-                                                    padding: '10px 12px',
-                                                    marginBottom: '4px',
-                                                    cursor: 'pointer',
-                                                    backgroundColor: highlighted ? 'rgba(39, 174, 96, 0.08)' : 'transparent',
-                                                    borderRadius: '8px',
-                                                    border: highlighted ? '1px solid rgba(39, 174, 96, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)',
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                                    <span style={{ fontWeight: '500', fontSize: '14px', color: highlighted ? '#2ecc71' : '#fff', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {product.name}
-                                                    </span>
-                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                                        {isBrain && (
-                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(255, 180, 50, 0.2)', color: '#ffb432', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
-                                                                BRAIN
-                                                            </span>
-                                                        )}
-                                                        {isRec && (
-                                                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', borderRadius: '4px', fontWeight: '600', letterSpacing: '0.02em' }}>
-                                                                SUGGESTED
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                                    {product.brand && (
-                                                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{product.brand}</span>
-                                                    )}
-                                                    {product.category && (
-                                                        <span style={{ fontSize: '10px', padding: '1px 6px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '4px', color: 'rgba(255,255,255,0.4)' }}>
-                                                            {product.category}{product.subcategory ? ` · ${product.subcategory}` : ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {filteredResults.length === 0 && (
-                                        <div style={{ textAlign: 'center', padding: '24px 20px', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                                            No products found
-                                        </div>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={handleSuggestNewProduct}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '8px',
-                                        color: 'rgba(255,255,255,0.6)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        fontWeight: '500',
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        fontFamily: 'inherit',
-                                    }}
-                                >
-                                    <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Suggest New Product
-                                </button>
-                            </>
-                        ) : (
-                            <ProductSuggestionForm
-                                onClose={() => { setShowSuggestionForm(false); setSuggestionModelFile(null); setSuggestionModelScale(1.0); }}
-                                recommendedType={recType}
-                                spotType={activeSpot?.userData?.type || 'standard'}
-                                modelScale={suggestionModelScale}
-                                onModelFileChange={(f) => { setSuggestionModelFile(f); setSuggestionModelScale(1.0); }}
-                                onScaleChange={(s) => setSuggestionModelScale(s)}
-                            />
-                        )}
-                    </div>
-                    );
-                })()}
+                {/* Product Selector Modal */}
+                {showSearch && (
+                  <ProductSelectorModal
+                    isOpen={showSearch}
+                    mode={swapTargetUniqueIdRef.current ? 'swap' : 'place'}
+                    recommendedType={ghostSpotsRef.current[selectedGhostIndex]?.userData?.recommendedType || 'Any Device'}
+                    currentProductId={
+                      swapTargetUniqueIdRef.current
+                        ? placedDevicesListRef.current.find((d) => d.uniqueId === swapTargetUniqueIdRef.current)?.id
+                        : null
+                    }
+                    products={searchResults}
+                    onSelect={(product) => handleProductSelected(product)}
+                    onClose={() => {
+                      setShowSearch(false);
+                      setSearchMode('');
+                      swapTargetUniqueIdRef.current = null;
+                    }}
+                  />
+                )}
 
                 {showSuggestionForm && suggestionModelFile && (() => {
                     const spot = ghostSpotsRef.current[selectedGhostIndex];
@@ -5035,6 +4804,26 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                         />
                     );
                 })()}
+
+                {/* Device hover action menu */}
+                <DeviceHoverMenu
+                    device={menuDevice}
+                    screenPosition={menuScreenPos}
+                    onRemove={(d) => {
+                        removeDevice(d.uniqueId);
+                        setMenuDevice(null);
+                    }}
+                    onSwap={(d) => {
+                        swapTargetUniqueIdRef.current = d.uniqueId;
+                        const entry = placedDevicesListRef.current.find((x) => x.uniqueId === d.uniqueId);
+                        if (entry) {
+                            setSelectedGhostIndex(entry.placementIndex);
+                            setShowSearch(true);
+                        }
+                        setMenuDevice(null);
+                    }}
+                    onClose={() => setMenuDevice(null)}
+                />
             </div>
         </>
     );
