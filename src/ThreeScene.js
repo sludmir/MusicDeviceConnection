@@ -3808,8 +3808,28 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             ghostSpotsRef.current.push(ghostSquare);
         });
 
-        if (rendererRef.current && cameraRef.current) {
-            rendererRef.current.render(scene, cameraRef.current);
+        // Hide ghost squares that already have a product on them, then render.
+        applyGhostOccupancyVisibility();
+    }
+
+    // Hide a ghost square whenever a placed device occupies its spot (matched by
+    // placementIndex, with a position fallback to mirror handleGhostSquareClick),
+    // and show it again when the spot is empty.
+    function applyGhostOccupancyVisibility() {
+        const list = placedDevicesListRef.current || [];
+        ghostSpotsRef.current.forEach((ghost, index) => {
+            if (!ghost) return;
+            const occupied = list.some((d) => d.placementIndex === index) || list.some((d) => {
+                const p = d.position;
+                if (!p || typeof p.x !== 'number') return false;
+                const dx = p.x - ghost.position.x;
+                const dz = (p.z ?? 0) - (ghost.position.z ?? 0);
+                return Math.abs(dx) < 0.05 && Math.abs(dz) < 0.05;
+            });
+            ghost.visible = !occupied;
+        });
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
     }
 
@@ -4433,6 +4453,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only update when list changes, not when panel/device changes
+    }, [placedDevicesList]);
+
+    // Toggle ghost-square visibility whenever devices are added/removed/loaded.
+    useEffect(() => {
+        applyGhostOccupancyVisibility();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyGhostOccupancyVisibility is a stable hoisted function
     }, [placedDevicesList]);
 
     useEffect(() => {
