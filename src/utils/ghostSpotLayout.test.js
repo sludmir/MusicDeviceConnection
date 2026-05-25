@@ -7,7 +7,7 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../firebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'admin-uid' } } }));
 
 import { getDefaultLayout, SUGGESTION_OPTIONS, makeSpotType, loadLayout, saveLayout, layoutDocId } from './ghostSpotLayout';
-import { getDoc, setDoc, doc } from 'firebase/firestore';
+import { getDoc, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 describe('getDefaultLayout', () => {
   test('DJ layout contains the mixer spot and four player spots', () => {
@@ -128,7 +128,12 @@ describe('loadLayout', () => {
 });
 
 describe('saveLayout', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // CRA's default resetMocks:true wipes mock implementations between tests,
+    // so re-establish serverTimestamp's return value locally here.
+    serverTimestamp.mockReturnValue('SERVER_TS');
+  });
 
   test('writes the doc with metadata', async () => {
     const spots = [{ id: 'a', type: 'a', recommendedType: 'Speaker', x: 0, y: 0, z: 0, rotationY: 0, size: { width: 0.3, depth: 0.3 }, revealAfterBasic: false }];
