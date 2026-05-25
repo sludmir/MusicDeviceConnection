@@ -8,6 +8,11 @@
 // getDefaultLayout(setupType) returns the in-code fallback used until an admin
 // saves a layout for a given scene variant.
 
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
+
+const COLLECTION = 'ghostSpotLayouts';
+
 const DEFAULT_SIZE = { width: 0.3, depth: 0.3 };
 
 // --- DJ -------------------------------------------------------------------
@@ -102,4 +107,34 @@ export function getDefaultLayout(setupType) {
   const list = DEFAULTS_BY_TYPE[setupType];
   if (!list) return [];
   return list.map(normalizeSpot);
+}
+
+export function layoutDocId(setupType, settingKey) {
+  return `${setupType}__${settingKey}`;
+}
+
+export async function loadLayout(setupType, settingKey) {
+  try {
+    const snap = await getDoc(doc(db, COLLECTION, layoutDocId(setupType, settingKey)));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data.spots) && data.spots.length > 0) {
+        return data.spots.map(normalizeSpot);
+      }
+    }
+  } catch (err) {
+    console.error('loadLayout failed, using defaults:', err);
+  }
+  return getDefaultLayout(setupType);
+}
+
+export async function saveLayout(setupType, settingKey, spots) {
+  const payload = {
+    setupType,
+    settingKey,
+    spots: spots.map(normalizeSpot),
+    updatedAt: serverTimestamp(),
+    updatedBy: auth.currentUser?.uid || null,
+  };
+  await setDoc(doc(db, COLLECTION, layoutDocId(setupType, settingKey)), payload);
 }

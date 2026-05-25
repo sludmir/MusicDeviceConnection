@@ -1,4 +1,13 @@
-import { getDefaultLayout, SUGGESTION_OPTIONS, makeSpotType } from './ghostSpotLayout';
+jest.mock('firebase/firestore', () => ({
+  doc: jest.fn((_db, col, id) => ({ col, id })),
+  getDoc: jest.fn(),
+  setDoc: jest.fn(() => Promise.resolve()),
+  serverTimestamp: jest.fn(() => 'SERVER_TS'),
+}));
+jest.mock('../firebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'admin-uid' } } }));
+
+import { getDefaultLayout, SUGGESTION_OPTIONS, makeSpotType, loadLayout, saveLayout, layoutDocId } from './ghostSpotLayout';
+import { getDoc, setDoc, doc } from 'firebase/firestore';
 
 describe('getDefaultLayout', () => {
   test('DJ layout contains the mixer spot and four player spots', () => {
@@ -84,5 +93,54 @@ describe('makeSpotType', () => {
     const b = makeSpotType();
     expect(a.startsWith('custom-')).toBe(true);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('layoutDocId', () => {
+  test('joins setupType and settingKey', () => {
+    expect(layoutDocId('DJ', 'club')).toBe('DJ__club');
+    expect(layoutDocId('Musician', 'guitarRoom')).toBe('Musician__guitarRoom');
+  });
+});
+
+describe('loadLayout', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('returns stored spots when the doc exists', async () => {
+    const stored = [{ id: 'x', type: 'x', recommendedType: 'Speaker', x: 1, y: 2, z: 3, rotationY: 0, size: { width: 0.3, depth: 0.3 }, revealAfterBasic: false }];
+    getDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ spots: stored }) });
+    const result = await loadLayout('DJ', 'club');
+    expect(doc).toHaveBeenCalledWith({}, 'ghostSpotLayouts', 'DJ__club');
+    expect(result).toEqual(stored);
+  });
+
+  test('falls back to default layout when the doc does not exist', async () => {
+    getDoc.mockResolvedValueOnce({ exists: () => false });
+    const result = await loadLayout('DJ', 'club');
+    expect(result.find((s) => s.type === 'middle').recommendedType).toBe('Mixer (DJM)');
+  });
+
+  test('falls back to default layout on read error', async () => {
+    getDoc.mockRejectedValueOnce(new Error('offline'));
+    const result = await loadLayout('Producer', 'studio');
+    expect(result.find((s) => s.type === 'desk_center')).toBeTruthy();
+  });
+});
+
+describe('saveLayout', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('writes the doc with metadata', async () => {
+    const spots = [{ id: 'a', type: 'a', recommendedType: 'Speaker', x: 0, y: 0, z: 0, rotationY: 0, size: { width: 0.3, depth: 0.3 }, revealAfterBasic: false }];
+    await saveLayout('DJ', 'rooftop', spots);
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    const [, payload] = setDoc.mock.calls[0];
+    expect(payload).toMatchObject({
+      setupType: 'DJ',
+      settingKey: 'rooftop',
+      spots,
+      updatedBy: 'admin-uid',
+      updatedAt: 'SERVER_TS',
+    });
   });
 });
