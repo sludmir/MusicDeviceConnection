@@ -44,6 +44,12 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
     }
 
+    // Ghost-spot layouts (admin-editable builder placement templates)
+    match /ghostSpotLayouts/{layoutId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.admin == true;
+    }
+
     // User profiles
     match /users/{userId} {
       allow read: if isSignedIn();
