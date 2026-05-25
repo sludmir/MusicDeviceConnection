@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { TOUCH } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -14,6 +14,9 @@ import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
 import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
+import GhostSpotContextMenu from './components/GhostSpotContextMenu';
+import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
+import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
 import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
 import { createWheelDeviceDetector } from './hooks/useInputDevice';
@@ -55,6 +58,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const djTableRef = useRef(null);
     const environmentRootRef = useRef(null);
     const ghostSpotsRef = useRef([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const isAdminRef = useRef(false);
+    const currentLayoutRef = useRef(getDefaultLayout(setupType || 'DJ'));
+    const layoutLoadTokenRef = useRef(0);
+    const [ghostMenu, setGhostMenu] = useState(null);   // { screenX, screenY, spotIndex }
+    const [ghostEditor, setGhostEditor] = useState(null); // { mode, spot, originalSpot, insert }
     const placedDevices = useRef([]);
     const onDevicesChangeRef = useRef(onDevicesChange);
     const placedDevicesListRef = useRef([]);
@@ -1628,8 +1637,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         // Set up auth state listener
         const unsubscribe = auth.onAuthStateChanged((user) => {
             if (user) {
+                user.getIdTokenResult()
+                    .then((token) => setIsAdmin(token.claims.admin === true || token.claims.admin === 'true'))
+                    .catch(() => setIsAdmin(false));
                 initializeScene();
             } else {
+                setIsAdmin(false);
                 setError("Please sign in to access the application");
             }
         });
@@ -3749,141 +3762,52 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     function createGhostPlacementSpots(scene, isBasicComplete = null) {
         if (!djTableRef.current) {
             console.log('Cannot create ghost spots: No DJ table reference');
-                    return;
-                }
+            return;
+        }
 
-        // Use the parameter if provided, otherwise fall back to the state
         const isBasicSetupCompleted = isBasicComplete !== null ? isBasicComplete : basicSetupComplete;
-        
-        console.log('Creating ghost spots with:', {
-            setupType: currentSetupType,
-            basicSetupComplete: isBasicSetupCompleted,
-            stateBasicSetupComplete: basicSetupComplete
-        });
 
         // Clear previous spots
-        ghostSpotsRef.current.forEach(spot => {
-            if (spot && spot.parent) {
-                scene.remove(spot);
-            }
+        ghostSpotsRef.current.forEach((spot) => {
+            if (spot && spot.parent) scene.remove(spot);
+            if (spot?.geometry) spot.geometry.dispose();
+            if (spot?.material) spot.material.dispose();
         });
         ghostSpotsRef.current = [];
 
-        // Get initial spots based on setup type
-        let initialSpots = [];
-        switch (currentSetupType) {
-            case 'DJ':
-                // Initially show only mixer and player positions
-                initialSpots = [
-                    djSetupSpots[0],  // Middle (Mixer)
-                    djSetupSpots[1],  // Middle Left (Player)
-                    djSetupSpots[2],  // Middle Right (Player)
-                    djSetupSpots[3],  // Far Left (Player)
-                    djSetupSpots[4],  // Far Right (Player)
-                    djSetupSpots[12], // Left Speaker (on floor)
-                    djSetupSpots[13], // Right Speaker (on floor)
-                ];
-                
-                // Add additional spots if basic setup is complete
-                if (isBasicSetupCompleted) {
-                    console.log('Adding FX spots for completed DJ setup');
-                    initialSpots = [
-                        ...initialSpots,
-                        djSetupSpots[8],   // FX Top
-                        djSetupSpots[9],   // FX Left
-                        djSetupSpots[10],  // FX Right
-                        djSetupSpots[11],  // FX Front (Wide units)
-                    ];
-                }
-                break;
+        const layout = (currentLayoutRef.current && currentLayoutRef.current.length)
+            ? currentLayoutRef.current
+            : getDefaultLayout(currentSetupType);
 
-            case 'Producer':
-                initialSpots = [
-                    // Desk spots
-                    { x: 0, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_CENTER, size: { width: 0.35, depth: 0.25 } },
-                    { x: -0.55, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_LEFT, size: { width: 0.35, depth: 0.25 } },
-                    { x: 0.55, y: 0.97, z: -0.25, type: SPOT_TYPES.DESK_RIGHT, size: { width: 0.35, depth: 0.25 } },
-                    // Monitor speakers on stands behind desk
-                    { x: -1.2, y: 1.18, z: -0.9, type: SPOT_TYPES.MONITOR_LEFT, size: { width: 0.24, depth: 0.18 } },
-                    { x: 1.2, y: 1.18, z: -0.9, type: SPOT_TYPES.MONITOR_RIGHT, size: { width: 0.24, depth: 0.18 } },
-                    // Left rack — angled 45° to face center
-                    { x: -2.2, y: 0.35, z: -0.25, type: SPOT_TYPES.RACK_LEFT_1, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
-                    { x: -2.2, y: 0.65, z: -0.25, type: SPOT_TYPES.RACK_LEFT_2, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
-                    { x: -2.2, y: 0.95, z: -0.25, type: SPOT_TYPES.RACK_LEFT_3, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
-                    { x: -2.2, y: 1.25, z: -0.25, type: SPOT_TYPES.RACK_LEFT_4, size: { width: 0.42, depth: 0.28 }, rotationY: Math.PI / 4 },
-                    // Right rack — angled 45° to face center
-                    { x: 2.2, y: 0.35, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_1, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
-                    { x: 2.2, y: 0.65, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_2, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
-                    { x: 2.2, y: 0.95, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_3, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
-                    { x: 2.2, y: 1.25, z: -0.25, type: SPOT_TYPES.RACK_RIGHT_4, size: { width: 0.42, depth: 0.28 }, rotationY: -Math.PI / 4 },
-                ];
-                break;
+        // Reveal-gated spots only show once basic setup is complete.
+        const visibleSpots = layout.filter((s) => !s.revealAfterBasic || isBasicSetupCompleted);
 
-            case 'Musician':
-                initialSpots = [
-                    // Front row — main stage positions (center on floor, sides on small stands)
-                    { x: 0, y: 0.05, z: 0.4, type: SPOT_TYPES.STAGE_CENTER, size: { width: 0.4, depth: 0.4 } },
-                    { x: -2.0, y: 0.39, z: 0.42, type: SPOT_TYPES.STAGE_LEFT, size: { width: 0.3, depth: 0.16 } },
-                    { x: 2.0, y: 0.39, z: 0.42, type: SPOT_TYPES.STAGE_RIGHT, size: { width: 0.3, depth: 0.16 } },
-                    // Back row — elevated on tables / riser
-                    { x: -1.8, y: 0.82, z: -1.2, type: SPOT_TYPES.STAGE_BACK_LEFT, size: { width: 0.5, depth: 0.35 } },
-                    { x: 0, y: 0.17, z: -1.3, type: SPOT_TYPES.STAGE_BACK_CENTER, size: { width: 0.6, depth: 0.5 } },
-                    { x: 1.8, y: 0.82, z: -1.2, type: SPOT_TYPES.STAGE_BACK_RIGHT, size: { width: 0.5, depth: 0.35 } },
-                    // Pedals — two at each guitar rack's feet
-                    { x: -2.2, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_1, size: { width: 0.22, depth: 0.16 } },
-                    { x: -1.8, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_2, size: { width: 0.22, depth: 0.16 } },
-                    { x: 1.8, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_3, size: { width: 0.22, depth: 0.16 } },
-                    { x: 2.2, y: 0.02, z: 0.75, type: SPOT_TYPES.PEDAL_4, size: { width: 0.22, depth: 0.16 } },
-                    // Amps — far sides, on the floor
-                    { x: -3.0, y: 0.05, z: -0.3, type: SPOT_TYPES.AMP_LEFT, size: { width: 0.5, depth: 0.4 } },
-                    { x: 3.0, y: 0.05, z: -0.3, type: SPOT_TYPES.AMP_RIGHT, size: { width: 0.5, depth: 0.4 } },
-                ];
-                break;
-            default:
-                // Default spots
-                initialSpots = [
-                    { x: 0, y: 1.05, z: 0, type: 'default' }
-                ];
-                break;
-        }
-
-        console.log(`Creating ${initialSpots.length} ghost spots, including FX: ${isBasicSetupCompleted}`);
-
-        // Create ghost squares for the selected spots
-        initialSpots.forEach((position, index) => {
-            const isFXSpot = position.type?.includes('fx_') || position.type === 'effects';
-            const customSize = position.size || null;
-            
-            // Determine geometry size based on spot type and custom size
-            const geometry = new THREE.BoxGeometry(
-                customSize ? customSize.width : (isFXSpot ? 0.15 : 0.3),
-                0.05,
-                customSize ? customSize.depth : (isFXSpot ? 0.15 : 0.3)
-            );
-            
-            const material = new THREE.MeshBasicMaterial({ 
+        visibleSpots.forEach((spot, index) => {
+            const width = spot.size?.width ?? 0.3;
+            const depth = spot.size?.depth ?? 0.3;
+            const geometry = new THREE.BoxGeometry(width, 0.05, depth);
+            const material = new THREE.MeshBasicMaterial({
                 color: 0x808080,
-                transparent: true, 
-                opacity: 0.4 
+                transparent: true,
+                opacity: 0.4,
             });
 
             const ghostSquare = new THREE.Mesh(geometry, material);
-            ghostSquare.position.set(position.x, position.y, position.z);
-            if (position.rotationY) ghostSquare.rotation.y = position.rotationY;
-            ghostSquare.userData = { 
+            ghostSquare.position.set(spot.x, spot.y, spot.z);
+            if (spot.rotationY) ghostSquare.rotation.y = spot.rotationY;
+            ghostSquare.userData = {
                 index,
                 defaultColor: 0x808080,
                 hoverColor: 0xa0a0a0,
-                type: position.type,
-                recommendedType: getRecommendedProductType(position.type)
+                type: spot.type,
+                recommendedType: spot.recommendedType || 'Any Device',
+                spotId: spot.id,
             };
 
             scene.add(ghostSquare);
             ghostSpotsRef.current.push(ghostSquare);
-            console.log(`Created ghost square ${index} at position:`, position);
         });
 
-        // Force a re-render after creating ghost spots
         if (rendererRef.current && cameraRef.current) {
             rendererRef.current.render(scene, cameraRef.current);
         }
@@ -4184,6 +4108,47 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         }
     };
 
+    const rebuildGhostSpots = useCallback(() => {
+        if (!sceneRef.current) return;
+        const isComplete = checkBasicSetupComplete(placedDevicesListRef.current || []);
+        createGhostPlacementSpots(sceneRef.current, isComplete);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const persistLayout = useCallback((spots) => {
+        currentLayoutRef.current = spots;
+        rebuildGhostSpots();
+        saveLayout(currentSetupType, currentSetting, spots).catch((err) =>
+            console.error('Failed to save ghost-spot layout:', err)
+        );
+    }, [currentSetupType, currentSetting, rebuildGhostSpots]);
+
+    const previewSpot = useCallback((draftSpot) => {
+        const layout = currentLayoutRef.current.map((s) => (s.id === draftSpot.id ? draftSpot : s));
+        currentLayoutRef.current = layout;
+        rebuildGhostSpots();
+    }, [rebuildGhostSpots]);
+
+    const handleGhostContextMenu = (event) => {
+        if (!isAdminRef.current || !rendererRef.current || !cameraRef.current) return;
+        const rect = rendererRef.current.domElement.getBoundingClientRect();
+        const mouse = new THREE.Vector2(
+            ((event.clientX - rect.left) / rect.width) * 2 - 1,
+            -((event.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, cameraRef.current);
+        const hits = raycaster.intersectObjects(ghostSpotsRef.current);
+        if (hits.length === 0) return;
+        event.preventDefault();
+        const spotIndex = hits[0].object.userData.index;
+        setGhostMenu({
+            screenX: event.clientX - rect.left,
+            screenY: event.clientY - rect.top,
+            spotIndex,
+        });
+    };
+
     const COORD_STEP = 0.01;
     const getCoord = (c) => ({ x: Number(c?.x) || 0, y: Number(c?.y) || 0, z: Number(c?.z) || 0 });
 
@@ -4373,6 +4338,24 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         }
     }, [currentSetupType, currentSetting, sceneInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Keep a ref copy of admin status for use inside imperative event handlers.
+    useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
+
+    // Load the per-variant ghost-spot layout whenever the setup type / setting changes.
+    useEffect(() => {
+        if (!sceneInitialized) return;
+        const token = ++layoutLoadTokenRef.current;
+        loadLayout(currentSetupType, currentSetting).then((spots) => {
+            if (token !== layoutLoadTokenRef.current) return; // a newer load superseded us
+            currentLayoutRef.current = spots;
+            if (sceneRef.current) {
+                const isComplete = checkBasicSetupComplete(placedDevicesListRef.current || []);
+                createGhostPlacementSpots(sceneRef.current, isComplete);
+            }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentSetupType, currentSetting, sceneInitialized]);
+
     // Removed unused handleGhostHover function
 
     // Add this useEffect after the initialization to check for basic setup
@@ -4462,7 +4445,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
     return (
         <>
-            <div ref={mountRef} style={{
+            <div ref={mountRef} onContextMenu={handleGhostContextMenu} style={{
                 width: "100%",
                 height: isMobile ? "calc(100vh - 60px)" : "100%",
                 touchAction: "none",
@@ -4824,6 +4807,78 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     }}
                     onClose={() => setMenuDevice(null)}
                 />
+
+                {isAdmin && ghostMenu && (() => {
+                    const layout = currentLayoutRef.current;
+                    const ghost = ghostSpotsRef.current[ghostMenu.spotIndex];
+                    const spotId = ghost?.userData?.spotId;
+                    const spot = layout.find((s) => s.id === spotId);
+                    if (!spot) return null;
+                    return (
+                        <GhostSpotContextMenu
+                            screenPosition={{ x: ghostMenu.screenX, y: ghostMenu.screenY }}
+                            recommendedType={spot.recommendedType}
+                            onMove={() => {
+                                setGhostEditor({ mode: 'move', spot, originalSpot: spot, insert: false });
+                                setGhostMenu(null);
+                            }}
+                            onAdd={() => {
+                                const newSpot = {
+                                    ...spot,
+                                    id: makeSpotType(),
+                                    type: makeSpotType(),
+                                    x: Math.round((spot.x + 0.4) * 1000) / 1000,
+                                };
+                                setGhostEditor({ mode: 'add', spot: newSpot, originalSpot: null, insert: true });
+                                setGhostMenu(null);
+                            }}
+                            onRemove={() => {
+                                // eslint-disable-next-line no-restricted-globals, no-alert
+                                if (window.confirm('Remove this ghost spot for all users?')) {
+                                    persistLayout(currentLayoutRef.current.filter((s) => s.id !== spot.id));
+                                }
+                                setGhostMenu(null);
+                            }}
+                            onClose={() => setGhostMenu(null)}
+                        />
+                    );
+                })()}
+
+                {isAdmin && ghostEditor && (
+                    <GhostSpotEditorPanel
+                        mode={ghostEditor.mode}
+                        spot={ghostEditor.spot}
+                        onChange={(draft) => {
+                            if (ghostEditor.insert) {
+                                const base = currentLayoutRef.current.filter((s) => s.id !== draft.id);
+                                currentLayoutRef.current = [...base, draft];
+                                rebuildGhostSpots();
+                            } else {
+                                previewSpot(draft);
+                            }
+                        }}
+                        onSave={(draft) => {
+                            if (ghostEditor.insert) {
+                                const base = currentLayoutRef.current.filter((s) => s.id !== draft.id);
+                                persistLayout([...base, draft]);
+                            } else {
+                                persistLayout(currentLayoutRef.current.map((s) => (s.id === draft.id ? draft : s)));
+                            }
+                            setGhostEditor(null);
+                        }}
+                        onCancel={() => {
+                            if (ghostEditor.insert) {
+                                currentLayoutRef.current = currentLayoutRef.current.filter((s) => s.id !== ghostEditor.spot.id);
+                            } else if (ghostEditor.originalSpot) {
+                                currentLayoutRef.current = currentLayoutRef.current.map((s) =>
+                                    s.id === ghostEditor.originalSpot.id ? ghostEditor.originalSpot : s
+                                );
+                            }
+                            rebuildGhostSpots();
+                            setGhostEditor(null);
+                        }}
+                    />
+                )}
             </div>
         </>
     );
