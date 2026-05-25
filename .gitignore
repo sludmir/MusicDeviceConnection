@@ -44,3 +44,5 @@ start-output.log
 package-lock 2.json
 Blender files export/
 *.blend1
+# Git worktrees
+.worktrees/
