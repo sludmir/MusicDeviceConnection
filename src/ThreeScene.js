@@ -57,6 +57,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const cablesRef = useRef([]);
     const djTableRef = useRef(null);
     const environmentRootRef = useRef(null);
+    const globalLightsRef = useRef(null);
     const ghostSpotsRef = useRef([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const isAdminRef = useRef(false);
@@ -1420,6 +1421,16 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
                 scene.add(hemisphereLight);
 
+                // Captured so per-setting configs can dim the global fill for
+                // moody GLB environments and restore it on the way out.
+                globalLightsRef.current = {
+                    ambient: ambientLight,
+                    directional: directionalLight,
+                    hemisphere: hemisphereLight,
+                    defaults: { ambient: 0.5, directional: 1, hemisphere: 1 },
+                    defaultBackground: 0xf0f0f0,
+                };
+
                 // Set up camera and controls
                 camera.position.set(
                     CAMERA_POSITIONS.default.position.x,
@@ -2294,6 +2305,43 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         djTableRef.current = null;
     }
 
+    // Dim/restore the shared global lights and scene background so a setting can
+    // set its own mood. Called on every setting build; settings that omit the
+    // override fall back to the captured defaults.
+    function applyGlobalLighting(scene, settingConfig) {
+        const g = globalLightsRef.current;
+        if (!g) return;
+        const o = settingConfig.globalLights || {};
+        g.ambient.intensity = o.ambient ?? g.defaults.ambient;
+        g.directional.intensity = o.directional ?? g.defaults.directional;
+        g.hemisphere.intensity = o.hemisphere ?? g.defaults.hemisphere;
+        const bg = settingConfig.background ?? g.defaultBackground;
+        if (scene.background instanceof THREE.Color) scene.background.set(bg);
+        else scene.background = new THREE.Color(bg);
+    }
+
+    // Build the lights declared on a setting into the (possibly rotated) envRoot
+    // so they ride along with the environment geometry.
+    function addSettingLights(envRoot, settingConfig) {
+        // Light positions live in the env's local frame, so envRoot's scale moves
+        // them with the geometry. PointLight `distance` is a world-space scalar the
+        // matrix doesn't touch, so scale it by s; with inverse-square decay, keep
+        // illuminance constant by scaling intensity by s^2.
+        const s = settingConfig.scale || 1;
+        (settingConfig.lights || []).forEach((l) => {
+            let light;
+            if (l.kind === 'point') {
+                light = new THREE.PointLight(l.color ?? 0xffffff, (l.intensity ?? 1) * s * s, (l.distance ?? 0) * s, l.decay ?? 2);
+            } else if (l.kind === 'directional') {
+                light = new THREE.DirectionalLight(l.color ?? 0xffffff, l.intensity ?? 1);
+            } else {
+                return;
+            }
+            if (l.position) light.position.set(l.position[0], l.position[1], l.position[2]);
+            envRoot.add(light);
+        });
+    }
+
     function loadGlbEnvironment(envRoot, settingConfig) {
         const loader = new GLTFLoader();
         if (settingConfig.draco) loader.setDRACOLoader(dracoLoaderShared);
@@ -2312,6 +2360,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     }
                 });
                 envRoot.add(gltf.scene);
+                addSettingLights(envRoot, settingConfig);
                 if (rendererRef.current && sceneRef.current && cameraRef.current) {
                     rendererRef.current.render(sceneRef.current, cameraRef.current);
                 }
@@ -2330,8 +2379,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
         disposeEnvironment();
 
+        applyGlobalLighting(scene, settingConfig);
+
         const envRoot = new THREE.Group();
         envRoot.name = 'environmentRoot';
+        if (settingConfig.rotationY) envRoot.rotation.y = settingConfig.rotationY;
+        if (settingConfig.scale) envRoot.scale.setScalar(settingConfig.scale);
         environmentRootRef.current = envRoot;
         scene.add(envRoot);
 
@@ -2369,8 +2422,11 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     function applySettingCamera(settingConfig) {
         if (!cameraRef.current || !controlsRef.current || !settingConfig?.camera) return;
         const { position, target } = settingConfig.camera;
-        cameraRef.current.position.set(position[0], position[1], position[2]);
-        controlsRef.current.target.set(target[0], target[1], target[2]);
+        // Camera coords are in the env's authored frame; scale them with the
+        // environment so the framing is preserved at any setting scale.
+        const s = settingConfig.scale || 1;
+        cameraRef.current.position.set(position[0] * s, position[1] * s, position[2] * s);
+        controlsRef.current.target.set(target[0] * s, target[1] * s, target[2] * s);
         controlsRef.current.update();
     }
 
