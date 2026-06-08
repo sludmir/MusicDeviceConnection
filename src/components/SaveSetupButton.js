@@ -6,7 +6,7 @@ import { defaultSettingFor } from '../data/settings';
 import { useToast } from '../ui';
 import './SaveSetupButton.css';
 
-function SaveSetupButton({ currentDevices, setupType, setting }) {
+function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles }) {
   const toast = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [setupName, setSetupName] = useState('');
@@ -76,6 +76,7 @@ function SaveSetupButton({ currentDevices, setupType, setting }) {
         setting: setting || defaultSettingFor(setupType || 'DJ'),
         devices: devicesData,
         mobileDiagram,
+        cameraAngles: cameraAngles ?? null,
         isMainSetup: isMainSetup,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
