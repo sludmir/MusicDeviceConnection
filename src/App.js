@@ -254,6 +254,10 @@ function App() {
         showFeedPostSetModal={showFeedPostSetModal}
         setShowFeedPostSetModal={setShowFeedPostSetModal}
         handleDevicesChange={handleDevicesChange}
+        initialCameraAngles={initialCameraAngles}
+        setInitialCameraAngles={setInitialCameraAngles}
+        currentCameraAngles={currentCameraAngles}
+        setCurrentCameraAngles={setCurrentCameraAngles}
       />
     </BrowserRouter>
   );
@@ -275,6 +279,10 @@ function AppRoutes({
   showFeedPostSetModal,
   setShowFeedPostSetModal,
   handleDevicesChange,
+  initialCameraAngles,
+  setInitialCameraAngles,
+  currentCameraAngles,
+  setCurrentCameraAngles,
 }) {
   const navigate = useNavigate();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
