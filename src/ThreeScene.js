@@ -1535,9 +1535,18 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 // so each notch isn't a huge dolly.
                 const zoomSpeed = isMouse ? 0.0006 : 0.002;
                 const currentDist = camera.position.distanceTo(controls.target);
-                const newDist = currentDist + deltaY * zoomSpeed * Math.max(currentDist, 1);
+                const step = deltaY * zoomSpeed * Math.max(currentDist, 1);
+                const newDist = currentDist + step;
                 const dir = camera.position.clone().sub(controls.target).normalize();
-                camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+                if (newDist < 0.3) {
+                    // Push orbit target forward so camera can zoom past the centre of the scene
+                    const advance = 0.3 - newDist;
+                    controls.target.addScaledVector(dir, -advance);
+                    camera.position.copy(controls.target).addScaledVector(dir, 0.3);
+                } else {
+                    camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+                }
+                controls.update();
             } else {
                 // Trackpad two-finger scroll: orbit
                 const rotationSpeed = 0.002;
