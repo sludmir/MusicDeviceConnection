@@ -16,6 +16,7 @@ import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
 import GhostSpotContextMenu from './components/GhostSpotContextMenu';
 import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
+import CameraAngleControls from './components/CameraAngleControls';
 import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
 import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
@@ -46,7 +47,7 @@ function disposeObject3DTree(root) {
     });
 }
 
-function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle }) {
+function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -101,6 +102,13 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const hoveredDeviceUniqueIdRef = useRef(null);
     const hoverHighlightStateRef = useRef(new Map());
     const menuDeviceRef = useRef(null);
+
+    const [cameraAngles, setCameraAngles] = useState(initialCameraAngles ?? [null, null, null]);
+
+    // Reset angles when a different setup is loaded (initialCameraAngles reference changes)
+    useEffect(() => {
+        setCameraAngles(initialCameraAngles ?? [null, null, null]);
+    }, [initialCameraAngles]);
 
     // Live trackpad-vs-mouse detector. Re-classifies every wheel event (with
     // hysteresis) so camera controls self-correct instead of relying on a
@@ -1788,6 +1796,11 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     }
                     if (!product.modelPath) continue;
                     await addProductToPosition(product, placementIndex);
+                }
+
+                // Auto-snap camera to saved slot 0 if present
+                if (initialCameraAngles?.[0]) {
+                    snapCameraToAngle(initialCameraAngles[0]);
                 }
 
                 // Run connections several times as models finish loading
@@ -4363,6 +4376,31 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         });
     };
 
+    const handleSaveCameraAngle = (slotIndex) => {
+        if (!cameraRef.current || !controlsRef.current) return;
+        const newAngles = [...cameraAngles];
+        newAngles[slotIndex] = {
+            position: {
+                x: cameraRef.current.position.x,
+                y: cameraRef.current.position.y,
+                z: cameraRef.current.position.z,
+            },
+            target: {
+                x: controlsRef.current.target.x,
+                y: controlsRef.current.target.y,
+                z: controlsRef.current.target.z,
+            }
+        };
+        setCameraAngles(newAngles);
+        onCameraAnglesChange?.(newAngles);
+    };
+
+    const handleRecallCameraAngle = (slotIndex) => {
+        const angle = cameraAngles[slotIndex];
+        if (!angle) return;
+        snapCameraToAngle(angle);
+    };
+
     // Zoom camera in close to a placed device (for product profile)
     const moveCameraToDevice = (device) => {
         if (!cameraRef.current || !controlsRef.current || !device?.position) return;
@@ -4918,6 +4956,14 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                             rebuildGhostSpots();
                             setGhostEditor(null);
                         }}
+                    />
+                )}
+
+                {sceneInitialized && (
+                    <CameraAngleControls
+                        cameraAngles={cameraAngles}
+                        onSave={handleSaveCameraAngle}
+                        onRecall={handleRecallCameraAngle}
                     />
                 )}
             </div>
