@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 
-const MobileNavigation = ({ 
-    onSetView, 
-    onConnectionsView,
+const MobileNavigation = ({
     onOpenSearch,
     placedDevicesList,
     onRemoveDevice,
@@ -73,35 +71,6 @@ const MobileNavigation = ({
                 overflowY: 'auto',
                 WebkitOverflowScrolling: 'touch'
             }}>
-                {/* View Controls */}
-                <div style={{ marginBottom: '24px' }}>
-                    <h3 style={{ 
-                        color: '#ffffff', 
-                        marginBottom: '12px',
-                        fontSize: '14px',
-                        opacity: 0.7,
-                        letterSpacing: '1px'
-                    }}>VIEW</h3>
-                    <button 
-                        onClick={() => {
-                            onSetView();
-                            setIsOpen(false);
-                        }}
-                        style={mobileButtonStyle}
-                    >
-                        Set View
-                    </button>
-                    <button 
-                        onClick={() => {
-                            onConnectionsView();
-                            setIsOpen(false);
-                        }}
-                        style={mobileButtonStyle}
-                    >
-                        Connections View
-                    </button>
-                </div>
-
                 {/* Actions */}
                 <div style={{ marginBottom: '24px' }}>
                     <h3 style={{ 

@@ -94,7 +94,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const [showMiniProfile, setShowMiniProfile] = useState(false);
     const [miniProfileDevice, setMiniProfileDevice] = useState(null);
     const [editConnectionsMode, setEditConnectionsMode] = useState(false);
-    const [cameraView, setCameraView] = useState('set');
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
     const [menuDevice, setMenuDevice] = useState(null);
@@ -197,18 +196,9 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
     // Removed unused positionModalStyle
 
-    // Add these camera positions after your other constants
     const CAMERA_POSITIONS = {
         default: {
             position: { x: 0, y: isMobile ? 3 : 2.2, z: isMobile ? 2.5 : 1.8 },
-            target: { x: 0, y: 0.9, z: 0 }
-        },
-        set: {
-            position: { x: 0, y: isMobile ? 3.2 : 2.4, z: isMobile ? 2.8 : 2.0 },
-            target: { x: 0, y: 0.9, z: 0 }
-        },
-        connections: {
-            position: { x: 0, y: isMobile ? 3 : 2.2, z: isMobile ? -2.5 : -1.8 },
             target: { x: 0, y: 0.9, z: 0 }
         }
     };
@@ -1727,7 +1717,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             // Simulate "re-build" order: create ghost spots with FX *before* placing, so saved placementIndex/spotType match.
             // Otherwise FX spots don't exist yet (they only appear after 2 CDJs + mixer), so FX devices land on wrong spots.
             const isBasicCompleteFromSaved = checkBasicSetupComplete(sortedDevices);
-            createGhostPlacementSpots(scene, isBasicCompleteFromSaved);
             if (isBasicCompleteFromSaved) setBasicSetupComplete(true);
 
             // Helper: find ghost spot index closest to saved position (for old saves without spotType/placementIndex)
@@ -1750,6 +1739,21 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
             // Load saved setup one-by-one via addProductToPosition, each device on its saved ghost spot (await so order is stable)
             (async () => {
+                // Ensure the variant-specific ghost-spot layout is loaded BEFORE we build
+                // spots and resolve saved placementIndex/spotType. Otherwise the saved-setup
+                // branch races the async layout loader and falls back to hardcoded defaults,
+                // making saved devices land at default-layout coordinates (e.g. mixer ends up
+                // off the booth in custom variants like Dojo).
+                try {
+                    const variantSpots = await loadLayout(currentSetupType, currentSetting);
+                    if (Array.isArray(variantSpots) && variantSpots.length > 0) {
+                        currentLayoutRef.current = variantSpots;
+                    }
+                } catch (e) {
+                    console.warn('loadLayout failed during saved-setup load; using current/default layout', e);
+                }
+                createGhostPlacementSpots(scene, isBasicCompleteFromSaved);
+
                 for (let i = 0; i < sortedDevices.length; i++) {
                     const device = sortedDevices[i];
                     let placementIndex = device.placementIndex;
@@ -4343,32 +4347,19 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         }
     };
 
-    // Add this new function after your other functions
-    const moveCameraToPosition = (positionName) => {
-        const position = CAMERA_POSITIONS[positionName];
-        if (!position) return;
-        setCameraView(positionName);
-
+    const snapCameraToAngle = ({ position, target }) => {
+        if (!cameraRef.current || !controlsRef.current) return;
         gsap.to(cameraRef.current.position, {
-            x: position.position.x,
-            y: position.position.y,
-            z: position.position.z,
+            x: position.x, y: position.y, z: position.z,
             duration: 1.5,
-            ease: "power2.inOut",
-            onUpdate: () => {
-                cameraRef.current.lookAt(position.target.x, position.target.y, position.target.z);
-            }
+            ease: 'power2.inOut',
+            onUpdate: () => { cameraRef.current.lookAt(target.x, target.y, target.z); }
         });
-
         gsap.to(controlsRef.current.target, {
-            x: position.target.x,
-            y: position.target.y,
-            z: position.target.z,
+            x: target.x, y: target.y, z: target.z,
             duration: 1.5,
-            ease: "power2.inOut",
-            onUpdate: () => {
-                controlsRef.current.update();
-            }
+            ease: 'power2.inOut',
+            onUpdate: () => { controlsRef.current.update(); }
         });
     };
 
@@ -4788,9 +4779,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
                 {/* Mobile Navigation */}
                 {isMobile && (
-                    <MobileNavigation 
-                        onSetView={() => moveCameraToPosition('set')}
-                        onConnectionsView={() => moveCameraToPosition('connections')}
+                    <MobileNavigation
                         onOpenSearch={openHamburgerSearch}
                         placedDevicesList={placedDevicesList}
                         onRemoveDevice={removeDevice}
@@ -4803,36 +4792,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                             zIndex: 2000
                         }}
                     />
-                )}
-
-
-                {/* Camera Controls - Set / Connections - Only show on desktop */}
-                {!isMobile && (
-                    <div className="camera-controls fade-in" style={{
-                        position: 'fixed',
-                        left: '20px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px',
-                        zIndex: 1000
-                    }}>
-                        <button
-                            type="button"
-                            className={`camera-button ${cameraView === 'set' ? 'camera-button-active' : ''}`}
-                            onClick={() => moveCameraToPosition('set')}
-                        >
-                            Set
-                        </button>
-                        <button
-                            type="button"
-                            className={`camera-button ${cameraView === 'connections' ? 'camera-button-active' : ''}`}
-                            onClick={() => moveCameraToPosition('connections')}
-                        >
-                            Connections
-                        </button>
-                    </div>
                 )}
 
                 {/* Product Selector Modal */}
