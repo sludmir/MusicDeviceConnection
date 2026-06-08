@@ -17,8 +17,8 @@
 }
 
 [data-theme="dark"] {
-  --app-bg: #3d4a5c;
-  --app-bg-alt: #354052;
+  --app-bg: #0a0a0a;
+  --app-bg-alt: #050505;
   --header-bg: #0e0c08;
   --text-primary: #f0f0f0;
   --text-secondary: rgba(255, 255, 255, 0.85);
@@ -283,52 +283,6 @@ html, body {
 }
 
 .setup-timeline-category-btn:focus-visible {
-  outline: 2px solid rgba(0, 162, 255, 0.7);
-  outline-offset: 2px;
-}
-
-/* Set / Connections view toggle (middle-left of setup building screen) */
-.camera-controls {
-  padding-left: max(20px, env(safe-area-inset-left));
-}
-
-.camera-button {
-  min-width: 120px;
-  padding: 12px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-  font-family: inherit;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.camera-button:hover {
-  background: rgba(0, 162, 255, 0.18);
-  border-color: rgba(0, 162, 255, 0.4);
-  transform: translateX(2px);
-  box-shadow: 0 4px 20px rgba(0, 162, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.camera-button-active {
-  background: rgba(0, 162, 255, 0.25) !important;
-  border-color: rgba(0, 162, 255, 0.55) !important;
-  color: #fff !important;
-  box-shadow: 0 0 20px rgba(0, 162, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-}
-
-.camera-button-active:hover {
-  background: rgba(0, 162, 255, 0.35) !important;
-  border-color: rgba(0, 162, 255, 0.65) !important;
-}
-
-.camera-button:focus-visible {
   outline: 2px solid rgba(0, 162, 255, 0.7);
   outline-offset: 2px;
 }
