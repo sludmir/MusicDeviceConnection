@@ -1457,8 +1457,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         const activePointers = new Map();
         let pinchStartDistance = 0;
         let pinchStartCameraDistance = 0;
-        const minDist = 1;
-        const maxDist = 25;
         function getPointersDistance(map) {
             const arr = Array.from(map.values());
             if (arr.length < 2) return 0;
@@ -1482,8 +1480,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     const dist = getPointersDistance(activePointers);
                     if (dist <= 0) return;
                     const ratio = pinchStartDistance / dist;
-                    let newDist = pinchStartCameraDistance * ratio;
-                    newDist = Math.max(minDist, Math.min(maxDist, newDist));
+                    const newDist = pinchStartCameraDistance * ratio;
                     const dir = camera.position.clone().sub(controls.target).normalize();
                     camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
                     controls.update();
@@ -1538,7 +1535,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 // so each notch isn't a huge dolly.
                 const zoomSpeed = isMouse ? 0.0006 : 0.002;
                 const currentDist = camera.position.distanceTo(controls.target);
-                const newDist = Math.max(minDist, Math.min(maxDist, currentDist + deltaY * zoomSpeed * currentDist));
+                const newDist = currentDist + deltaY * zoomSpeed * currentDist;
                 const dir = camera.position.clone().sub(controls.target).normalize();
                 camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
             } else {
