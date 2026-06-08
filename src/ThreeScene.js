@@ -1535,7 +1535,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 // so each notch isn't a huge dolly.
                 const zoomSpeed = isMouse ? 0.0006 : 0.002;
                 const currentDist = camera.position.distanceTo(controls.target);
-                const newDist = currentDist + deltaY * zoomSpeed * currentDist;
+                const newDist = currentDist + deltaY * zoomSpeed * Math.max(currentDist, 1);
                 const dir = camera.position.clone().sub(controls.target).normalize();
                 camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
             } else {
