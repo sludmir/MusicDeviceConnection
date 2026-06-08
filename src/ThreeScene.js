@@ -1449,8 +1449,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         // Enable zoom so pinch (two-finger) does dolly/zoom; wheel is overridden below to rotate only
         controls.enableZoom = true;
         controls.zoomSpeed = 1.2;
-        controls.minDistance = 1;
-        controls.maxDistance = 25;
+
         // Disable OrbitControls two-finger handling; we handle pinch via pointer events (OrbitControls uses pointer, not touch)
         controls.touches = { ONE: TOUCH.ROTATE, TWO: -1 };
         
