@@ -98,6 +98,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actualDevices, setActualDevices] = useState([]);
+  const [initialCameraAngles, setInitialCameraAngles] = useState(null);
+  const [currentCameraAngles, setCurrentCameraAngles] = useState(null);
   const [showFeedPostSetModal, setShowFeedPostSetModal] = useState(false);
   const [theme, setTheme] = useState(() => {
     try {
@@ -306,6 +308,8 @@ function AppRoutes({
     setSelectedSetting(setup.setting || defaultSettingFor(type));
     setActualDevices(setup.devices || []);
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
+    setInitialCameraAngles(setup.cameraAngles ?? null);
+    setCurrentCameraAngles(setup.cameraAngles ?? null);
     navigate('/builder');
   };
 
@@ -314,6 +318,8 @@ function AppRoutes({
     setSelectedSetting(setting || defaultSettingFor(setupType));
     setActualDevices([]);
     setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
+    setInitialCameraAngles(null);
+    setCurrentCameraAngles(null);
     navigate('/builder');
   };
 
@@ -534,6 +540,7 @@ function AppRoutes({
                         currentDevices={actualDevices}
                         setupType={selectedSetup}
                         setting={selectedSetting}
+                        cameraAngles={currentCameraAngles}
                       />
                     </div>
                     <ThreeScene
@@ -543,6 +550,8 @@ function AppRoutes({
                       setting={selectedSetting}
                       onSettingChange={setSelectedSetting}
                       onDevicesChange={handleDevicesChange}
+                      initialCameraAngles={initialCameraAngles}
+                      onCameraAnglesChange={setCurrentCameraAngles}
                     />
                   </div>
                   {SceneVariantSwitcher && (
