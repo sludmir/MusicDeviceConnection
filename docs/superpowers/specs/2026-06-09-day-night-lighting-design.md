@@ -42,6 +42,8 @@ Every setting object gains a `day` block and a `night` block. Both blocks share 
 
 Top-level `background`, `globalLights`, and `lights` fields on a setting are **removed**; the `day`/`night` blocks replace them entirely. Settings that previously had no `lights` array (code-built scenes) will have `lights: []` in both blocks.
 
+**No backwards-compat fallback.** If a setting is missing a `day` or `night` block, `applyGlobalLighting` and `addSettingLights` must throw loudly (or log an error and return) rather than silently applying `undefined` intensities. Every setting in this spec gets both blocks — the fallback would only mask a missed migration.
+
 ### Lighting values per scene
 
 **DJ — Club Booth** (code-built)
@@ -170,6 +172,8 @@ renderer.toneMappingExposure = 1.0; // overridden per-scene via applyGlobalLight
 
 This is the primary fix for the "evenly bright" GLB issue. ACESFilmic applies an S-curve: shadows stay deep, highlights roll off naturally.
 
+**ACESFilmic affects all scenes, not just GLBs.** The code-built scenes (Club Booth, Studio, Stage) were tuned under no tone mapping. After this change their day exposures (1.05–1.2) may still read too dark because the S-curve compresses intensities that previously looked correct. A visual tuning pass on all scenes is required after the initial implementation before shipping.
+
 ---
 
 ## `ThreeScene.js` Changes
@@ -186,22 +190,37 @@ const themeKey = theme === 'dark' ? 'night' : 'day';
 
 ### `applyGlobalLighting(scene, settingConfig, theme)`
 
-Picks `settingConfig[themeKey]` (falls back to top-level for backwards-compat), then:
+Picks `settingConfig[themeKey]` — no fallback (see above). Then:
 - Sets `g.ambient.intensity`, `g.directional.intensity`, `g.hemisphere.intensity`
 - Sets `scene.background`
-- Sets `renderer.toneMappingExposure` (stored on `rendererRef`)
+- Sets `renderer.toneMappingExposure` via `rendererRef.current`, guarded against null:
+  ```js
+  const r = rendererRef.current;
+  if (r) r.toneMappingExposure = cfg.toneMappingExposure ?? 1.0;
+  ```
 
 ### `addSettingLights(envRoot, settingConfig, theme)`
 
-Picks `settingConfig[themeKey].lights`. Behaviour unchanged otherwise.
+Picks `settingConfig[themeKey].lights`. Each created light is tagged before adding:
+```js
+light.userData.isSettingLight = true;
+```
+This is the only safe way to identify lights we own — GLB files may embed their own lights in `envRoot` and we must never remove those.
 
 ### New helper: `rebuildSettingLights(theme)`
 
-Called when `theme` prop changes without a full scene rebuild:
-1. Remove all `THREE.Light` children from `environmentRootRef.current`
-2. Call `addSettingLights(environmentRootRef.current, currentSettingConfig, theme)`
-3. Call `applyGlobalLighting(sceneRef.current, currentSettingConfig, theme)`
-4. Force one render frame
+Called when `theme` prop changes without a full scene rebuild. Guards against null refs throughout:
+1. Guard: if `!environmentRootRef.current || !currentSettingConfigRef.current` return early
+2. Remove only **tagged** lights from `environmentRootRef.current` and dispose them:
+   ```js
+   envRoot.children
+     .filter(c => c.isLight && c.userData.isSettingLight)
+     .forEach(c => { envRoot.remove(c); c.dispose?.(); });
+   ```
+   This preserves any lights baked into the GLB itself.
+3. Call `addSettingLights(environmentRootRef.current, currentSettingConfigRef.current, theme)`
+4. Call `applyGlobalLighting(sceneRef.current, currentSettingConfigRef.current, theme)`
+5. Force one render frame
 
 ### `useEffect` watching `theme`
 
@@ -212,7 +231,20 @@ useEffect(() => {
 }, [theme, sceneInitialized]);
 ```
 
-The current setting config is accessed via a `currentSettingConfigRef` (a new ref that stores the last-applied setting config, set inside `buildSetting`).
+The current setting config is accessed via `currentSettingConfigRef` (a new ref set inside `buildSetting` when a scene is built). Theme is accessed via `themeRef` (a ref kept in sync with the `theme` prop via a `useEffect`). Both refs are needed so `buildSetting` — which is called on scene switches — can read the current theme without stale closure values:
+
+```js
+// keep themeRef in sync
+useEffect(() => { themeRef.current = theme; }, [theme]);
+
+// inside buildSetting:
+const config = getSetting(setupType, settingKey);
+currentSettingConfigRef.current = config;
+applyGlobalLighting(scene, config, themeRef.current);
+addSettingLights(envRoot, config, themeRef.current);
+```
+
+This ensures switching scenes while in dark mode immediately applies the night block without waiting for a theme toggle.
 
 ---
 
@@ -236,7 +268,7 @@ In `AppRoutes`, pass `theme` to `<ThreeScene>`:
 | File | Change |
 |------|--------|
 | `src/data/settings.js` | Replace `lights`/`globalLights`/`background` with `day`/`night` blocks on all settings |
-| `src/ThreeScene.js` | Add `theme` prop; update `applyGlobalLighting` + `addSettingLights` to be theme-aware; add `rebuildSettingLights`; add `currentSettingConfigRef`; add ACESFilmic tone mapping to renderer setup; add `useEffect` for theme changes |
+| `src/ThreeScene.js` | Add `theme` prop; add `themeRef` + `currentSettingConfigRef`; update `applyGlobalLighting` + `addSettingLights` to be theme-aware (with null guards + isSettingLight tagging); add `rebuildSettingLights` with tagged-light removal and disposal; add ACESFilmic tone mapping to renderer setup; add `useEffect` for theme changes |
 | `src/App.js` | Pass `theme={theme}` to `<ThreeScene>` |
 
 ---
