@@ -98,6 +98,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actualDevices, setActualDevices] = useState([]);
+  const [loadedSetupId, setLoadedSetupId] = useState(null);
+  const [loadedSetupName, setLoadedSetupName] = useState(null);
   const [initialCameraAngles, setInitialCameraAngles] = useState(null);
   const [currentCameraAngles, setCurrentCameraAngles] = useState(null);
   const [showFeedPostSetModal, setShowFeedPostSetModal] = useState(false);
@@ -254,6 +256,10 @@ function App() {
         showFeedPostSetModal={showFeedPostSetModal}
         setShowFeedPostSetModal={setShowFeedPostSetModal}
         handleDevicesChange={handleDevicesChange}
+        loadedSetupId={loadedSetupId}
+        setLoadedSetupId={setLoadedSetupId}
+        loadedSetupName={loadedSetupName}
+        setLoadedSetupName={setLoadedSetupName}
         initialCameraAngles={initialCameraAngles}
         setInitialCameraAngles={setInitialCameraAngles}
         currentCameraAngles={currentCameraAngles}
@@ -279,6 +285,10 @@ function AppRoutes({
   showFeedPostSetModal,
   setShowFeedPostSetModal,
   handleDevicesChange,
+  loadedSetupId,
+  setLoadedSetupId,
+  loadedSetupName,
+  setLoadedSetupName,
   initialCameraAngles,
   setInitialCameraAngles,
   currentCameraAngles,
@@ -307,6 +317,8 @@ function AppRoutes({
   const handleLogoClick = () => {
     setSelectedSetup(null);
     setActualDevices([]);
+    setLoadedSetupId(null);
+    setLoadedSetupName(null);
     navigate('/hub');
   };
 
@@ -316,6 +328,8 @@ function AppRoutes({
     setSelectedSetting(setup.setting || defaultSettingFor(type));
     setActualDevices(setup.devices || []);
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
+    setLoadedSetupId(setup.id ?? null);
+    setLoadedSetupName(setup.name ?? null);
     setInitialCameraAngles(setup.cameraAngles ?? null);
     setCurrentCameraAngles(setup.cameraAngles ?? null);
     navigate('/builder');
@@ -326,6 +340,8 @@ function AppRoutes({
     setSelectedSetting(setting || defaultSettingFor(setupType));
     setActualDevices([]);
     setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
+    setLoadedSetupId(null);
+    setLoadedSetupName(null);
     setInitialCameraAngles(null);
     setCurrentCameraAngles(null);
     navigate('/builder');
@@ -549,6 +565,8 @@ function AppRoutes({
                         setupType={selectedSetup}
                         setting={selectedSetting}
                         cameraAngles={currentCameraAngles}
+                        setupId={loadedSetupId}
+                        setupName={loadedSetupName}
                       />
                     </div>
                     <ThreeScene

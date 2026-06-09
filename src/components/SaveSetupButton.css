@@ -183,3 +183,50 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.save-setup-update-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0a0a0a;
+  background: #00a2ff;
+  border: 1px solid #00a2ff;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  margin-bottom: 4px;
+}
+
+.save-setup-update-btn:hover:not(:disabled) {
+  background: #33b3ff;
+  border-color: #33b3ff;
+}
+
+.save-setup-update-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-setup-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 20px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-setup-divider::before,
+.save-setup-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { MdSave } from 'react-icons/md';
 import { db, auth } from '../firebaseConfig';
 import { buildMobileDiagram } from '../utils/buildMobileDiagram';
 import { defaultSettingFor } from '../data/settings';
 import { useToast } from '../ui';
 import './SaveSetupButton.css';
 
-function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles }) {
+function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, setupId, setupName: loadedSetupName }) {
   const toast = useToast();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [setupName, setSetupName] = useState('');
@@ -98,6 +99,59 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles }) {
     }
   };
 
+  const handleUpdateSetup = async () => {
+    if (!currentDevices || currentDevices.length === 0) {
+      setError('No devices to save. Please add some devices to your setup first.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const devicesData = currentDevices.map(device => ({
+        id: device.id,
+        name: device.name,
+        type: device.type,
+        category: device.category,
+        position: device.position ? {
+          x: device.position.x,
+          y: device.position.y,
+          z: device.position.z
+        } : null,
+        rotation: device.rotation ? {
+          x: device.rotation.x,
+          y: device.rotation.y,
+          z: device.rotation.z
+        } : null,
+        modelPath: device.modelPath,
+        connections: device.connections || [],
+        spotType: device.spotType ?? null,
+        placementIndex: device.placementIndex != null ? device.placementIndex : null,
+        inputs: device.inputs || [],
+        outputs: device.outputs || [],
+      }));
+
+      const mobileDiagram = buildMobileDiagram(currentDevices, setupType || 'DJ');
+
+      await updateDoc(doc(db, 'setups', setupId), {
+        devices: devicesData,
+        mobileDiagram,
+        cameraAngles: cameraAngles ?? null,
+        setting: setting || defaultSettingFor(setupType || 'DJ'),
+        updatedAt: serverTimestamp(),
+      });
+
+      setShowSaveDialog(false);
+      toast.success('Setup updated.');
+    } catch (err) {
+      console.error('Error updating setup:', err);
+      setError('Failed to update setup. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const unmarkOtherMainSetups = async () => {
     try {
       const setupsRef = collection(db, 'setups');
@@ -142,7 +196,21 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles }) {
         <div className="save-setup-overlay" onClick={() => !saving && setShowSaveDialog(false)}>
           <div className="save-setup-modal" onClick={(e) => e.stopPropagation()}>
             <h2 className="save-setup-title">Save Setup</h2>
-            
+
+            {setupId && (
+              <>
+                <button
+                  className="save-setup-update-btn"
+                  onClick={handleUpdateSetup}
+                  disabled={saving}
+                >
+                  <MdSave size={18} />
+                  {saving ? 'Updating…' : `Update "${loadedSetupName}"`}
+                </button>
+                <div className="save-setup-divider"><span>or save as new copy</span></div>
+              </>
+            )}
+
             <div className="save-setup-form">
               <label className="save-setup-label">
                 Setup Name

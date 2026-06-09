@@ -1769,16 +1769,27 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
                 for (let i = 0; i < sortedDevices.length; i++) {
                     const device = sortedDevices[i];
-                    let placementIndex = device.placementIndex;
+                    let placementIndex = null;
 
-                    if (placementIndex == null && device.spotType != null) {
-                        const foundIdx = ghostSpotsRef.current.findIndex((spot, i) => spot?.userData?.type === device.spotType && !usedSpotIndices.has(i));
+                    // Primary: match by spotType (stable string identifier — survives layout
+                    // reorders and index shifts that would corrupt a raw numeric placementIndex).
+                    if (device.spotType != null) {
+                        const foundIdx = ghostSpotsRef.current.findIndex((spot, idx) =>
+                            spot?.userData?.type === device.spotType && !usedSpotIndices.has(idx));
                         if (foundIdx >= 0) placementIndex = foundIdx;
                     }
-                    // Old saves: no spotType/placementIndex — match by closest saved position to a ghost spot
+
+                    // Secondary: fall back to saved numeric index when spotType is absent
+                    // (backwards-compat for very old saves saved before spotType was added).
+                    if (placementIndex == null && device.placementIndex != null && !usedSpotIndices.has(device.placementIndex)) {
+                        placementIndex = device.placementIndex;
+                    }
+
+                    // Tertiary: match by closest saved position (very old saves without either field)
                     if (placementIndex == null && device.position && typeof device.position.x === 'number') {
                         placementIndex = findGhostIndexByPosition(device.position);
                     }
+
                     if (placementIndex == null) placementIndex = i;
 
                     // Avoid double-booking the same spot; move to next free if needed
