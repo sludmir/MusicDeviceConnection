@@ -74,10 +74,10 @@ When the user clicks a tab (or New Setup) and `isDirty` is true, a small banner 
 └─────────────────────────────────────────────┘
 ```
 
-- `[Save]` calls `onSaveActive`; on success, proceeds with the pending switch
+- `[Save]` calls `onSaveActive`; **only on save success** does the pending switch execute. On save failure the banner stays visible and shows an error message ("Save failed — try again").
 - `[Leave anyway]` proceeds immediately without saving
-- Clicking outside the banner or pressing Esc cancels the switch and dismisses the banner
-- The pending switch target is held in local component state (`pendingSwitch`) until resolved
+- Clicking outside **the banner** (not the whole bar) or pressing Esc cancels the pending switch and dismisses the banner. The outside-click listener is scoped to the banner element only to avoid a tab click being interpreted as an outside click.
+- The pending switch target is held in local component state (`pendingSwitch: setup | null`) until resolved by save-success, leave, or cancel
 
 ### New Unsaved Session (no active tab)
 
@@ -106,47 +106,75 @@ The three cards match the hub landing page visually. Selecting a type calls `onS
 
 ## Dirty Detection
 
-App.js tracks `setupLoadedDevices` — a snapshot of the `actualDevices` array taken when:
-- A saved setup is loaded (`handleSetupSelectFromLanding`)
-- A new setup is started (`handleNewSetupFromLanding`) — snapshot is `[]`
+### State
 
 ```js
-const [setupLoadedDevices, setSetupLoadedDevices] = useState([]);
+const [setupLoadedDevices, setSetupLoadedDevices] = useState([]); // Firestore-shaped saved devices
+const [setupLoadComplete, setSetupLoadComplete] = useState(true);  // false while models are loading
+const [ghostSpotsModified, setGhostSpotsModified] = useState(false);
 ```
 
-`isDirty` is derived:
+`setupLoadedDevices` holds the raw Firestore `devices` array (saved shape: `{ id, position, spotType, ... }`). It is set only on explicit load/switch/save events — never as a side-effect of the `onSnapshot` listener.
+
+### Gating with `setupLoadComplete`
+
+When a setup switch begins, `setupLoadComplete` is set to `false`. ThreeScene calls `onSetupLoadComplete` once all models for the incoming setup have finished hydrating. Only then does `setupLoadComplete` flip back to `true`. `isDirty` is computed as `false` while `setupLoadComplete` is false, preventing spurious dirty-true states during the async model load window.
+
 ```js
-const isDirty = actualDevices.length !== setupLoadedDevices.length ||
-  actualDevices.some((d, i) => d.uniqueId !== setupLoadedDevices[i]?.uniqueId);
+const isDirty = setupLoadComplete && (
+  ghostSpotsModified ||
+  computeIsDirty(actualDevices, setupLoadedDevices)
+);
 ```
 
-Simple length + id comparison is sufficient — no deep equality needed. Order is stable (devices are appended, not reordered).
+### `computeIsDirty`
 
-Ghost spot moves (admin-only) are tracked via an existing `ghostSpotsModified` boolean passed up from `ThreeScene`. If `ghostSpotsModified` is true, `isDirty` is also true.
+`uniqueId` is not persisted to Firestore — it is generated at runtime as `` `${product.id}-${position.x}-${position.y}-${position.z}` ``. The saved Firestore device has `id` and `position`, so we reconstruct the expected `uniqueId` from the saved record and do a Set-based comparison (order-independent):
+
+```js
+function computeIsDirty(actualDevices, savedDevices) {
+  if (actualDevices.length !== savedDevices.length) return true;
+  const savedIds = new Set(
+    savedDevices
+      .filter(d => d.id && d.position)
+      .map(d => `${d.id}-${d.position.x}-${d.position.y}-${d.position.z}`)
+  );
+  return actualDevices.some(d => !savedIds.has(d.uniqueId));
+}
+```
+
+Set-based comparison removes the positional-order dependency entirely. Devices filtered without a valid `id + position` are excluded from the set (they cannot match and would falsely flag dirty; any such malformed record is a data integrity issue, not a dirty-detection concern).
+
+### Ghost spot moves (admin-only)
+
+`ghostSpotsModified` is reset to `false` on every setup load and every new-setup start. This ensures a non-admin session never carries a stale `true` from a prior admin session in the same app instance. ThreeScene calls `onGhostSpotsModified` only when the admin editor moves a spot for the first time in a session.
 
 ---
 
 ## App.js Changes
 
-1. Add `setupLoadedDevices` state; set it when a setup is loaded or new session starts
-2. Compute `isDirty` from `actualDevices` vs `setupLoadedDevices` (+ `ghostSpotsModified`)
-3. Fetch user's saved setups from Firestore when authenticated and in builder view; store in `savedSetups` state
-4. Pass `savedSetups`, `activeSetupId` (`loadedSetupId`), `isDirty`, `activeSetupName` (`loadedSetupName`), `onSwitchSetup`, `onNewSetup`, `onSaveActive` to `<SetupSwitcherBar>`
-5. Replace `<SceneVariantSwitcher .../>` render with `<SetupSwitcherBar .../>`
-6. Render `<NewSetupModal>` when `showNewSetupModal` state is true
+1. Add `setupLoadedDevices`, `setupLoadComplete`, `ghostSpotsModified` state
+2. Set `setupLoadedDevices` and reset `ghostSpotsModified` to `false` on every setup load or new-session start; set `setupLoadComplete = false` at the same time
+3. Pass `onSetupLoadComplete` to `<ThreeScene>`; App.js sets `setupLoadComplete = true` when it fires
+4. Compute `isDirty` via `computeIsDirty` (see Dirty Detection section), gated behind `setupLoadComplete`
+5. Fetch user's saved setups from Firestore with `onSnapshot` when authenticated; store in `savedSetups` state. **The snapshot listener never writes to `setupLoadedDevices`** — the baseline is only touched by explicit load/switch/save handlers.
+6. Pass `savedSetups`, `activeSetupId` (`loadedSetupId`), `isDirty`, `activeSetupName` (`loadedSetupName`), `onSwitchSetup`, `onNewSetup`, `onSaveActive` to `<SetupSwitcherBar>`
+7. Replace `<SceneVariantSwitcher .../>` render with `<SetupSwitcherBar .../>`
+8. Render `<NewSetupModal>` when `showNewSetupModal` state is true
 
 ### `onSwitchSetup` handler
 
 ```js
 function handleSwitchSetup(setup) {
-  // Set the dirty baseline to what is saved in Firestore for this setup
-  // (setup.devices comes from the full onSnapshot doc spread)
+  // Lock in the new baseline and gate dirty-detection before models start loading
   setSetupLoadedDevices(setup.devices || []);
+  setSetupLoadComplete(false);
+  setGhostSpotsModified(false);
   handleSetupSelectFromLanding(setup);
 }
 ```
 
-`setSetupLoadedDevices` is called before `handleSetupSelectFromLanding` so the baseline is locked in before `actualDevices` begins updating as 3D models load.
+`setupLoadComplete` is set to `false` before `handleSetupSelectFromLanding` fires so no stale `isDirty` reads can occur during the async model-load window. ThreeScene calls `onSetupLoadComplete` when all models for the incoming setup have finished hydrating, which flips it back to `true`.
 
 ### Firestore fetch for `savedSetups`
 
@@ -165,26 +193,33 @@ useEffect(() => {
 }, [user]);
 ```
 
-Uses `onSnapshot` so the bar updates immediately after a save without manual refresh.
+Uses `onSnapshot` so the bar updates immediately after a save without manual refresh. The composite index on `(ownerId, createdAt desc)` already exists in the project's Firestore configuration (documented in CLAUDE.md) — no new index needed.
 
 ---
 
 ## ThreeScene.js Changes
 
-Expose `ghostSpotsModified` to the parent:
+Two new props:
 
 ```js
-// New prop
-onGhostSpotsModified: () => void
+onSetupLoadComplete: () => void      // called once all models for the current setup have loaded
+onGhostSpotsModified: () => void     // called once when admin ghost editor moves a spot (first move only)
 ```
 
-Called once when the admin ghost spot editor moves a spot for the first time in a session. App.js sets a `ghostSpotsModified` boolean in response and includes it in the `isDirty` calculation.
+`onSetupLoadComplete` is called at the end of the device-loading loop (after the last `addProductToPosition` resolves). App.js uses it to flip `setupLoadComplete = true`, which unblocks dirty computation.
+
+`onGhostSpotsModified` is called once per session when the admin moves a ghost spot for the first time. App.js sets `ghostSpotsModified = true` in response.
 
 ---
 
 ## What SceneVariantSwitcher Did (now removed)
 
-`SceneVariantSwitcher` let users change the scene variant (e.g. Club → Dojo) within the current setup type. This is now out of scope: a setup's scene variant is set at creation and changed by editing + re-saving. A per-setup scene variant picker can be added as a follow-up if needed.
+`SceneVariantSwitcher` let users change the scene variant (e.g. Club → Dojo) within the current setup type while building. This capability is intentionally removed in this spec:
+
+- When loading a **saved setup**, its `setting` field determines the scene — no per-session override needed.
+- When starting a **new setup**, the `NewSetupModal` lets the user pick a type (DJ / Producer / Musician). The new setup defaults to the first scene for that type (e.g. DJ → Club Booth). The user can change the scene only by building, saving, then loading and re-saving with a different variant.
+
+This is a known regression for new-setup scene selection. A per-setup in-session scene picker is tracked as a follow-up task and is explicitly out of scope here.
 
 ---
 
@@ -196,8 +231,8 @@ Called once when the admin ghost spot editor moves a spot for the first time in 
 | `src/components/SetupSwitcherBar.css` | New — bar, tab, save prompt styles |
 | `src/components/NewSetupModal.js` | New — modal with DJ/Producer/Musician type cards |
 | `src/components/NewSetupModal.css` | New — modal overlay styles |
-| `src/App.js` | Add `savedSetups` fetch + state; add `setupLoadedDevices` state; compute `isDirty`; replace `SceneVariantSwitcher` with `SetupSwitcherBar`; add `NewSetupModal` render |
-| `src/ThreeScene.js` | Add `onGhostSpotsModified` prop; call it when admin moves a ghost spot |
+| `src/App.js` | Add `savedSetups` fetch; add `setupLoadedDevices`, `setupLoadComplete`, `ghostSpotsModified` state; `computeIsDirty` helper; replace `SceneVariantSwitcher` with `SetupSwitcherBar`; add `NewSetupModal` render |
+| `src/ThreeScene.js` | Add `onSetupLoadComplete` prop (called after last model loads); add `onGhostSpotsModified` prop (called on first admin ghost move) |
 | `src/components/SceneVariantSwitcher.js` | Deleted (no longer used) |
 | `src/components/SceneVariantSwitcher.css` | Deleted |
 
