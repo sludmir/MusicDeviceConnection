@@ -576,6 +576,7 @@ function AppRoutes({
                       setting={selectedSetting}
                       onSettingChange={setSelectedSetting}
                       onDevicesChange={handleDevicesChange}
+                      theme={theme}
                       initialCameraAngles={initialCameraAngles}
                       onCameraAnglesChange={setCurrentCameraAngles}
                     />

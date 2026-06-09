@@ -47,7 +47,7 @@ function disposeObject3DTree(root) {
     });
 }
 
-function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange }) {
+function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, theme }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -59,6 +59,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const djTableRef = useRef(null);
     const environmentRootRef = useRef(null);
     const globalLightsRef = useRef(null);
+    const themeRef = useRef(theme || 'light');
+    const currentSettingConfigRef = useRef(null);
     const ghostSpotsRef = useRef([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const isAdminRef = useRef(false);
@@ -109,6 +111,19 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     useEffect(() => {
         setCameraAngles(initialCameraAngles ?? [null, null, null]);
     }, [initialCameraAngles]);
+
+    // Keep themeRef in sync so buildSetting can read the current theme without
+    // stale closure values (buildSetting is not recreated on every theme change).
+    useEffect(() => {
+        themeRef.current = theme || 'light';
+    }, [theme]);
+
+    // Rebuild accent lights and global lighting whenever the app theme changes.
+    useEffect(() => {
+        if (!sceneInitialized || !environmentRootRef.current) return;
+        rebuildSettingLights(theme || 'light');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [theme, sceneInitialized]);
 
     // Live trackpad-vs-mouse detector. Re-classifies every wheel event (with
     // hysteresis) so camera controls self-correct instead of relying on a
@@ -1406,6 +1421,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 scene.background = new THREE.Color(0xf0f0f0);
                 renderer.setSize(width, height);
                 renderer.shadowMap.enabled = true;
+                renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer.toneMappingExposure = 1.0; // overridden per-scene by applyGlobalLighting
                 mountRef.current.appendChild(renderer.domElement);
 
                 // Add lights
@@ -2338,30 +2355,42 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         djTableRef.current = null;
     }
 
-    // Dim/restore the shared global lights and scene background so a setting can
-    // set its own mood. Called on every setting build; settings that omit the
-    // override fall back to the captured defaults.
-    function applyGlobalLighting(scene, settingConfig) {
+    // Apply global lights, background colour, and tone mapping exposure for the
+    // active theme ('light' → day block, 'dark' → night block).
+    function applyGlobalLighting(scene, settingConfig, theme) {
         const g = globalLightsRef.current;
         if (!g) return;
-        const o = settingConfig.globalLights || {};
+        const themeKey = (theme || 'light') === 'dark' ? 'night' : 'day';
+        const cfg = settingConfig[themeKey];
+        if (!cfg) {
+            console.error(`applyGlobalLighting: setting "${settingConfig.label}" has no "${themeKey}" block`);
+            return;
+        }
+        const o = cfg.globalLights || {};
         g.ambient.intensity = o.ambient ?? g.defaults.ambient;
         g.directional.intensity = o.directional ?? g.defaults.directional;
         g.hemisphere.intensity = o.hemisphere ?? g.defaults.hemisphere;
-        const bg = settingConfig.background ?? g.defaultBackground;
+        const bg = cfg.background ?? g.defaultBackground;
         if (scene.background instanceof THREE.Color) scene.background.set(bg);
         else scene.background = new THREE.Color(bg);
+        const r = rendererRef.current;
+        if (r) r.toneMappingExposure = cfg.toneMappingExposure ?? 1.0;
     }
 
     // Build the lights declared on a setting into the (possibly rotated) envRoot
-    // so they ride along with the environment geometry.
-    function addSettingLights(envRoot, settingConfig) {
+    // so they ride along with the environment geometry. Each created light is
+    // tagged userData.isSettingLight = true so rebuildSettingLights can remove
+    // only our lights without touching any lights baked into the GLB itself.
+    function addSettingLights(envRoot, settingConfig, theme) {
         // Light positions live in the env's local frame, so envRoot's scale moves
         // them with the geometry. PointLight `distance` is a world-space scalar the
         // matrix doesn't touch, so scale it by s; with inverse-square decay, keep
         // illuminance constant by scaling intensity by s^2.
         const s = settingConfig.scale || 1;
-        (settingConfig.lights || []).forEach((l) => {
+        const themeKey = (theme || 'light') === 'dark' ? 'night' : 'day';
+        const cfg = settingConfig[themeKey];
+        if (!cfg) return;
+        (cfg.lights || []).forEach((l) => {
             let light;
             if (l.kind === 'point') {
                 light = new THREE.PointLight(l.color ?? 0xffffff, (l.intensity ?? 1) * s * s, (l.distance ?? 0) * s, l.decay ?? 2);
@@ -2371,8 +2400,29 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 return;
             }
             if (l.position) light.position.set(l.position[0], l.position[1], l.position[2]);
+            light.userData.isSettingLight = true;
             envRoot.add(light);
         });
+    }
+
+    // Swap accent lights and global lighting for the new theme without rebuilding
+    // the full environment. Called by the theme useEffect.
+    function rebuildSettingLights(theme) {
+        const envRoot = environmentRootRef.current;
+        const config = currentSettingConfigRef.current;
+        if (!envRoot || !config) return;
+
+        // Remove only lights we added (tagged), preserving any GLB-embedded lights.
+        // Dispose to free GPU shadow-map textures.
+        const toRemove = envRoot.children.filter(c => c.isLight && c.userData.isSettingLight);
+        toRemove.forEach(c => { envRoot.remove(c); c.dispose?.(); });
+
+        addSettingLights(envRoot, config, theme);
+        applyGlobalLighting(sceneRef.current, config, theme);
+
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
     }
 
     function loadGlbEnvironment(envRoot, settingConfig) {
@@ -2393,7 +2443,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     }
                 });
                 envRoot.add(gltf.scene);
-                addSettingLights(envRoot, settingConfig);
+                addSettingLights(envRoot, settingConfig, themeRef.current);
                 if (rendererRef.current && sceneRef.current && cameraRef.current) {
                     rendererRef.current.render(sceneRef.current, cameraRef.current);
                 }
@@ -2412,7 +2462,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
         disposeEnvironment();
 
-        applyGlobalLighting(scene, settingConfig);
+        currentSettingConfigRef.current = settingConfig;
+        applyGlobalLighting(scene, settingConfig, themeRef.current);
 
         const envRoot = new THREE.Group();
         envRoot.name = 'environmentRoot';

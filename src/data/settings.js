@@ -6,6 +6,11 @@
 //
 // type: 'procedural' — built inline in ThreeScene.createClubEnvironment
 // type: 'glb'        — loaded via GLTFLoader (+ DRACOLoader if draco: true)
+//
+// Every setting has a `day` block and a `night` block. ThreeScene picks the
+// correct one based on the app theme ('light' → day, 'dark' → night).
+// Both blocks share the same shape:
+//   { background, toneMappingExposure, globalLights: {ambient, directional, hemisphere}, lights: [] }
 
 export const SETTINGS = {
   DJ: {
@@ -13,6 +18,18 @@ export const SETTINGS = {
       label: 'Club Booth',
       type: 'procedural',
       camera: { position: [0, 2.2, 1.8], target: [0, 0.9, 0] },
+      day: {
+        background: 0xd4c5a9,
+        toneMappingExposure: 1.1,
+        globalLights: { ambient: 0.8, directional: 1.2, hemisphere: 1.0 },
+        lights: [],
+      },
+      night: {
+        background: 0x0a0310,
+        toneMappingExposure: 0.75,
+        globalLights: { ambient: 0.2, directional: 0.0, hemisphere: 0.25 },
+        lights: [],
+      },
     },
     rooftop: {
       label: 'Rooftop',
@@ -20,6 +37,23 @@ export const SETTINGS = {
       source: '/scenes/dj-rooftop.glb',
       draco: true,
       camera: { position: [0, 8, 12], target: [0, 1, 0] },
+      day: {
+        background: 0x87ceeb,
+        toneMappingExposure: 1.2,
+        globalLights: { ambient: 0.6, directional: 1.5, hemisphere: 1.2 },
+        lights: [
+          { kind: 'directional', color: 0xfff4d0, intensity: 1.5, position: [5, 8, 3] },
+        ],
+      },
+      night: {
+        background: 0x060818,
+        toneMappingExposure: 0.65,
+        globalLights: { ambient: 0.08, directional: 0.0, hemisphere: 0.15 },
+        lights: [
+          { kind: 'point', color: 0xa0b8ff, intensity: 3,  distance: 20, decay: 2, position: [0, 6, 0] },
+          { kind: 'point', color: 0xff8844, intensity: 2,  distance: 15, decay: 2, position: [0, 0, -4] },
+        ],
+      },
     },
     dojo: {
       label: 'Dojo',
@@ -34,16 +68,31 @@ export const SETTINGS = {
       // so real-world-sized products fit on the table. Light positions/distances
       // ride the scale automatically (see addSettingLights).
       scale: 2.25,
-      background: 0x070a14,
-      globalLights: { ambient: 0.1, directional: 0.0, hemisphere: 0.18 },
-      // Positions are in the GLB's authored (un-rotated) room frame; they ride
-      // along with the environment when rotationY is applied.
-      lights: [
-        { kind: 'point', color: 0xff8a3d, intensity: 14, distance: 8,  decay: 2, position: [1.67, 1.85, 1.9] },
-        { kind: 'point', color: 0x6f8cff, intensity: 7,  distance: 14, decay: 2, position: [0, 1.7, -2.6] },
-        { kind: 'point', color: 0x6f8cff, intensity: 7,  distance: 14, decay: 2, position: [2.8, 1.7, 0] },
-      ],
-      camera: { position: [0, 1.5, 2.4], target: [0, 0.8, -0.3] },
+      camera: { position: [0, 2.6, 3.4], target: [0, 1.05, 0] },
+      day: {
+        background: 0x1a1000,
+        toneMappingExposure: 0.9,
+        globalLights: { ambient: 0.35, directional: 0.4, hemisphere: 0.25 },
+        lights: [
+          // warm floor lamp (daytime: softer, cooler)
+          { kind: 'point', color: 0xffd090, intensity: 10, distance: 8,  decay: 2, position: [1.67, 1.85, 1.9] },
+          // city windows (daytime: cooler, dimmer)
+          { kind: 'point', color: 0xc8d8ff, intensity: 3,  distance: 10, decay: 2, position: [0,    1.7, -2.6] },
+          { kind: 'point', color: 0xc8d8ff, intensity: 3,  distance: 10, decay: 2, position: [2.8,  1.7,  0  ] },
+        ],
+      },
+      night: {
+        background: 0x070a14,
+        toneMappingExposure: 0.7,
+        globalLights: { ambient: 0.1, directional: 0.0, hemisphere: 0.18 },
+        lights: [
+          // warm floor lamp
+          { kind: 'point', color: 0xff8a3d, intensity: 14, distance: 8,  decay: 2, position: [1.67, 1.85, 1.9] },
+          // city glow through windows
+          { kind: 'point', color: 0x6f8cff, intensity: 7,  distance: 14, decay: 2, position: [0,    1.7, -2.6] },
+          { kind: 'point', color: 0x6f8cff, intensity: 7,  distance: 14, decay: 2, position: [2.8,  1.7,  0  ] },
+        ],
+      },
     },
   },
   Producer: {
@@ -51,6 +100,18 @@ export const SETTINGS = {
       label: 'Studio',
       type: 'procedural',
       camera: { position: [0, 3.2, 4.5], target: [0, 1, 0] },
+      day: {
+        background: 0xdce8f0,
+        toneMappingExposure: 1.05,
+        globalLights: { ambient: 0.7, directional: 1.0, hemisphere: 0.9 },
+        lights: [],
+      },
+      night: {
+        background: 0x080c10,
+        toneMappingExposure: 0.8,
+        globalLights: { ambient: 0.15, directional: 0.0, hemisphere: 0.2 },
+        lights: [],
+      },
     },
   },
   Musician: {
@@ -58,6 +119,18 @@ export const SETTINGS = {
       label: 'Stage',
       type: 'procedural',
       camera: { position: [0, 3.5, 6], target: [0, 1, 0] },
+      day: {
+        background: 0xf0e8d8,
+        toneMappingExposure: 1.1,
+        globalLights: { ambient: 0.8, directional: 1.1, hemisphere: 1.0 },
+        lights: [],
+      },
+      night: {
+        background: 0x050308,
+        toneMappingExposure: 0.7,
+        globalLights: { ambient: 0.1, directional: 0.0, hemisphere: 0.15 },
+        lights: [],
+      },
     },
     guitarRoom: {
       label: 'Guitar Room',
@@ -65,6 +138,22 @@ export const SETTINGS = {
       source: '/scenes/musician-guitar-room.glb',
       draco: false,
       camera: { position: [0, 3.5, 6], target: [0, 1, 0] },
+      day: {
+        background: 0xd8c8b0,
+        toneMappingExposure: 1.0,
+        globalLights: { ambient: 0.6, directional: 0.9, hemisphere: 0.8 },
+        lights: [
+          { kind: 'point', color: 0xffeedd, intensity: 4, distance: 10, decay: 2, position: [0, 2.5, 1] },
+        ],
+      },
+      night: {
+        background: 0x080508,
+        toneMappingExposure: 0.75,
+        globalLights: { ambient: 0.1, directional: 0.0, hemisphere: 0.12 },
+        lights: [
+          { kind: 'point', color: 0xffcc88, intensity: 3, distance: 8, decay: 2, position: [0, 2.5, 1] },
+        ],
+      },
     },
   },
 };
