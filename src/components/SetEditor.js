@@ -112,6 +112,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const angleCanvasRefs = useRef({}); // { [angleId]: HTMLCanvasElement }
   const angleWrapRefs = useRef({});   // { [angleId]: HTMLDivElement } — for transform during drag
   const dragRef = useRef({ kind: null }); // 'scrub' | 'offset' | null
+  const lastLiveSeekRef = useRef(0);      // throttle for live seeks during drags
   const rafRef = useRef(0);
 
   // Schedule peak extraction whenever underlying files change.
@@ -365,6 +366,25 @@ function SetEditor({ onBack, theme = 'dark' }) {
   // ── Pointer drag (scrub + per-angle offset) ────────────────────────
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  // Position all angle players against the master timeline using their offsets.
+  const seekAllToMasterTime = useCallback((masterTime) => {
+    const a = masterAudioPlayerRef.current;
+    if (a) {
+      const dur = Number.isFinite(a.duration) ? a.duration : Infinity;
+      a.currentTime = Math.max(0, Math.min(dur - 0.01, masterTime));
+    }
+    angles.forEach((angle) => {
+      const v = anglePlayerRefs.current[angle.id];
+      if (!v) return;
+      const offset = angleOffsets[angle.id] || 0;
+      // offset: angle's content is shifted by +offset on master timeline.
+      // So angle content time at master T is (T - offset).
+      const t = angleTimeAtMaster(masterTime, offset);
+      const dur = Number.isFinite(v.duration) ? v.duration : Infinity;
+      v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
+    });
+  }, [angles, angleOffsets]);
+
   const handleRowPointerDown = useCallback((e, kind, angleId) => {
     if (e.button !== 0) return; // left click only
     if (!syncScrollRef.current) return;
@@ -425,7 +445,23 @@ function SetEditor({ onBack, theme = 'dark' }) {
         wrap.style.transform = `translateX(${clamped * pxPerSec}px)`;
       }
     }
-  }, [pxPerSec, previewDuration]);
+
+    // Live preview while dragging: seek media (throttled) so the frame follows.
+    const now = performance.now();
+    if (now - lastLiveSeekRef.current > 80) {
+      lastLiveSeekRef.current = now;
+      if (d.kind === 'scrub' && d.currentSec != null) {
+        seekAllToMasterTime(d.currentSec);
+      } else if (d.kind === 'offset' && d.currentOffsetSec != null) {
+        const v = anglePlayerRefs.current[d.angleId];
+        if (v) {
+          const t = angleTimeAtMaster(playheadSec, d.currentOffsetSec);
+          const dur = Number.isFinite(v.duration) ? v.duration : Infinity;
+          v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
+        }
+      }
+    }
+  }, [pxPerSec, previewDuration, seekAllToMasterTime, playheadSec]);
 
   const handleRowPointerUp = useCallback((e) => {
     const d = dragRef.current;
@@ -477,25 +513,6 @@ function SetEditor({ onBack, theme = 'dark' }) {
   useEffect(() => {
     if (!syncEnabled && playing) setPlaying(false);
   }, [syncEnabled, playing]);
-
-  // Position all angle players against the master timeline using their offsets.
-  const seekAllToMasterTime = useCallback((masterTime) => {
-    const a = masterAudioPlayerRef.current;
-    if (a) {
-      const dur = Number.isFinite(a.duration) ? a.duration : Infinity;
-      a.currentTime = Math.max(0, Math.min(dur - 0.01, masterTime));
-    }
-    angles.forEach((angle) => {
-      const v = anglePlayerRefs.current[angle.id];
-      if (!v) return;
-      const offset = angleOffsets[angle.id] || 0;
-      // offset: angle's content is shifted by +offset on master timeline.
-      // So angle content time at master T is (T - offset).
-      const t = masterTime - offset;
-      const dur = Number.isFinite(v.duration) ? v.duration : Infinity;
-      v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
-    });
-  }, [angles, angleOffsets]);
 
   // Whenever playhead moves while paused, scrub all elements (no playback).
   useEffect(() => {
@@ -970,7 +987,21 @@ function SetEditor({ onBack, theme = 'dark' }) {
                   title="Hear focused angle audio only"
                 >Angle</button>
               </div>
+              <button
+                type="button"
+                className="set-editor__zoom-btn"
+                onClick={() => setPlayheadSec((s) => Math.max(0, Math.min(previewDuration, s - 1 / 30)))}
+                aria-label="Step back one frame"
+                title="Back one frame (~33ms)"
+              >‹</button>
               <span className="set-editor__sync-time">{formatTime(playheadSec)}</span>
+              <button
+                type="button"
+                className="set-editor__zoom-btn"
+                onClick={() => setPlayheadSec((s) => Math.max(0, Math.min(previewDuration, s + 1 / 30)))}
+                aria-label="Step forward one frame"
+                title="Forward one frame (~33ms)"
+              >›</button>
               <button type="button" className="set-editor__zoom-btn" onClick={zoomOut} aria-label="Zoom out">−</button>
               <span className="set-editor__zoom-readout">{pxPerSec} px/s</span>
               <button type="button" className="set-editor__zoom-btn" onClick={zoomIn} aria-label="Zoom in">+</button>
@@ -1165,8 +1196,10 @@ function SetEditor({ onBack, theme = 'dark' }) {
           </div>
 
           <div className="set-editor__sync-help">
-            Drag <strong>master</strong> row or ruler to scrub. Drag an <strong>angle</strong> row to slide it in time.
-            Hit <em>Master play</em> to play both together; toggle <em>Master / Angle</em> to A/B which one you hear.
+            <strong>Auto-align</strong> first, then verify: zoom into a hit on the master waveform, park the
+            playhead on it (‹ › steps one frame), and nudge the angle (±0.01s) until the preview frame shows
+            the action. Drag the ruler to scrub, drag an angle row to slide it, and use <em>Master / Angle</em>
+            to A/B what you hear.
           </div>
 
         </section>
