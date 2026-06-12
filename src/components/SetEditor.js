@@ -7,6 +7,7 @@ import { db, auth } from '../firebaseConfig';
 import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
 import { extractPeaks, extractPeaksStreaming, WAVEFORM_DEFAULTS } from '../utils/audioWaveform';
 import { suggestOffsetSeconds } from '../utils/audioAlign';
+import { nudgeOffset, angleTimeAtMaster, formatOffsetMs } from '../utils/syncEditorMath';
 import './SetEditor.css';
 
 const PX_PER_SEC_DEFAULT = 40;
@@ -460,6 +461,16 @@ function SetEditor({ onBack, theme = 'dark' }) {
       });
     }
   }, [waveforms]);
+
+  // Nudge the focused angle's offset by ±deltaSec; the paused-seek effect
+  // re-seeks its video so the frame updates immediately.
+  const handleNudgeOffset = useCallback((deltaSec) => {
+    if (focusedAngleId == null) return;
+    setAngleOffsets((prev) => ({
+      ...prev,
+      [focusedAngleId]: nudgeOffset(prev[focusedAngleId] || 0, deltaSec, previewDuration),
+    }));
+  }, [focusedAngleId, previewDuration]);
 
   // ── Playback (master + angles together, A/B mute) ─────────────────
   // Stop playback whenever the underlying media changes or sync is no longer enabled.
@@ -966,6 +977,63 @@ function SetEditor({ onBack, theme = 'dark' }) {
             </div>
           </div>
 
+          {/* Preview: focused angle visible; all media elements live here so
+              playback/seek refs never re-mount. */}
+          <div className="set-editor__sync-preview">
+            <div className="set-editor__preview-bar">
+              <div className="set-editor__preview-tabs" role="tablist" aria-label="Preview angle">
+                {angles.map((angle, idx) => (
+                  <button
+                    key={angle.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={angle.id === focusedAngleId}
+                    className={`set-editor__preview-tab ${angle.id === focusedAngleId ? 'active' : ''}`}
+                    onClick={() => setFocusedAngleId(angle.id)}
+                  >
+                    Angle {idx + 1}
+                  </button>
+                ))}
+              </div>
+              <div className="set-editor__preview-nudges" role="group" aria-label="Offset nudge">
+                {[-0.1, -0.01, 0.01, 0.1].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className="set-editor__nudge-btn"
+                    disabled={focusedAngleId == null}
+                    onClick={() => handleNudgeOffset(d)}
+                    title={`Shift focused angle ${d > 0 ? 'later' : 'earlier'} by ${Math.abs(d)}s`}
+                  >
+                    {d > 0 ? `+${d}` : d}
+                  </button>
+                ))}
+                <span className="set-editor__nudge-readout">
+                  {focusedAngleId != null ? formatOffsetMs(angleOffsets[focusedAngleId] || 0) : '—'}
+                </span>
+              </div>
+            </div>
+            <div className="set-editor__preview-stage">
+              {audio?.url && (
+                <audio ref={masterAudioPlayerRef} src={audio.url} preload="auto" />
+              )}
+              {angles.map((angle) => (
+                <video
+                  key={angle.id}
+                  ref={(el) => { if (el) anglePlayerRefs.current[angle.id] = el; else delete anglePlayerRefs.current[angle.id]; }}
+                  src={angle.url}
+                  preload="auto"
+                  playsInline
+                  muted
+                  className={`set-editor__preview-video ${angle.id === focusedAngleId ? 'set-editor__preview-video--visible' : ''}`}
+                />
+              ))}
+              {focusedAngleId == null && (
+                <div className="set-editor__preview-empty">Click an angle row to preview it here.</div>
+              )}
+            </div>
+          </div>
+
           <div className="set-editor__sync-shell">
             <div className="set-editor__sync-labels">
               <div className="set-editor__sync-label-row set-editor__sync-label-row--master">
@@ -982,13 +1050,13 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 const offset = angleOffsets[angle.id] || 0;
                 const busy = autoAligning[angle.id];
                 return (
-                  <div key={angle.id} className="set-editor__sync-label-row">
+                  <div key={angle.id} className="set-editor__sync-label-row" onClick={() => setFocusedAngleId(angle.id)}>
                     <div className="set-editor__sync-label-name">Angle {idx + 1}</div>
                     <div className="set-editor__sync-label-status">
                       {w?.status === 'loading' && 'Analyzing…'}
                       {w?.status === 'error' && (w.code === 'FILE_TOO_LARGE' ? 'Too large for preview' : 'Error')}
                       {w?.status === 'ready' && (
-                        <span>offset {formatTime(offset)}</span>
+                        <span>offset {formatOffsetMs(offset)}</span>
                       )}
                     </div>
                     <div className="set-editor__sync-label-actions">
@@ -1101,26 +1169,6 @@ function SetEditor({ onBack, theme = 'dark' }) {
             Hit <em>Master play</em> to play both together; toggle <em>Master / Angle</em> to A/B which one you hear.
           </div>
 
-          {/* Hidden players that actually produce sound during Master play. */}
-          <div className="set-editor__sync-players" aria-hidden>
-            {audio?.url && (
-              <audio
-                ref={masterAudioPlayerRef}
-                src={audio.url}
-                preload="auto"
-              />
-            )}
-            {angles.map((angle) => (
-              <video
-                key={angle.id}
-                ref={(el) => { if (el) anglePlayerRefs.current[angle.id] = el; else delete anglePlayerRefs.current[angle.id]; }}
-                src={angle.url}
-                preload="auto"
-                playsInline
-                muted
-              />
-            ))}
-          </div>
         </section>
       )}
 

@@ -380,20 +380,86 @@
   cursor: not-allowed;
 }
 
-/* Hidden media elements that drive sync playback. */
-.set-editor__sync-players {
-  position: absolute;
-  width: 0;
-  height: 0;
+/* Sync preview: focused angle video + nudge toolbar. */
+.set-editor__sync-preview {
+  margin-bottom: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   overflow: hidden;
-  pointer-events: none;
+  background: rgba(0, 0, 0, 0.35);
 }
-
-.set-editor__sync-players video,
-.set-editor__sync-players audio {
-  width: 1px;
-  height: 1px;
+.set-editor__preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+.set-editor__preview-tabs { display: flex; gap: 6px; }
+.set-editor__preview-tab {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.set-editor__preview-tab.active {
+  background: #00a2ff;
+  border-color: #00a2ff;
+  color: #fff;
+}
+.set-editor__preview-nudges { display: flex; align-items: center; gap: 6px; }
+.set-editor__nudge-btn {
+  min-width: 44px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.set-editor__nudge-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.set-editor__nudge-readout {
+  margin-left: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  min-width: 64px;
+  text-align: right;
+}
+.set-editor__preview-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  min-height: 120px;
+}
+.set-editor__preview-video { display: none; }
+.set-editor__preview-video--visible {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+}
+.set-editor__preview-empty {
+  padding: 36px 12px;
+  font-size: 13px;
+  opacity: 0.6;
+}
+.set-editor--light .set-editor__sync-preview {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+}
+.set-editor--light .set-editor__preview-bar { border-bottom-color: rgba(0, 0, 0, 0.12); }
+.set-editor--light .set-editor__preview-tab,
+.set-editor--light .set-editor__nudge-btn { border-color: rgba(0, 0, 0, 0.2); }
 
 /* Focused angle highlight */
 .set-editor__sync-row--focused {
