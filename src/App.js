@@ -93,6 +93,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [selectedSetup, setSelectedSetup] = useState(null);
   const [selectedSetting, setSelectedSetting] = useState(null);
+  // { creatorId, setupId } when the loaded setup belongs to someone else; null otherwise
+  const [affiliateAttribution, setAffiliateAttribution] = useState(null);
   const [setupDevices, setSetupDevices] = useState({ DJ: [], Producer: [], Musician: [] });
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -264,6 +266,8 @@ function App() {
         setInitialCameraAngles={setInitialCameraAngles}
         currentCameraAngles={currentCameraAngles}
         setCurrentCameraAngles={setCurrentCameraAngles}
+        affiliateAttribution={affiliateAttribution}
+        setAffiliateAttribution={setAffiliateAttribution}
       />
     </BrowserRouter>
   );
@@ -293,6 +297,8 @@ function AppRoutes({
   setInitialCameraAngles,
   currentCameraAngles,
   setCurrentCameraAngles,
+  affiliateAttribution,
+  setAffiliateAttribution,
 }) {
   const navigate = useNavigate();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -319,6 +325,7 @@ function AppRoutes({
     setActualDevices([]);
     setLoadedSetupId(null);
     setLoadedSetupName(null);
+    setAffiliateAttribution(null);
     navigate('/hub');
   };
 
@@ -330,6 +337,12 @@ function AppRoutes({
     setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
     setLoadedSetupId(setup.id ?? null);
     setLoadedSetupName(setup.name ?? null);
+    const viewerUid = auth.currentUser?.uid;
+    if (setup.ownerId && viewerUid && setup.ownerId !== viewerUid) {
+      setAffiliateAttribution({ creatorId: setup.ownerId, setupId: setup.id ?? null });
+    } else {
+      setAffiliateAttribution(null);
+    }
     setInitialCameraAngles(setup.cameraAngles ?? null);
     setCurrentCameraAngles(setup.cameraAngles ?? null);
     navigate('/builder');
@@ -342,6 +355,7 @@ function AppRoutes({
     setSetupDevices(prev => ({ ...prev, [setupType]: [] }));
     setLoadedSetupId(null);
     setLoadedSetupName(null);
+    setAffiliateAttribution(null);
     setInitialCameraAngles(null);
     setCurrentCameraAngles(null);
     navigate('/builder');
@@ -579,6 +593,7 @@ function AppRoutes({
                       theme={theme}
                       initialCameraAngles={initialCameraAngles}
                       onCameraAnglesChange={setCurrentCameraAngles}
+                      affiliateAttribution={affiliateAttribution}
                     />
                   </div>
                   {SceneVariantSwitcher && (
