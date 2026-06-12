@@ -27,3 +27,5 @@
 .dhm-remove:hover { background: #3a1f24; border-color: #ff5566; }
 .dhm-swap { color: #00a2ff; }
 .dhm-swap:hover { background: #15303d; border-color: #00a2ff; }
+.dhm-buy { color: #ff9900; font-size: 14px; }
+.dhm-buy:hover { background: #3a2d15; border-color: #ff9900; }

@@ -33,6 +33,34 @@ describe('DeviceHoverMenu', () => {
     expect(onRemove).toHaveBeenCalledWith(device);
   });
 
+  test('shows buy button when onBuy provided', () => {
+    render(
+      <DeviceHoverMenu
+        device={{ uniqueId: 'd1', name: 'CDJ-3000' }}
+        screenPosition={{ x: 0, y: 0 }}
+        onRemove={()=>{}} onSwap={()=>{}} onClose={()=>{}} onBuy={()=>{}}
+      />
+    );
+    expect(screen.getByLabelText(/buy/i)).toBeInTheDocument();
+  });
+
+  test('clicking buy calls onBuy with device', () => {
+    const onBuy = jest.fn();
+    const device = { uniqueId: 'd1', name: 'CDJ-3000' };
+    render(
+      <DeviceHoverMenu device={device} screenPosition={{ x: 0, y: 0 }} onRemove={()=>{}} onSwap={()=>{}} onClose={()=>{}} onBuy={onBuy} />
+    );
+    fireEvent.click(screen.getByLabelText(/buy/i));
+    expect(onBuy).toHaveBeenCalledWith(device);
+  });
+
+  test('hides buy button when onBuy not provided', () => {
+    render(
+      <DeviceHoverMenu device={{ uniqueId: 'd1', name: 'CDJ-3000' }} screenPosition={{ x: 0, y: 0 }} onRemove={()=>{}} onSwap={()=>{}} onClose={()=>{}} />
+    );
+    expect(screen.queryByLabelText(/buy/i)).not.toBeInTheDocument();
+  });
+
   test('clicking swap calls onSwap with device', () => {
     const onSwap = jest.fn();
     const device = { uniqueId: 'd1', name: 'CDJ-3000' };

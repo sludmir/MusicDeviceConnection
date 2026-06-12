@@ -4987,6 +4987,10 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                         }
                         setMenuDevice(null);
                     }}
+                    onBuy={(d) => {
+                        handleBuyClick(d, 'hover-menu');
+                        setMenuDevice(null);
+                    }}
                     onClose={() => setMenuDevice(null)}
                 />
 
