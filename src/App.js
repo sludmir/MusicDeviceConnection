@@ -17,6 +17,7 @@ import MySetsImport from './MySets';
 import SettingsImport from './Settings';
 import PreferencesImport from './Preferences';
 import HubLandingPageImport from './components/HubLandingPage';
+import LegalPage from './components/LegalPage';
 import SaveSetupButtonImport from './components/SaveSetupButton';
 import ConnectionGuideButtonImport from './components/ConnectionGuideButton';
 import FeedImport from './components/Feed';
@@ -236,6 +237,15 @@ function App() {
             <button type="button" className="sign-in-btn" onClick={signInWithGoogle}>Sign In with Google</button>
           </div>
         </header>
+        {window.location.pathname === '/legal' ? (
+          <div style={{ flex: 1, overflowY: 'auto' }}><LegalPage /></div>
+        ) : (
+          <footer style={{ marginTop: 'auto', padding: '16px', textAlign: 'center' }}>
+            <a href="/legal" style={{ color: 'inherit', opacity: 0.6, fontSize: '13px' }}>
+              Affiliate disclosure &amp; privacy
+            </a>
+          </footer>
+        )}
       </div>
     );
   }
@@ -552,6 +562,7 @@ function AppRoutes({
             } />
             <Route path="/settings" element={<Settings onBack={() => navigate('/hub')} />} />
             <Route path="/preferences" element={<Preferences onBack={() => navigate('/hub')} />} />
+            <Route path="/legal" element={<LegalPage />} />
             <Route path="/admin/products" element={<ProductDashboard onClose={() => navigate('/hub')} />} />
             <Route path="/admin/products-import" element={<ProductImporter onBack={() => navigate('/hub')} />} />
             <Route path="/upload" element={<Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />} />
