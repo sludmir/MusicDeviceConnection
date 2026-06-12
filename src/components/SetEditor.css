@@ -318,6 +318,248 @@
   cursor: not-allowed;
 }
 
+.set-editor__primary--full {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 18px;
+  font-size: 15px;
+}
+
+/* ── Sync playback controls ───────────────────────────────────────── */
+
+.set-editor__play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #00a2ff 0%, #0066ff 100%);
+  color: white;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.set-editor__play-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.set-editor__ab-toggle {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.set-editor--light .set-editor__ab-toggle {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+.set-editor__ab-btn {
+  padding: 5px 12px;
+  background: transparent;
+  color: inherit;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.set-editor__ab-btn.active {
+  background: rgba(0, 162, 255, 0.18);
+  color: #00a2ff;
+  opacity: 1;
+}
+
+.set-editor__ab-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* Hidden media elements that drive sync playback. */
+.set-editor__sync-players {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.set-editor__sync-players video,
+.set-editor__sync-players audio {
+  width: 1px;
+  height: 1px;
+}
+
+/* Focused angle highlight */
+.set-editor__sync-row--focused {
+  background: rgba(0, 162, 255, 0.08);
+}
+
+.set-editor--light .set-editor__sync-row--focused {
+  background: rgba(0, 102, 255, 0.08);
+}
+
+/* Stop browser from fighting the drag with native horizontal pan. */
+.set-editor__sync-row--angle,
+.set-editor__sync-row--master,
+.set-editor__sync-ruler {
+  touch-action: none;
+}
+
+/* ── Post step ───────────────────────────────────────────────────── */
+
+.set-editor__back-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.75;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.set-editor__back-inline:hover { opacity: 1; }
+
+.set-editor__post-field {
+  margin-top: 18px;
+}
+
+.set-editor__post-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.set-editor__post-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.set-editor__post-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.set-editor--light .set-editor__post-input {
+  border-color: rgba(0, 0, 0, 0.14);
+  background: white;
+}
+
+.set-editor__post-loading,
+.set-editor__post-empty {
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.set-editor--light .set-editor__post-loading,
+.set-editor--light .set-editor__post-empty {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.set-editor__setup-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.set-editor__setup-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.set-editor--light .set-editor__setup-option {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.set-editor__setup-option:hover {
+  border-color: rgba(0, 162, 255, 0.5);
+}
+
+.set-editor__setup-option.active {
+  border-color: #00a2ff;
+  background: rgba(0, 162, 255, 0.1);
+}
+
+.set-editor__setup-option-icon { font-size: 18px; }
+.set-editor__setup-option-name { flex: 1; font-weight: 600; font-size: 13px; }
+.set-editor__setup-option-type {
+  font-size: 11px;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.set-editor__post-summary {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 162, 255, 0.08);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.set-editor__progress {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.set-editor__progress-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.set-editor--light .set-editor__progress-bar {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.set-editor__progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #00a2ff 0%, #0066ff 100%);
+  transition: width 0.2s;
+}
+
+.set-editor__progress-text {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+}
+
 /* ── Sync section ────────────────────────────────────────────────── */
 
 .set-editor__sync-tools {

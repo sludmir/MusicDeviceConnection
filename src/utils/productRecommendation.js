@@ -61,6 +61,17 @@ export function isProductRecommended(product, recommendedType) {
         sub.includes('speaker')
       );
 
+    case 'Studio Monitor':
+      return (
+        type.includes('monitor') ||
+        sub.includes('monitor') ||
+        name.includes('monitor') ||
+        name.includes('genelec') ||
+        name.includes('krk') ||
+        name.includes('adam') ||
+        name.includes('yamaha hs')
+      );
+
     case 'Audio Interface':
       return type.includes('interface') || sub.includes('interface');
 

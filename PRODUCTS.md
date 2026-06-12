@@ -2,8 +2,8 @@
 
 Auto-generated from the Firestore `products` collection. **Do not edit by hand** — run `npm run dump-products` to regenerate.
 
-Last generated: 2026-05-04
-Total products: 18
+Last generated: 2026-05-22
+Total products: 20
 
 Products compatible with multiple setup types appear in each relevant section.
 
@@ -22,23 +22,26 @@ Products compatible with multiple setup types appear in each relevant section.
 - **Technics SL-1210 MK7** — Technics — players — 3D model: ✓
 - **Xone:96** — Allen & Heath — mixers — 3D model: ✓
 
-## Producer (8)
+## Producer (10)
 
 - **Arturia MiniFreak** — Arturia — synthesizers — 3D model: ✓
 - **DJM-900NXS2** — Pioneer DJ — mixers — 3D model: ✓
+- **Focusrite Scarlett 2i2** — Focusrite — audio-interface — 3D model: ✓
 - **Korg Minilogue XD** — Korg — synthesizers — 3D model: ✓
 - **Laptop** — Apple — device — 3D model: ✓
 - **Orchid** — Telepathic Instruments — synthesizers — 3D model: ✓
 - **RMX-1000** — Pioneer DJ — FX unit — 3D model: ✓
 - **Roland TB-303** — Roland — synthesizers — 3D model: ✓
 - **Sequential Prophet-6** — Sequential — synthesizers — 3D model: ✓
+- **Yamaha HS8** — Yamaha — monitors — 3D model: ✓
 
-## Musician (4)
+## Musician (5)
 
 - **DJM-900NXS2** — Pioneer DJ — mixers — 3D model: ✓
 - **Fender Stratocaster** — Fender — instruments — 3D model: ✓
 - **Gibson Les Paul Standard** — Gibson — instruments — 3D model: ✓
 - **RMX-1000** — Pioneer DJ — FX unit — 3D model: ✓
+- **Yamaha HS8** — Yamaha — monitors — 3D model: ✓
 
 ## Other (1)
 

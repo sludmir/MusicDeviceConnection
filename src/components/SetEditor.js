@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { MdArrowBack, MdAdd, MdClose, MdMusicNote, MdVideocam, MdImage, MdAutoFixHigh, MdRefresh } from 'react-icons/md';
-import { extractPeaks, WAVEFORM_DEFAULTS } from '../utils/audioWaveform';
+import { MdArrowBack, MdAdd, MdClose, MdMusicNote, MdVideocam, MdImage, MdAutoFixHigh, MdRefresh, MdPlayArrow, MdPause } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth } from '../firebaseConfig';
+import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
+import { extractPeaks, extractPeaksStreaming, WAVEFORM_DEFAULTS } from '../utils/audioWaveform';
 import { suggestOffsetSeconds } from '../utils/audioAlign';
 import './SetEditor.css';
 
@@ -10,12 +15,21 @@ const PX_PER_SEC_MAX = 160;
 const ROW_HEIGHT = 72;
 
 const MAX_ANGLES = 3;
-const MAX_VIDEO_SIZE_MB = 5000;
+const MAX_VIDEO_SIZE_MB = 10000;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
-const MAX_AUDIO_SIZE_MB = 500;
+const MAX_AUDIO_SIZE_MB = 1000;
 const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
 const MAX_THUMBNAIL_SIZE_MB = 5;
 const MAX_THUMBNAIL_SIZE_BYTES = MAX_THUMBNAIL_SIZE_MB * 1024 * 1024;
+
+// Files small enough to fit in memory get a full decode (longer preview).
+// Larger files stream just their opening seconds so they don't blow up memory.
+function analyzePeaks(file, streamSeconds) {
+  if (file && file.size > WAVEFORM_DEFAULTS.maxFileBytes) {
+    return extractPeaksStreaming(file, { maxSeconds: streamSeconds });
+  }
+  return extractPeaks(file);
+}
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 B';
@@ -55,6 +69,8 @@ function readAudioMetadata(file) {
 }
 
 function SetEditor({ onBack, theme = 'dark' }) {
+  const navigate = useNavigate();
+  const [step, setStep] = useState('edit'); // 'edit' | 'post'
   const [angles, setAngles] = useState([]); // { id, file, url, duration }
   const [audio, setAudio] = useState(null); // { file, url, duration }
   const [thumbnail, setThumbnail] = useState(null); // { file, url }
@@ -64,6 +80,22 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const audioInputRef = useRef(null);
   const thumbnailInputRef = useRef(null);
   const angleIdRef = useRef(0);
+
+  // ── Post step ─────────────────────────────────────────────────────
+  const [title, setTitle] = useState('');
+  const [savedSetups, setSavedSetups] = useState([]);
+  const [selectedSetupId, setSelectedSetupId] = useState('');
+  const [loadingSetups, setLoadingSetups] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // ── Live playback (master + angle) ────────────────────────────────
+  const [playing, setPlaying] = useState(false);
+  const [audioFocus, setAudioFocus] = useState('master'); // 'master' | 'angle'
+  const [focusedAngleId, setFocusedAngleId] = useState(null);
+  const masterAudioPlayerRef = useRef(null);
+  const anglePlayerRefs = useRef({}); // { [angleId]: HTMLVideoElement }
+  const playRafRef = useRef(0);
 
   // ── Sync state ─────────────────────────────────────────────────────
   // waveforms: keyed by 'master' or `angle-${id}` → { status, peaks, peaksPerSecond, durationSeconds, previewDurationSeconds, error }
@@ -103,7 +135,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       return () => { cancelled = true; };
     }
     setWaveforms((prev) => ({ ...prev, master: { status: 'loading' } }));
-    extractPeaks(audio.file)
+    analyzePeaks(audio.file, 300)
       .then((result) => {
         if (cancelled) return;
         setWaveforms((prev) => ({
@@ -163,7 +195,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setWaveforms((prev) => {
         if (prev[key]?.status === 'loading' && !prev[key].started) {
           // mark started, kick off async
-          extractPeaks(angle.file)
+          analyzePeaks(angle.file, 180)
             .then((result) => {
               if (cancelled) return;
               setWaveforms((p) => ({ ...p, [key]: { status: 'ready', ...result } }));
@@ -180,10 +212,22 @@ function SetEditor({ onBack, theme = 'dark' }) {
     return () => { cancelled = true; };
   }, [angles]);
 
+  // Keep focusedAngleId valid as angles change.
+  useEffect(() => {
+    if (angles.length === 0) {
+      if (focusedAngleId !== null) setFocusedAngleId(null);
+      return;
+    }
+    if (!angles.some((a) => a.id === focusedAngleId)) {
+      setFocusedAngleId(angles[0].id);
+    }
+  }, [angles, focusedAngleId]);
+
   // ── Derived ────────────────────────────────────────────────────────
   const master = waveforms.master;
   const masterReady = master?.status === 'ready';
   const syncEnabled = angles.length >= 1 && audio;
+  const allWaveformsReady = syncEnabled && masterReady && angles.every((a) => waveforms[`angle-${a.id}`]?.status === 'ready');
   const previewDuration = useMemo(() => {
     let max = 0;
     Object.values(waveforms).forEach((w) => {
@@ -343,6 +387,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setPlayheadSec(newSec);
     } else if (kind === 'offset') {
       const startOffsetSec = angleOffsets[angleId] || 0;
+      setFocusedAngleId(angleId);
       dragRef.current = {
         kind: 'offset',
         pointerId: e.pointerId,
@@ -416,6 +461,279 @@ function SetEditor({ onBack, theme = 'dark' }) {
     }
   }, [waveforms]);
 
+  // ── Playback (master + angles together, A/B mute) ─────────────────
+  // Stop playback whenever the underlying media changes or sync is no longer enabled.
+  useEffect(() => {
+    if (!syncEnabled && playing) setPlaying(false);
+  }, [syncEnabled, playing]);
+
+  // Position all angle players against the master timeline using their offsets.
+  const seekAllToMasterTime = useCallback((masterTime) => {
+    const a = masterAudioPlayerRef.current;
+    if (a) {
+      const dur = Number.isFinite(a.duration) ? a.duration : Infinity;
+      a.currentTime = Math.max(0, Math.min(dur - 0.01, masterTime));
+    }
+    angles.forEach((angle) => {
+      const v = anglePlayerRefs.current[angle.id];
+      if (!v) return;
+      const offset = angleOffsets[angle.id] || 0;
+      // offset: angle's content is shifted by +offset on master timeline.
+      // So angle content time at master T is (T - offset).
+      const t = masterTime - offset;
+      const dur = Number.isFinite(v.duration) ? v.duration : Infinity;
+      v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
+    });
+  }, [angles, angleOffsets]);
+
+  // Whenever playhead moves while paused, scrub all elements (no playback).
+  useEffect(() => {
+    if (playing) return;
+    seekAllToMasterTime(playheadSec);
+  }, [playheadSec, playing, seekAllToMasterTime]);
+
+  // Whenever angle offsets change during pause, re-seek that angle.
+  useEffect(() => {
+    if (playing) return;
+    seekAllToMasterTime(playheadSec);
+  }, [angleOffsets, playing, seekAllToMasterTime, playheadSec]);
+
+  // Apply A/B mute: when focus is 'master' → angle videos muted; when 'angle' → master muted.
+  useEffect(() => {
+    const a = masterAudioPlayerRef.current;
+    if (a) a.muted = audioFocus !== 'master';
+    angles.forEach((angle) => {
+      const v = anglePlayerRefs.current[angle.id];
+      if (!v) return;
+      v.muted = !(audioFocus === 'angle' && angle.id === focusedAngleId);
+    });
+  }, [audioFocus, focusedAngleId, angles, playing]);
+
+  const stopPlayback = useCallback(() => {
+    if (playRafRef.current) {
+      cancelAnimationFrame(playRafRef.current);
+      playRafRef.current = 0;
+    }
+    const a = masterAudioPlayerRef.current;
+    if (a) { try { a.pause(); } catch (_) {} }
+    angles.forEach((angle) => {
+      const v = anglePlayerRefs.current[angle.id];
+      if (v) { try { v.pause(); } catch (_) {} }
+    });
+  }, [angles]);
+
+  const startPlayback = useCallback(async () => {
+    const a = masterAudioPlayerRef.current;
+    if (!a) return;
+    seekAllToMasterTime(playheadSec);
+    try {
+      await a.play();
+    } catch (_) {
+      // Likely autoplay blocked — bail out.
+      setPlaying(false);
+      return;
+    }
+    const playPromises = angles.map((angle) => {
+      const v = anglePlayerRefs.current[angle.id];
+      if (!v) return Promise.resolve();
+      return v.play().catch(() => {});
+    });
+    await Promise.allSettled(playPromises);
+    const tick = () => {
+      const ap = masterAudioPlayerRef.current;
+      if (!ap || ap.paused) {
+        playRafRef.current = 0;
+        return;
+      }
+      setPlayheadSec(ap.currentTime);
+      playRafRef.current = requestAnimationFrame(tick);
+    };
+    playRafRef.current = requestAnimationFrame(tick);
+  }, [angles, playheadSec, seekAllToMasterTime]);
+
+  const handleTogglePlay = useCallback(() => {
+    if (!allWaveformsReady) return;
+    if (playing) {
+      stopPlayback();
+      setPlaying(false);
+    } else {
+      setPlaying(true);
+      // startPlayback runs after state flips so refs are stable.
+      Promise.resolve().then(() => startPlayback());
+    }
+  }, [allWaveformsReady, playing, startPlayback, stopPlayback]);
+
+  // Cleanup playback on unmount.
+  useEffect(() => () => stopPlayback(), [stopPlayback]);
+
+  // ── Saved setups (post step) ──────────────────────────────────────
+  useEffect(() => {
+    if (step !== 'post' || !auth.currentUser) return;
+    let cancelled = false;
+    setLoadingSetups(true);
+    (async () => {
+      try {
+        const q = query(
+          collection(db, 'setups'),
+          where('ownerId', '==', auth.currentUser.uid),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        const list = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+        setSavedSetups(list);
+      } catch (err) {
+        console.error('Error fetching setups:', err);
+      } finally {
+        if (!cancelled) setLoadingSetups(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [step]);
+
+  const handleContinueToPost = useCallback(() => {
+    setError(null);
+    if (angles.length === 0) { setError('Add at least one angle.'); return; }
+    if (!audio) { setError('Add a master audio track.'); return; }
+    if (!allWaveformsReady) { setError('Still analyzing waveforms — give it a moment.'); return; }
+    stopPlayback();
+    setPlaying(false);
+    setStep('post');
+  }, [angles.length, audio, allWaveformsReady, stopPlayback]);
+
+  const handleBackToEdit = useCallback(() => {
+    setError(null);
+    setStep('edit');
+  }, []);
+
+  const handlePost = useCallback(async () => {
+    if (!auth.currentUser) { setError('Please sign in to post.'); return; }
+    if (angles.length === 0 || !audio) { setError('Missing angle or audio.'); return; }
+    if (!selectedSetupId) { setError('Link a saved setup so viewers can copy your gear.'); return; }
+
+    setUploading(true);
+    setUploadProgress(0);
+    setError(null);
+    const userId = auth.currentUser.uid;
+    const creatorName = auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Unknown';
+    const storage = getStorage();
+
+    try {
+      // For MVP, upload angle 1 as the primary video. Multi-angle stitching ships later.
+      const primary = angles[0];
+      const primaryOffset = angleOffsets[primary.id] || 0;
+      const safeTitle = (title || primary.file?.name || 'Untitled Set').trim().slice(0, 200);
+
+      // 1. Reserve Bunny video + upload angle 1.
+      const bunny = await createBunnyVideo({ title: safeTitle, kind: 'set' });
+      await uploadToBunny(
+        primary.file,
+        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
+        (fraction) => setUploadProgress(Math.min(95, Math.round(fraction * 95)))
+      );
+
+      // 2. Master audio → Firebase Storage.
+      const audioName = (audio.file.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const audioRef = storageRef(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
+      await uploadBytes(audioRef, audio.file);
+      const audioTrackURL = await getDownloadURL(audioRef);
+      setUploadProgress(98);
+
+      // 3. Optional thumbnail.
+      let customThumbnailURL = null;
+      if (thumbnail?.file) {
+        const tName = (thumbnail.file.name || 'thumb').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const tRef = storageRef(storage, `sets/thumbnails/${userId}_${Date.now()}_${tName}`);
+        await uploadBytes(tRef, thumbnail.file);
+        customThumbnailURL = await getDownloadURL(tRef);
+      }
+
+      // 4. Write set doc. Forward-compatible angles[] + cuts[] schema.
+      const linkedSetup = savedSetups.find((s) => s.id === selectedSetupId);
+      // audioOffsetSeconds: existing player expects audio.currentTime = video.currentTime + offset.
+      // Our angle (video) is shifted by +primaryOffset on the master timeline, so at video time T
+      // the master audio is at T + primaryOffset. Hence offset = primaryOffset.
+      const setData = {
+        creatorId: userId,
+        creatorName,
+        title: safeTitle,
+        description: '',
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: customThumbnailURL || bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        durationSeconds: primary.duration || 0,
+        createdAt: serverTimestamp(),
+        views: 0,
+        audioTrackURL,
+        audioOffsetSeconds: primaryOffset,
+        audioReplacesVideo: true,
+        angles: [{
+          label: 'Angle 1',
+          bunnyVideoGuid: bunny.videoGuid,
+          bunnyLibraryId: bunny.libraryId,
+          hlsUrl: bunny.hlsUrl,
+          offsetSeconds: primaryOffset,
+          durationSeconds: primary.duration || 0,
+        }],
+        cuts: [{ timeSec: 0, angleIndex: 0 }],
+        setupId: selectedSetupId,
+        setupName: linkedSetup?.name || '',
+        setupType: linkedSetup?.setupType || 'DJ',
+      };
+      if (customThumbnailURL) {
+        setData.customThumbnailURL = customThumbnailURL;
+        setData.autoThumbnailURL = bunny.thumbnailUrl;
+      }
+      const setDocRef = await addDoc(collection(db, 'sets'), setData);
+
+      // 5. One default clip into the feed (first 30s of the primary angle).
+      const clipEnd = Math.min(30, Math.max(10, primary.duration || 30));
+      const clipData = {
+        creatorId: userId,
+        creatorName,
+        title: safeTitle,
+        description: '',
+        fullVideoURL: bunny.hlsUrl,
+        videoURL: bunny.hlsUrl,
+        thumbnailURL: customThumbnailURL || bunny.thumbnailUrl,
+        bunnyVideoGuid: bunny.videoGuid,
+        bunnyLibraryId: bunny.libraryId,
+        status: 'processing',
+        fullSetId: setDocRef.id,
+        likes: 0,
+        likedBy: [],
+        views: 0,
+        clipStart: 0,
+        clipEnd,
+        audioTrackURL,
+        audioOffsetSeconds: primaryOffset,
+        audioReplacesVideo: true,
+        setupId: selectedSetupId,
+        setupName: linkedSetup?.name || '',
+        setupType: linkedSetup?.setupType || 'DJ',
+        createdAt: serverTimestamp(),
+      };
+      if (customThumbnailURL) {
+        clipData.customThumbnailURL = customThumbnailURL;
+        clipData.autoThumbnailURL = bunny.thumbnailUrl;
+      }
+      await addDoc(collection(db, 'clips'), clipData);
+
+      setUploadProgress(100);
+      setTimeout(() => {
+        setUploading(false);
+        navigate('/sets');
+      }, 250);
+    } catch (e) {
+      console.error('Error posting set:', e);
+      setError(e?.message || String(e) || 'Upload failed');
+      setUploading(false);
+    }
+  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate]);
+
   const formatTime = (sec) => {
     if (!Number.isFinite(sec)) return '0:00';
     const sign = sec < 0 ? '-' : '';
@@ -447,6 +765,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
         </div>
       )}
 
+      {step === 'edit' && (
       <section className="set-editor__section">
         <div className="set-editor__section-header">
           <h2 className="set-editor__section-title">Camera angles</h2>
@@ -506,7 +825,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
           style={{ display: 'none' }}
         />
       </section>
+      )}
 
+      {step === 'edit' && (
       <section className="set-editor__section">
         <div className="set-editor__section-header">
           <h2 className="set-editor__section-title">Master audio (lossless)</h2>
@@ -556,7 +877,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
           style={{ display: 'none' }}
         />
       </section>
+      )}
 
+      {step === 'edit' && (
       <section className="set-editor__section">
         <div className="set-editor__section-header">
           <h2 className="set-editor__section-title">Thumbnail (optional)</h2>
@@ -604,12 +927,38 @@ function SetEditor({ onBack, theme = 'dark' }) {
           style={{ display: 'none' }}
         />
       </section>
+      )}
 
-      {syncEnabled && (
+      {step === 'edit' && syncEnabled && (
         <section className="set-editor__section">
           <div className="set-editor__section-header">
             <h2 className="set-editor__section-title">Sync</h2>
             <div className="set-editor__sync-tools">
+              <button
+                type="button"
+                className="set-editor__play-btn"
+                onClick={handleTogglePlay}
+                disabled={!allWaveformsReady}
+                title={allWaveformsReady ? 'Master play / pause' : 'Waveforms still analyzing'}
+              >
+                {playing ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
+                <span>{playing ? 'Pause' : 'Master play'}</span>
+              </button>
+              <div className="set-editor__ab-toggle" role="group" aria-label="Audio source">
+                <button
+                  type="button"
+                  className={`set-editor__ab-btn ${audioFocus === 'master' ? 'active' : ''}`}
+                  onClick={() => setAudioFocus('master')}
+                  title="Hear master audio only"
+                >Master</button>
+                <button
+                  type="button"
+                  className={`set-editor__ab-btn ${audioFocus === 'angle' ? 'active' : ''}`}
+                  onClick={() => setAudioFocus('angle')}
+                  disabled={angles.length === 0}
+                  title="Hear focused angle audio only"
+                >Angle</button>
+              </div>
               <span className="set-editor__sync-time">{formatTime(playheadSec)}</span>
               <button type="button" className="set-editor__zoom-btn" onClick={zoomOut} aria-label="Zoom out">−</button>
               <span className="set-editor__zoom-readout">{pxPerSec} px/s</span>
@@ -707,10 +1056,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 {angles.map((angle, idx) => {
                   const w = waveforms[`angle-${angle.id}`];
                   const offset = angleOffsets[angle.id] || 0;
+                  const isFocused = angle.id === focusedAngleId;
                   return (
                     <div
                       key={angle.id}
-                      className="set-editor__sync-row"
+                      className={`set-editor__sync-row set-editor__sync-row--angle ${isFocused ? 'set-editor__sync-row--focused' : ''}`}
                       onPointerDown={(e) => handleRowPointerDown(e, 'offset', angle.id)}
                       onPointerMove={handleRowPointerMove}
                       onPointerUp={handleRowPointerUp}
@@ -748,25 +1098,126 @@ function SetEditor({ onBack, theme = 'dark' }) {
 
           <div className="set-editor__sync-help">
             Drag <strong>master</strong> row or ruler to scrub. Drag an <strong>angle</strong> row to slide it in time.
-            Click <em>Auto-align</em> to suggest an offset from waveform correlation.
+            Hit <em>Master play</em> to play both together; toggle <em>Master / Angle</em> to A/B which one you hear.
           </div>
+
+          {/* Hidden players that actually produce sound during Master play. */}
+          <div className="set-editor__sync-players" aria-hidden>
+            {audio?.url && (
+              <audio
+                ref={masterAudioPlayerRef}
+                src={audio.url}
+                preload="auto"
+              />
+            )}
+            {angles.map((angle) => (
+              <video
+                key={angle.id}
+                ref={(el) => { if (el) anglePlayerRefs.current[angle.id] = el; else delete anglePlayerRefs.current[angle.id]; }}
+                src={angle.url}
+                preload="auto"
+                playsInline
+                muted
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {step === 'post' && (
+        <section className="set-editor__section">
+          <button type="button" className="set-editor__back-inline" onClick={handleBackToEdit}>
+            <MdArrowBack size={16} /> Back to sync
+          </button>
+          <h2 className="set-editor__section-title">Post details</h2>
+
+          <div className="set-editor__post-field">
+            <label className="set-editor__post-label">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Live Set at Club XYZ"
+              className="set-editor__post-input"
+              maxLength={120}
+            />
+          </div>
+
+          <div className="set-editor__post-field">
+            <label className="set-editor__post-label">Link a setup (required)</label>
+            <p className="set-editor__post-hint">Lets viewers copy your gear from the clip.</p>
+            {loadingSetups ? (
+              <div className="set-editor__post-loading">Loading setups…</div>
+            ) : savedSetups.length === 0 ? (
+              <div className="set-editor__post-empty">No saved setups yet. Save a setup first from the scene view.</div>
+            ) : (
+              <div className="set-editor__setup-list">
+                {savedSetups.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`set-editor__setup-option ${selectedSetupId === s.id ? 'active' : ''}`}
+                    onClick={() => setSelectedSetupId((prev) => prev === s.id ? '' : s.id)}
+                  >
+                    <span className="set-editor__setup-option-icon">
+                      {s.setupType === 'DJ' ? '🎧' : s.setupType === 'Producer' ? '🎹' : '🎸'}
+                    </span>
+                    <span className="set-editor__setup-option-name">{s.name || 'Untitled'}</span>
+                    <span className="set-editor__setup-option-type">{s.setupType || 'DJ'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="set-editor__post-summary">
+            Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video) with master audio replacing the video audio. A 30-second clip from the start lands in the feed automatically.
+          </div>
+
+          {uploading ? (
+            <div className="set-editor__progress">
+              <div className="set-editor__progress-bar">
+                <div className="set-editor__progress-fill" style={{ width: `${uploadProgress}%` }} />
+              </div>
+              <div className="set-editor__progress-text">{Math.round(uploadProgress)}%</div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="set-editor__primary set-editor__primary--full"
+              onClick={handlePost}
+              disabled={!selectedSetupId}
+              title={!selectedSetupId ? 'Link a setup to post' : 'Post'}
+            >
+              Post set
+            </button>
+          )}
         </section>
       )}
 
       <footer className="set-editor__footer">
         <div className="set-editor__footer-status">
-          {angles.length === 0
+          {step === 'post'
+            ? 'Add a title (optional) and link a setup, then post.'
+            : angles.length === 0
             ? 'Add at least one angle to continue.'
             : `${angles.length} angle${angles.length === 1 ? '' : 's'}${audio ? ' + master audio' : ''} loaded.`}
         </div>
-        <button
-          type="button"
-          className="set-editor__primary"
-          disabled={angles.length === 0}
-          title={angles.length === 0 ? 'Add an angle first' : 'Sync (coming next)'}
-        >
-          Continue to sync
-        </button>
+        {step === 'edit' && (
+          <button
+            type="button"
+            className="set-editor__primary"
+            disabled={!syncEnabled || !allWaveformsReady}
+            onClick={handleContinueToPost}
+            title={
+              !syncEnabled ? 'Add at least one angle and a master audio track'
+                : !allWaveformsReady ? 'Waiting for waveforms…'
+                : 'Continue to post'
+            }
+          >
+            Continue to post
+          </button>
+        )}
       </footer>
     </div>
   );

@@ -50,9 +50,9 @@ function Upload({ onBack, onSuccess }) {
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024 * 1024; // 5GB (Firebase Storage limit)
+    const maxSize = 10 * 1024 * 1024 * 1024; // 10GB (Bunny Stream upload)
     if (file.size > maxSize) {
-      alert(`File is too large (${formatFileSize(file.size)}). Maximum size is 5GB. Please compress your video or use a smaller file.`);
+      alert(`File is too large (${formatFileSize(file.size)}). Maximum size is 10GB. Please compress your video or use a smaller file.`);
       return;
     }
 
@@ -244,7 +244,7 @@ function Upload({ onBack, onSuccess }) {
                 <div className="upload-text">Click to select video file</div>
                 <div className="upload-hint">MP4, MOV, or other video formats</div>
                 <div className="upload-hint" style={{ marginTop: '8px', fontSize: '12px', opacity: 0.7 }}>
-                  Maximum file size: 5GB
+                  Maximum file size: 10GB
                 </div>
               </label>
             </div>

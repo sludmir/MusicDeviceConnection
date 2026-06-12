@@ -23,7 +23,12 @@ service firebase.storage {
     
     function isValidVideo() {
       return request.resource.contentType.matches('video/.*')
-        && request.resource.size < 5 * 1024 * 1024 * 1024; // 5GB max (Firebase Storage limit)
+        && request.resource.size < 10 * 1024 * 1024 * 1024; // 10GB max
+    }
+
+    function isValidAudio() {
+      return request.resource.contentType.matches('audio/.*|application/octet-stream')
+        && request.resource.size < 1024 * 1024 * 1024; // 1GB max (covers full-set lossless audio)
     }
 
     // Allow public read access to all files in the models directory and its subdirectories
@@ -82,11 +87,13 @@ service firebase.storage {
     // Live sets - full video uploads (5 min–90 min sets, typically 50MB–1.5GB)
     // Read must be public: <video src="downloadURL"> requests don't send Firebase auth, so
     // allow read: if true lets feed/profile video playback work. Write stays restricted.
+    // Video now streams via Bunny; this path holds audio tracks (sets/audio/**)
+    // and thumbnails (sets/thumbnails/**), with legacy video still permitted.
     match /sets/{allPaths=**} {
       allow read: if true;  // Download URLs are loaded by browser without auth token
-      allow write: if isSignedIn() && isValidVideo();
-      allow create: if isSignedIn() && isValidVideo();
-      allow update: if isSignedIn() && isValidVideo();
+      allow write: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
+      allow create: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
+      allow update: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
       allow delete: if isSignedIn();
     }
 
