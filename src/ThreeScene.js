@@ -18,6 +18,8 @@ import GhostSpotContextMenu from './components/GhostSpotContextMenu';
 import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
 import CameraAngleControls from './components/CameraAngleControls';
 import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
+import { buildBuyLink } from './utils/affiliateLink';
+import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
 import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
 import { createWheelDeviceDetector } from './hooks/useInputDevice';
@@ -47,7 +49,7 @@ function disposeObject3DTree(root) {
     });
 }
 
-function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, theme }) {
+function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, theme, affiliateAttribution }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -4621,6 +4623,21 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     }, [showMiniProfile]);
 
 
+    const handleBuyClick = (device, source) => {
+        const link = buildBuyLink(device, affiliateAttribution);
+        if (!link) return;
+        // window.open must run synchronously in the click handler or popup
+        // blockers eat it; the ledger write is fire-and-forget afterwards.
+        window.open(link.url, '_blank', 'noopener');
+        logAffiliateClick(db, buildClickPayload({
+            product: device,
+            attribution: affiliateAttribution,
+            clickerUid: auth?.currentUser?.uid || null,
+            source,
+            urlKind: link.urlKind,
+        }));
+    };
+
     return (
         <>
             <div ref={mountRef} onContextMenu={handleGhostContextMenu} style={{
@@ -4744,10 +4761,29 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                                 </div>
                                 <div>
                                     <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Purchase</span>
-                                    <div style={{ marginTop: '4px' }}>
-                                        <button type="button" style={{ color: '#00a2ff', fontSize: '14px', textDecoration: 'none', background: 'none', border: 'none', padding: 0, cursor: 'default', font: 'inherit' }}>
-                                            Link to purchase (coming soon)
-                                        </button>
+                                    <div style={{ marginTop: '6px' }}>
+                                        {(() => {
+                                            const link = buildBuyLink(miniProfileDevice, affiliateAttribution);
+                                            if (!link) return <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>No purchase link available</span>;
+                                            return (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleBuyClick(miniProfileDevice, 'mini-profile')}
+                                                        style={{
+                                                            display: 'block', width: '100%', padding: '10px 12px',
+                                                            background: '#ff9900', border: 'none', borderRadius: '8px',
+                                                            color: '#111', fontSize: '14px', fontWeight: 700, cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {link.isAmazon ? 'Buy on Amazon ↗' : 'Buy ↗'}
+                                                    </button>
+                                                    <div style={{ marginTop: '6px', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
+                                                        Affiliate link — purchases support LiveSet{affiliateAttribution?.creatorId ? ' and this creator' : ''}.
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>
