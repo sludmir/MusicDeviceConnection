@@ -17,7 +17,7 @@ export const SETTINGS = {
     club: {
       label: 'Club Booth',
       type: 'procedural',
-      camera: { position: [0, 2.2, 1.8], target: [0, 0.9, 0] },
+      camera: { position: [0, 2.5, 2.25], target: [0, 0.9, 0] },
       day: {
         background: 0xd4c5a9,
         toneMappingExposure: 1.1,
@@ -36,7 +36,7 @@ export const SETTINGS = {
       type: 'glb',
       source: '/scenes/dj-rooftop.glb',
       draco: true,
-      camera: { position: [0, 8, 12], target: [0, 1, 0] },
+      camera: { position: [0, 4.5, 6.5], target: [0, 1, 0] },
       day: {
         background: 0x87ceeb,
         toneMappingExposure: 1.2,
@@ -68,7 +68,7 @@ export const SETTINGS = {
       // so real-world-sized products fit on the table. Light positions/distances
       // ride the scale automatically (see addSettingLights).
       scale: 2.25,
-      camera: { position: [0, 2.6, 3.4], target: [0, 1.05, 0] },
+      camera: { position: [-0.8, 2.2, 2.4], target: [0, 1.05, 0] },
       day: {
         background: 0x1a1000,
         toneMappingExposure: 0.9,
@@ -99,7 +99,7 @@ export const SETTINGS = {
     studio: {
       label: 'Studio',
       type: 'procedural',
-      camera: { position: [0, 3.2, 4.5], target: [0, 1, 0] },
+      camera: { position: [0, 2.5, 3.2], target: [0, 1, 0] },
       day: {
         background: 0xdce8f0,
         toneMappingExposure: 1.05,
@@ -118,7 +118,7 @@ export const SETTINGS = {
     stage: {
       label: 'Stage',
       type: 'procedural',
-      camera: { position: [0, 3.5, 6], target: [0, 1, 0] },
+      camera: { position: [0, 2.75, 4.2], target: [0, 1, 0] },
       day: {
         background: 0xf0e8d8,
         toneMappingExposure: 1.1,
@@ -137,7 +137,7 @@ export const SETTINGS = {
       type: 'glb',
       source: '/scenes/musician-guitar-room.glb',
       draco: false,
-      camera: { position: [0, 3.5, 6], target: [0, 1, 0] },
+      camera: { position: [0, 2.9, -4.5], target: [0, 1, 0] },
       day: {
         background: 0xd8c8b0,
         toneMappingExposure: 1.0,
