@@ -44,6 +44,15 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
     }
 
+    // Affiliate click ledger: clients append, only admin reads
+    match /affiliateClicks/{clickId} {
+      allow create: if isSignedIn()
+        && request.resource.data.clickerUid == request.auth.uid
+        && request.resource.data.productName is string
+        && request.resource.data.source in ['hover-menu', 'mini-profile'];
+      allow read, update, delete: if isSignedIn() && request.auth.token.admin == true;
+    }
+
     // Ghost-spot layouts (admin-editable builder placement templates)
     match /ghostSpotLayouts/{layoutId} {
       allow read: if isSignedIn();
