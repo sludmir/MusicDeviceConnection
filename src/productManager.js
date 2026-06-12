@@ -139,6 +139,7 @@ export const DEFAULT_PRODUCT_TEMPLATE = {
   modelPath: "",
   modelScale: 1.0,
   imageUrl: "",
+  affiliateUrl: "",
   isActive: true,
   createdAt: null,
   updatedAt: null

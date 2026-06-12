@@ -392,6 +392,16 @@ const ProductManagerForm = ({ onClose, editingProduct = null }) => {
                   <input type="number" value={formData.locationPriority} onChange={(e) => handleInputChange('locationPriority', parseInt(e.target.value) || 1000)} min="0" />
                 </div>
               </div>
+
+              <div className="form-group">
+                <label>Affiliate link (optional)</label>
+                <input
+                  type="url"
+                  value={formData.affiliateUrl || ''}
+                  onChange={(e) => handleInputChange('affiliateUrl', e.target.value.trim())}
+                  placeholder="Paste tagged Amazon product URL (falls back to Amazon search if empty)"
+                />
+              </div>
             </div>
 
             {/* Connection Points */}
