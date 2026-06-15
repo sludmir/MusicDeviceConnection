@@ -55,3 +55,22 @@
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Touch devices: bigger hit areas, lifted clear of the bottom nav. Pointer-fine
+   (mouse/trackpad) laptops are unaffected, even at small window sizes. */
+@media (pointer: coarse) {
+  .camera-angle-controls {
+    bottom: 96px;
+    left: 12px;
+    gap: 12px;
+  }
+  .camera-angle-save,
+  .camera-angle-recall {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+  }
+  .camera-angle-recall {
+    font-size: 18px;
+  }
+}
