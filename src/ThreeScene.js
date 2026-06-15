@@ -19,6 +19,7 @@ import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
 import CameraAngleControls from './components/CameraAngleControls';
 import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
 import { buildBuyLink } from './utils/affiliateLink';
+import { midpoint, panOffsetFromMidpointDelta } from './utils/cameraPan';
 import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
 import MobileNavigation from './MobileNavigation';
 import { computeAutoScale } from './dimensionScaler';
@@ -1476,6 +1477,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         const activePointers = new Map();
         let pinchStartDistance = 0;
         let pinchStartCameraDistance = 0;
+        let panLastMid = null; // last two-finger midpoint, screen px
         function getPointersDistance(map) {
             const arr = Array.from(map.values());
             if (arr.length < 2) return 0;
@@ -1488,6 +1490,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 isPinchingRef.current = true;
                 pinchStartDistance = getPointersDistance(activePointers);
                 pinchStartCameraDistance = camera.position.distanceTo(controls.target);
+                const pts = Array.from(activePointers.values());
+                panLastMid = midpoint(pts[0], pts[1]);
             }
         }
         function onPointerMove(e) {
@@ -1498,10 +1502,29 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                     e.stopImmediatePropagation();
                     const dist = getPointersDistance(activePointers);
                     if (dist <= 0) return;
+                    // Pinch → dolly (unchanged).
                     const ratio = pinchStartDistance / dist;
                     const newDist = pinchStartCameraDistance * ratio;
                     const dir = camera.position.clone().sub(controls.target).normalize();
                     camera.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+                    // Two-finger drag → pan camera + target along camera basis.
+                    const pts = Array.from(activePointers.values());
+                    if (panLastMid && pts.length === 2) {
+                        const newMid = midpoint(pts[0], pts[1]);
+                        const { rightUnits, upUnits } = panOffsetFromMidpointDelta({
+                            dxScreen: newMid.x - panLastMid.x,
+                            dyScreen: newMid.y - panLastMid.y,
+                            cameraDistance: camera.position.distanceTo(controls.target),
+                            viewportHeight: renderer.domElement.clientHeight,
+                            fovRad: (camera.fov * Math.PI) / 180,
+                        });
+                        const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+                        const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+                        const panVec = right.multiplyScalar(rightUnits).add(up.multiplyScalar(upUnits));
+                        camera.position.add(panVec);
+                        controls.target.add(panVec);
+                        panLastMid = newMid;
+                    }
                     controls.update();
                 }
             }
@@ -1510,6 +1533,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             activePointers.delete(e.pointerId);
             if (activePointers.size < 2) {
                 pinchStartDistance = 0;
+                panLastMid = null;
                 setTimeout(() => { isPinchingRef.current = false; }, 150);
             }
         }
