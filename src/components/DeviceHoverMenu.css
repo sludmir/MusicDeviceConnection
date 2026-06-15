@@ -29,3 +29,14 @@
 .dhm-swap:hover { background: #15303d; border-color: #00a2ff; }
 .dhm-buy { color: #ff9900; font-size: 14px; }
 .dhm-buy:hover { background: #3a2d15; border-color: #ff9900; }
+
+/* Touch devices: enlarge the buy/swap/remove targets to ~44px. */
+@media (pointer: coarse) {
+  .dhm-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+  .dhm-actions { gap: 12px; }
+  .dhm-label { font-size: 13px; }
+}
