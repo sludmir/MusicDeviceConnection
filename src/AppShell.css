@@ -16,7 +16,7 @@
 /* Mobile: hide sidebar, show tab bar, leave room at bottom for tabs */
 @media (max-width: 1023px) {
   .app-shell .app-sidebar { display: none; }
-  .app-shell__main { padding-bottom: 64px; }
+  .app-shell__main { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom)); }
 }
 
 /* Desktop: hide tab bar */

@@ -11,7 +11,7 @@
   padding: 8px;
   min-width: 150px;
   background: rgba(15, 15, 20, 0.95);
-  border: 1px solid rgba(0, 162, 255, 0.35);
+  border: 1px solid var(--primary-soft);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(10px);
@@ -38,6 +38,6 @@
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.gscm-btn:hover { background: rgba(0, 162, 255, 0.18); }
+.gscm-btn:hover { background: var(--primary-soft); }
 .gscm-danger { color: #ff6b6b; }
 .gscm-danger:hover { background: rgba(255, 107, 107, 0.15); }

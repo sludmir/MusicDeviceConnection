@@ -213,7 +213,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         maxHeight: isMobile ? '80vh' : '90vh',
         overflowY: 'auto',
         color: '#ffffff',
-        border: '1px solid rgba(0, 162, 255, 0.2)',
+        border: '1px solid var(--primary-border)',
         backdropFilter: 'blur(12px)',
         scrollbarWidth: 'thin',
         scrollbarColor: '#333333 #000000',
@@ -4170,7 +4170,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         entry.model.traverse((node) => {
             if (node.isMesh && node.material && 'emissive' in node.material) {
                 saved.push({ mesh: node, emissive: node.material.emissive.clone(), intensity: node.material.emissiveIntensity });
-                node.material.emissive.setHex(0x00a2ff);
+                node.material.emissive.setHex(0xD9C2A0);
                 node.material.emissiveIntensity = 0.35;
             }
         });
@@ -4832,8 +4832,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                                     })()}
                                     <p style={{ margin: '0 0 8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Adjust where cables attach to this device (X, Y, Z). Changes appear in the scene.</p>
                                     <button type="button" className="edit-connections-btn" style={{
-                                        width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: '#00a2ff',
-                                        background: 'rgba(0, 162, 255, 0.15)', border: '1px solid rgba(0, 162, 255, 0.4)', borderRadius: '10px',
+                                        width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: 'var(--accent)',
+                                        background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', borderRadius: '10px',
                                         cursor: 'pointer', fontFamily: 'inherit'
                                     }} onClick={() => setEditConnectionsMode(true)}>
                                         Edit connection positions

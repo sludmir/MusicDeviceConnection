@@ -25,8 +25,8 @@
 .dhm-btn:hover { background: #232932; }
 .dhm-remove { color: #ff5566; }
 .dhm-remove:hover { background: #3a1f24; border-color: #ff5566; }
-.dhm-swap { color: #00a2ff; }
-.dhm-swap:hover { background: #15303d; border-color: #00a2ff; }
+.dhm-swap { color: var(--primary); }
+.dhm-swap:hover { background: #15303d; border-color: var(--primary); }
 .dhm-buy { color: #ff9900; font-size: 14px; }
 .dhm-buy:hover { background: #3a2d15; border-color: #ff9900; }
 

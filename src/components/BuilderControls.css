@@ -1,0 +1,94 @@
+/* BuilderControls.css
+ *
+ * Wraps the in-builder action controls (Feed, Connection Guide, Save) in a
+ * single responsive container. Scene switching is handled separately by the
+ * in-scene `Stage | Guitar Room` segmented control (ThreeScene), so it is not
+ * duplicated here.
+ *
+ *  - Desktop (>=1024px): the cluster sits top-right exactly as before.
+ *  - Mobile (<=1023px): the cluster becomes a fixed bottom action bar with
+ *    equal-width, icon-only buttons in the thumb zone.
+ */
+
+/* ---- Desktop / shared (top-right cluster) ---- */
+.builder-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2500;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ===========================================================================
+   Mobile: bottom action bar
+   =========================================================================== */
+@media (max-width: 1023px) {
+  .builder-controls {
+    --builder-bar-h: 60px;
+    position: fixed;
+    inset: auto 0 0 0;     /* pin to bottom edge, full width */
+    top: auto;
+    z-index: 1200;
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+    background: rgba(12, 14, 18, 0.96);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Each control becomes an equal-width bar item. */
+  .builder-controls > .builder-feed-btn,
+  .builder-controls > .connection-guide-btn,
+  .builder-controls > .save-setup-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: var(--builder-bar-h);
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: #e7eaf0;
+    transform: none !important;
+  }
+
+  /* Scale the icons up for touch legibility (24px). */
+  .builder-controls > .builder-feed-btn svg,
+  .builder-controls > .connection-guide-btn svg,
+  .builder-controls > .save-setup-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Icon-only: hide text labels. */
+  .builder-controls .builder-ctl-label {
+    display: none;
+  }
+
+  /* Save is the primary action — tint it with the accent. */
+  .builder-controls > .save-setup-btn {
+    color: var(--primary);
+  }
+
+  .builder-controls > .builder-feed-btn:active,
+  .builder-controls > .connection-guide-btn:active,
+  .builder-controls > .save-setup-btn:active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Lift the camera-angle stack clear of the bottom bar so the two bottom
+     clusters coexist instead of overlapping. */
+  .camera-angle-controls {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 16px) !important;
+  }
+}

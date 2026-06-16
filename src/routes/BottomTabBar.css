@@ -3,8 +3,13 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 64px;
-  background: var(--surface-1);
+  /* Content row is --tabbar-h tall; the safe-area inset is added as padding so
+     the icons never sit under the iPhone home indicator. */
+  height: calc(var(--tabbar-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
   display: flex;
   z-index: 50;
@@ -13,21 +18,48 @@
 .app-tabbar__tab {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
   color: var(--text-dim);
   text-decoration: none;
-  padding-top: 2px;
-  border-top: 2px solid transparent;
-  transition: color var(--dur-micro), border-color var(--dur-micro);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The icon sits inside a rounded hit-pill that gives the active state
+   something to fill and keeps the whole thumb zone tappable. */
+.app-tabbar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 40px;
+  border-radius: 999px;
+  transition: color var(--dur-micro) var(--ease-screen),
+              background var(--dur-micro) var(--ease-screen);
 }
 
 .app-tabbar__tab--active {
-  color: var(--text);
-  border-top-color: var(--accent);
+  color: var(--accent);
 }
 
-.app-tabbar__label { display: none; }
-.app-tabbar__tab--active .app-tabbar__label { display: inline; }
+.app-tabbar__tab--active .app-tabbar__icon {
+  color: var(--bg);
+  background: var(--accent);
+}
+
+/* Press feedback comes from the global .press utility; squish the icon pill
+   a touch more for a tactile feel. */
+.app-tabbar__tab.press:active .app-tabbar__icon {
+  transform: scale(0.9);
+}
+
+/* Create (+) tab: always an emphasized filled action, like IG's center button. */
+.app-tabbar__tab--accent .app-tabbar__icon {
+  width: 44px;
+  height: 32px;
+  color: var(--primary-contrast);
+  background: var(--accent);
+}
+.app-tabbar__tab--accent.app-tabbar__tab--active .app-tabbar__icon {
+  background: var(--accent-strong);
+}

@@ -9,8 +9,10 @@
   --feed-border: #363636;
   --feed-text: #f5f5f5;
   --feed-text-secondary: #a8a8a8;
-  --feed-accent: #0095f6;
-  --feed-accent-hover: #1877f2;
+  /* Match the app's warm-gold brand accent */
+  --feed-accent: var(--primary);
+  --feed-accent-hover: var(--primary-hover);
+  --feed-accent-contrast: var(--primary-contrast);
   --feed-like: #ed4956;
   --feed-header-height: 56px;
   --feed-desktop-max-width: 470px;
@@ -41,7 +43,7 @@
   border: none;
   border-radius: 50%;
   background: var(--feed-accent);
-  color: #fff;
+  color: var(--feed-accent-contrast);
   font-size: 1.5rem;
   font-weight: 300;
   line-height: 1;
@@ -67,7 +69,7 @@
   background: var(--feed-accent);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--feed-accent-contrast);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
@@ -337,7 +339,7 @@
   background: var(--feed-accent);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--feed-accent-contrast);
   cursor: pointer;
   font-family: inherit;
   transition: background 0.2s ease;
@@ -761,5 +763,53 @@
 
   .feed-item-meta-footer {
     padding-top: 8px;
+  }
+}
+
+/* ===========================================================================
+   Mobile touch targets + press feedback (phone widths only)
+   =========================================================================== */
+@media (max-width: 1023px) {
+  /* Like / comment / share action buttons get a 44px hit area */
+  .feed-item-meta .feed-actions-row .feed-action-btn {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    justify-content: center;
+  }
+  /* The "⋮ more" button was a 4px-padded sliver */
+  .feed-item-meta .feed-more-btn {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  /* Prev/next nav stays a full 44px on touch */
+  .feed-nav-btn {
+    width: var(--tap-min);
+    height: var(--tap-min);
+  }
+  .feed-delete-clip-btn,
+  .feed-item-meta .feed-delete-clip-btn {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Springy press response on touch (desktop hover behaviour untouched) */
+@media (hover: none) and (pointer: coarse) {
+  .feed-action-btn:active,
+  .feed-more-btn:active,
+  .feed-upload-fab:active,
+  .feed-upload-btn:active,
+  .feed-nav-btn:active:not(:disabled) {
+    transform: scale(0.92);
+    opacity: 0.85;
+    transition: transform var(--dur-micro) var(--ease-screen),
+                opacity var(--dur-micro) var(--ease-screen);
   }
 }

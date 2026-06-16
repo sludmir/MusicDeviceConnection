@@ -10,7 +10,7 @@ function Sidebar({ collapsed = false, onToggleCollapse }) {
         {collapsed ? <span className="app-sidebar__brand-mark">L</span> : <span className="app-sidebar__brand-text">LiveSet</span>}
       </div>
       <ul className="app-sidebar__list">
-        {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+        {NAV_ITEMS.filter((i) => !i.desktopHidden).map(({ path, label, icon: Icon }) => (
           <li key={path}>
             <NavLink
               to={path}

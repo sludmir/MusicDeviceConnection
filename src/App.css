@@ -168,7 +168,7 @@ html, body {
 
 
 .theme-toggle:focus-visible {
-  outline: 2px solid #00a2ff;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -215,8 +215,8 @@ html, body {
   font-size: 14px;
   font-weight: 500;
   color: #fff;
-  background: rgba(0, 162, 255, 0.2);
-  border: 1px solid rgba(0, 162, 255, 0.4);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -224,8 +224,8 @@ html, body {
 }
 
 .builder-feed-btn:hover {
-  background: rgba(0, 162, 255, 0.3);
-  border-color: #00a2ff;
+  background: var(--primary-soft);
+  border-color: var(--primary);
   transform: translateY(-1px);
 }
 
@@ -237,16 +237,16 @@ html, body {
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
-  color: #fff;
-  background: #00a2ff;
-  border: 1px solid #0088cc;
+  color: var(--primary-contrast);
+  background: var(--primary);
+  border: 1px solid var(--primary);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s ease, filter 0.2s ease;
 }
 
 .sign-in-btn:hover {
-  background: #0088cc;
+  background: var(--primary-hover);
   filter: brightness(1.05);
 }
 
@@ -267,10 +267,10 @@ html, body {
 .error-screen button {
   margin-top: 16px;
   padding: 10px 20px;
-  background: rgba(0, 162, 255, 0.8);
+  background: var(--primary);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--primary-contrast);
   font-weight: 500;
   cursor: pointer;
 }
@@ -283,7 +283,7 @@ html, body {
 }
 
 .setup-timeline-category-btn:focus-visible {
-  outline: 2px solid rgba(0, 162, 255, 0.7);
+  outline: 2px solid var(--primary-border);
   outline-offset: 2px;
 }
 
@@ -357,4 +357,62 @@ html, body {
 .setup-list-item button:hover {
   background: rgba(220, 53, 69, 0.4);
   border-color: rgba(220, 53, 69, 0.6);
+}
+
+/* ===========================================================================
+   Mobile header — touch targets + compact chrome (phone widths only)
+   Desktop is untouched.
+   =========================================================================== */
+@media (max-width: 1023px) {
+  /* Clear the notch / status bar */
+  .App-header {
+    padding-top: calc(11px + var(--safe-top));
+    padding-left: max(16px, var(--safe-left));
+    padding-right: max(16px, var(--safe-right));
+    gap: 8px;
+  }
+  .App--hub-active .App-header {
+    padding-top: calc(16px + var(--safe-top));
+  }
+
+  /* Theme toggle becomes a proper 44px tap target */
+  .theme-toggle {
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+  }
+
+  /* Profile control: avatar-only, 44px tap target — drop the name/email text
+     and chevron that crowd a phone header. */
+  .header-profile-trigger {
+    padding: 4px !important;
+    gap: 0 !important;
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    justify-content: center;
+  }
+  .header-profile-meta {
+    display: none !important;
+  }
+  .header-profile-trigger > div:last-child {
+    display: none !important; /* chevron */
+  }
+  /* Enlarge the avatar itself for legibility */
+  .header-profile-trigger > div:first-child {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
+  }
+
+  /* Shrink the oversized logo so it doesn't eat the top of every screen */
+  .App-header-center img {
+    height: 40px !important;
+  }
+  .App--hub-active .App-header-center img {
+    height: 46px !important;
+  }
 }

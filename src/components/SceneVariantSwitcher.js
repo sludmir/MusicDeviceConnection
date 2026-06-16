@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MdLandscape } from 'react-icons/md';
 import { listSettings, getSetting } from '../data/settings';
 import './SceneVariantSwitcher.css';
 
@@ -29,7 +30,8 @@ export default function SceneVariantSwitcher({ setupType, value, onChange }) {
         </ul>
       )}
       <button className="svs-trigger" onClick={() => setOpen((s) => !s)}>
-        <span>Scene: {currentLabel}</span>
+        <MdLandscape className="svs-icon" size={22} aria-hidden="true" />
+        <span className="builder-ctl-label">Scene: {currentLabel}</span>
         <span className="svs-caret">▴</span>
       </button>
     </div>

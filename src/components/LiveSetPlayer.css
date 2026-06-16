@@ -179,7 +179,7 @@
 
 .live-set-player-timeline:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 162, 255, 0.5);
+  box-shadow: 0 0 0 2px var(--primary-border);
 }
 
 .live-set-player-timeline-track {
@@ -200,7 +200,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 6px;
-  background: linear-gradient(90deg, rgba(0, 162, 255, 0.8), rgba(0, 120, 200, 0.9));
+  background: linear-gradient(90deg, var(--primary-border), rgba(0, 120, 200, 0.9));
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.05s linear;

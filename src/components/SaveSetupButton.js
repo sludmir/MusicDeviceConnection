@@ -189,7 +189,7 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
           <polyline points="17 21 17 13 7 13 7 21"/>
           <polyline points="7 3 7 8 15 8"/>
         </svg>
-        Save Setup
+        <span className="builder-ctl-label">Save Setup</span>
       </button>
 
       {showSaveDialog && (

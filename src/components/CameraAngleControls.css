@@ -31,14 +31,14 @@
 }
 
 .camera-angle-save--saved {
-  border-color: rgba(0, 162, 255, 0.6);
-  color: #00a2ff;
+  border-color: var(--primary-border);
+  color: var(--primary);
 }
 
 .camera-angle-save:hover {
-  background: rgba(0, 162, 255, 0.2);
-  border-color: #00a2ff;
-  color: #00a2ff;
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .camera-angle-recall {

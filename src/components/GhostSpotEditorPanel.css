@@ -6,7 +6,7 @@
   width: 240px;
   padding: 14px;
   background: rgba(15, 15, 20, 0.96);
-  border: 1px solid rgba(0, 162, 255, 0.35);
+  border: 1px solid var(--primary-soft);
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
@@ -53,7 +53,7 @@
   font-size: 14px;
   line-height: 1;
 }
-.gsep-nudge:hover { background: rgba(0, 162, 255, 0.2); }
+.gsep-nudge:hover { background: var(--primary-soft); }
 .gsep-actions { display: flex; gap: 8px; margin-top: 14px; }
 .gsep-btn {
   flex: 1;
@@ -65,4 +65,4 @@
   border: none;
 }
 .gsep-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
-.gsep-save { background: #00a2ff; color: #06121c; }
+.gsep-save { background: var(--primary); color: #06121c; }

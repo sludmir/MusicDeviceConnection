@@ -13,6 +13,17 @@
   --danger: #C8553D;
   --success: #8FA66E;
 
+  /* Brand primary — maps the legacy electric-blue accent (#00a2ff) onto the
+     warm brand. Use --primary as a fill WITH --primary-contrast text (the gold
+     is pale, so filled buttons need dark text); use --accent for text/icon
+     accents and --primary-soft / --primary-border for tints and outlines. */
+  --primary: #D9C2A0;
+  --primary-hover: #E4D2B6;
+  --primary-contrast: #0A0908;
+  --primary-soft: rgba(217, 194, 160, 0.14);
+  --primary-softer: rgba(217, 194, 160, 0.08);
+  --primary-border: rgba(217, 194, 160, 0.40);
+
   /* Typography */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -28,11 +28,11 @@
   display: flex; flex-direction: column; gap: 8px; align-items: center;
 }
 .psm-card:hover { border-color: #3a4658; background: #1f242d; }
-.psm-card.is-current { border-color: #00a2ff; }
+.psm-card.is-current { border-color: var(--primary); }
 .psm-thumb { width: 100%; height: 90px; object-fit: contain; }
 .psm-name { font-size: 13px; text-align: center; color: #e3e6ec; }
 .psm-badge {
   position: absolute; top: 6px; right: 6px;
-  background: #00a2ff; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 6px;
+  background: var(--primary); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 6px;
 }
 .psm-empty { grid-column: 1 / -1; text-align: center; color: #8a91a0; padding: 24px; }

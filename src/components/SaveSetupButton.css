@@ -6,8 +6,8 @@
   font-size: 14px;
   font-weight: 500;
   color: #fff;
-  background: rgba(0, 162, 255, 0.2);
-  border: 1px solid rgba(0, 162, 255, 0.4);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -15,8 +15,8 @@
 }
 
 .save-setup-btn:hover {
-  background: rgba(0, 162, 255, 0.3);
-  border-color: #00a2ff;
+  background: var(--primary-soft);
+  border-color: var(--primary);
   transform: translateY(-1px);
 }
 
@@ -86,7 +86,7 @@
 }
 
 .save-setup-input:focus {
-  border-color: #00a2ff;
+  border-color: var(--primary);
 }
 
 .save-setup-input:disabled {
@@ -113,7 +113,7 @@
   height: 18px;
   margin-right: 10px;
   cursor: pointer;
-  accent-color: #00a2ff;
+  accent-color: var(--primary);
 }
 
 .save-setup-checkbox-label > span:first-of-type {
@@ -169,13 +169,13 @@
 
 .save-setup-submit {
   color: #0a0a0a;
-  background: #00a2ff;
-  border: 1px solid #00a2ff;
+  background: var(--primary);
+  border: 1px solid var(--primary);
 }
 
 .save-setup-submit:hover:not(:disabled) {
-  background: #33b3ff;
-  border-color: #33b3ff;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .save-setup-cancel:disabled,
@@ -194,8 +194,8 @@
   font-size: 15px;
   font-weight: 600;
   color: #0a0a0a;
-  background: #00a2ff;
-  border: 1px solid #00a2ff;
+  background: var(--primary);
+  border: 1px solid var(--primary);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -204,8 +204,8 @@
 }
 
 .save-setup-update-btn:hover:not(:disabled) {
-  background: #33b3ff;
-  border-color: #33b3ff;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .save-setup-update-btn:disabled {

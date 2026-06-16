@@ -1,409 +1,144 @@
 # LiveSet (connect-my-set) — Codebase Reference
 
-## Running 3D Products List
+LiveSet is a web app where DJs, producers, and musicians **build virtual 3D setups** of their gear, **save/share** them, and browse a **TikTok-style feed** of performance videos linked to that gear. "PCPartPicker meets TikTok for music equipment."
 
-**`PRODUCTS.md`** (repo root) is a running list of every 3D product in the builder. The Firestore `products` collection is the source of truth — `src/data/productDimensions.json` is only an auto-scaling lookup and may contain entries that aren't in the builder.
-
-**Do not edit `PRODUCTS.md` by hand.** Whenever products are added, edited, or removed via the Product Management screen, regenerate it:
-
-```
-npm run dump-products
-```
-
-The script (`scripts/dumpProducts.js`) uses firebase-admin with Application Default Credentials (`gcloud auth application-default login` once).
+**Live:** liveset.io (primary, `connectmyset` Firebase Hosting site). connectmyset.com still resolves (transitional).
 
 ---
 
-## What This App Is
+## ⚠️ Operational: Running Products List
 
-LiveSet is a web app where DJs, producers, and musicians can **build virtual setups** of their music gear in an interactive 3D scene, **save and share those setups**, and **browse a social feed** of video performances linked to the gear used. Think "PCPartPicker meets TikTok for music equipment."
+`PRODUCTS.md` (repo root) lists every 3D product in the builder. Firestore `products` is the source of truth; `src/data/productDimensions.json` is only an auto-scaling lookup. **Don't edit `PRODUCTS.md` by hand** — regenerate after product changes:
 
-**Live URLs:** liveset.io (primary, served from the `connectmyset` Firebase Hosting site). connectmyset.com still resolves during the transition period.
+```
+npm run dump-products   # scripts/dumpProducts.js, firebase-admin + ADC (gcloud auth application-default login once)
+```
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 (CRA), no React Router — navigation via `currentView` state |
-| 3D Engine | Three.js 0.162 + GLTFLoader + OrbitControls |
-| Animation | GSAP |
+| Layer | Tech |
+|-------|------|
+| Frontend | React 18 (CRA) + **React Router v6** (`BrowserRouter`) |
+| 3D | Three.js 0.162 + GLTFLoader + OrbitControls; GSAP |
 | Backend | Firebase (Auth, Firestore, Storage) — no custom server |
+| Video | Bunny.net (signed URLs via `utils/bunnyUrl.js`); HLS via `utils/attachHls.js` |
+| Auth | Google Sign-In only (`signInWithPopup`) |
 | Icons | react-icons |
-| Hosting | Firebase Hosting (multi-site) |
-| Auth | Google Sign-In only (Firebase Auth popup) |
+
+```
+npm start      # dev server :3000   (NOTE: large app, first compile is slow; builds tend to hang under automation — run manually)
+npm run build  # prod build
+npm run deploy # build + firebase deploy (both hosting sites)
+npm run emulate# auth:9099 firestore:8080 storage:9199
+```
+Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 
 ---
 
-## Project Structure
+## Navigation & Routing (React Router)
 
-```
-src/
-├── App.js                    # Root component: auth, navigation, state management
-├── App.css                   # Global layout styles
-├── ThreeScene.js             # Core 3D scene builder (orchestration only — env extracted to scenes/)
-├── ModelPreviewPanel.js      # 3D preview for product suggestion form
-├── ProductSuggestionForm.js  # In-scene "Suggest New Product" form
-├── ProductManagerForm.js     # Admin product add/edit form (two-panel: form + 3D preview)
-├── ProductDashboard.js       # Admin product list (requires admin claim)
-├── Auth.js                   # signInWithGoogle / logout
-├── firebaseConfig.js         # Firebase init (auth, db, storage)
-├── firebaseUtils.js          # Storage URL resolvers, DB init, model path utils
-├── productManager.js         # PRODUCT_CATEGORIES, ProductManager class, singleton
-├── dimensionScaler.js        # Auto-scaling engine: real-world mm → scene units
-├── DeviceCanvas.js           # 2D canvas sketch of device connections
-├── SearchBar.js              # Product search with client-side filtering
-├── MySets.js                 # List/delete saved setups
-├── Settings.js               # Update display name
-├── Preferences.js            # User preferences (budget, currency, defaults)
-├── MobileNavigation.js       # Mobile UI helpers for 3D scene
-├── chatGPTService.js         # Stub for AI connection suggestions
-│
-├── data/
-│   └── productDimensions.json  # Real-world dimensions (mm) for auto-scaling
-│
-├── components/
-│   ├── Feed.js / Feed.css              # TikTok-style vertical video feed
-│   ├── HubLandingPage.js / .css        # Post-login hub: build or post
-│   ├── PostSetModal.js / .css          # Upload full video + create clips
-│   ├── Upload.js / .css                # Shorter clip upload path
-│   ├── Profile.js / .css               # User profile, follow, sets, fave product
-│   ├── LiveSetPlayer.js / .css         # Full-set video player with audio sync
-│   ├── SaveSetupButton.js / .css       # Saves current 3D setup to Firestore (incl. sceneVariant)
-│   ├── ProductSelectorModal.js / .css  # Spot-aware product picker (hard-filter + swap mode)
-│   ├── DeviceHoverMenu.js / .css       # Floating remove/swap menu anchored above placed devices
-│   ├── SceneVariantSwitcher.js / .css  # Bottom-center upward dropdown for scene variants
-│   ├── FaveProductViewer.js / .css     # 3D viewer for favorite product on profile
-│   ├── UserSearch.js / .css            # Search users by displayName
-│   ├── Notifications.js / .css         # User notifications
-│   └── SetupLandingPage.js / .css      # Alternate setup listing
-│
-├── scenes/
-│   ├── index.js                # buildEnvironment(scene, variantKey, ctx) dispatcher
-│   ├── djClub.js / djRooftop.js
-│   ├── producerStudioDesk.js / producerBedroom.js
-│   └── musicianRehearsal.js / musicianLiveStage.js
-│
-├── utils/
-│   ├── devicePlacement.js          # DEVICE_ROLES, SPOT_PRIORITIES, placement logic
-│   ├── mobileDetection.js          # Mobile/iPhone detection helpers
-│   ├── productSearch.js            # Firestore product lookup utilities
-│   ├── productRecommendation.js    # isProductRecommended / filterByRecommendedType / sortProductsByRecommendation
-│   └── sceneVariants.js            # VARIANTS_BY_SETUP metadata + helpers
-│
-└── (legacy/maintenance scripts)
-    ├── deviceLibrary.js, migrateProducts.js, categorizeProducts.js
-    ├── addMixerSendReturnPorts.js, addTeileRevoloHelper.js
-    ├── updateMixerMasterOut.js, updateTeileRevoloConnections.js
-    ├── AudioCableLogic.js, ConnectionPanel.js, DeviceDisplay.js
-    └── ModelViewer.js, ProductForm.js, ProductSubmissionForm.js
-```
+`App.js` wraps everything in `<BrowserRouter>`. A persistent `<header className="App-header">` sits above an `<AppShell>` (desktop `Sidebar` + mobile `BottomTabBar` + `<Outlet>`). Navigate with `useNavigate()`.
 
----
-
-## Navigation System
-
-No React Router. `App.js` manages a `currentView` state:
-
-| Value | Screen |
+| Route | Screen |
 |-------|--------|
-| `null` (no setup selected) | `HubLandingPage` — choose to build or post |
-| `null` (setup selected) | 3D builder: `ThreeScene` + `SceneVariantSwitcher` + `SaveSetupButton` |
-| `'feed'` | `Feed` — scrollable video feed |
-| `'profile'` | `Profile` — user profile (own or other via `profileUserId`) |
-| `'mySets'` | `MySets` — list of saved setups |
-| `'settings'` | `Settings` — display name |
-| `'preferences'` | `Preferences` — budget, currency, defaults |
-| `'productDashboard'` | `ProductDashboard` — admin product manager |
-| `'upload'` | `Upload` — clip upload |
-| `'search'` | `UserSearch` |
-| `'notifications'` | `Notifications` |
+| `/hub` | `HubLandingPage` — home (featured sets/clips; + setups & post CTAs on desktop) |
+| `/create` | `CreateHub` — **mobile-only tab**: post a set / build a setup |
+| `/feed` | `Feed` — vertical video feed |
+| `/sets` | `MySets` |
+| `/profile` `/profile/:id` | `Profile` (own / other; has SETS + SETUPS tabs) |
+| `/search` | `UserSearch` |
+| `/notifications` | `Notifications` |
+| `/settings` `/preferences` | account screens |
+| `/legal` | affiliate-disclosure page (public) |
+| `/admin/products` `/admin/products-import` | admin (admin claim) |
+| `/upload` `/set-editor` | clip upload / multi-angle editor |
+| `/builder` | 3D builder (`ThreeScene`); requires `selectedSetup`, else redirects to `/hub` |
 
-Logo click resets to hub.
+**Tabs** (`routes/NavConfig.js`, flags `mobileHidden` / `desktopHidden` / `accent`):
+- **Mobile** (`BottomTabBar`): Home · Feed · **Create (+, gold)** · Notifications · Profile
+- **Desktop** (`Sidebar`): Home · Feed · My Sets · Search · Notifications · Profile
+
+---
+
+## Design System & Mobile (`src/ui/`)
+
+- **`ui/tokens.css`** — `:root` design tokens: colors (warm-dark; `--bg #0A0908`, accent `--accent/--primary #D9C2A0` gold, `--primary-contrast` dark text for filled gold), type scale, spacing (4px base), radius, motion. **Use tokens, not hex.**
+- **`ui/mobile.css`** — global touch layer: `--tap-min:44px`, safe-area vars (`--safe-top/-bottom`), `--tabbar-h`, `.press`/`.press-card` (tap feedback), `.sr-only`, tap-highlight reset. Imported in `index.css`.
+- **`ui/` components**: Button, IconButton, Input/Textarea/Select, Card, Modal, Sheet, Tabs, Chip, Avatar, SectionHeader, Toast (`useToast`).
+- **Breakpoint:** mobile = `max-width: 1023px`. JS branch via `utils/useIsMobile.js` (matchMedia, matches the CSS). **Mobile-only changes must be gated** by this/media queries — desktop stays put.
+- **Viewport meta** lives in `public/index.html` (`width=device-width, viewport-fit=cover`) — required for mobile layout + safe areas.
+- **Accent:** warm gold everywhere. Legacy electric-blue `#00a2ff` was migrated to `--primary` tokens; Feed has its own `--feed-accent → var(--primary)`. Filled gold buttons need dark text (`--primary-contrast`). The like-heart stays red (`--feed-like`).
+
+### Hub: mobile vs desktop (`HubLandingPage.js`)
+- **Mobile:** Featured sets + **Featured Clips** (recent `clips`, signed Bunny URLs) only; search icon top-right → `/search`. Post CTAs & Your Setups are **hidden** (they live on `/create` and Profile→SETUPS).
+- **Desktop:** unchanged — featured + post CTAs + Your Setups.
 
 ---
 
 ## Firebase Data Model
 
-### Collections
+| Collection | Key fields |
+|-----------|-----------|
+| `products` | name, type, brand, category (DJ/Producer/Musician), subcategory, price, modelPath, imageUrl, modelScale, inputs[], outputs[], locationPriority, **affiliateUrl**, ownerId |
+| `users` | displayName, email, followers[], following[], faveProductId, preferences{} (+ `users/{id}/followers`, `/notifications`) |
+| `setups` | name, ownerId, setupType, **setting** (scene variant), devices[] (positions, spotType, placementIndex, model data), mobileDiagram, cameraAngles, isMainSetup |
+| `sets` | creatorId, creatorName, title, videoURL, durationSeconds, setupId?, audioTrackURL?, audioOffsetSeconds? |
+| `clips` | creatorId, videoURL, fullVideoURL, clipStart, clipEnd, fullSetId, likes, likedBy[], setupId?, audioTrackURL? |
+| `affiliateClicks` | click ledger for creator attribution |
 
-| Collection | Key Fields | Purpose |
-|-----------|------------|---------|
-| `products` | `name`, `type`, `brand`, `category` (DJ/Producer/Musician), `subcategory`, `price`, `modelPath`, `imageUrl`, `modelScale`, `inputs[]`, `outputs[]`, `locationPriority`, `ownerId` | All available gear with 3D models |
-| `users` | `displayName`, `email`, `followers[]`, `following[]`, `faveProductId`, `preferences{}`, `createdAt` | User accounts |
-| `users/{id}/followers/{followerId}` | `createdAt` | Follow relationships |
-| `users/{id}/notifications/{id}` | `type`, `fromUserId`, `fromUserName`, `read` | Notifications |
-| `setups` | `name`, `ownerId`, `setupType`, `devices[]` (with positions, `spotType`, `placementIndex`, model data), `isMainSetup` | Saved gear configurations |
-| `sets` | `creatorId`, `creatorName`, `title`, `videoURL`, `durationSeconds`, `setupId?`, `setupName?`, `setupType?`, `audioTrackURL?`, `audioOffsetSeconds?` | Full performance recordings |
-| `clips` | `creatorId`, `videoURL`, `fullVideoURL`, `clipStart`, `clipEnd`, `fullSetId`, `likes`, `likedBy[]`, `setupId?`, `audioTrackURL?` | Feed segments from sets |
-
-### Storage Paths
-
-| Path | Content |
-|------|---------|
-| `models/{filename}.glb` | 3D product models (GLB format, max 50MB) |
-| `images/{filename}` | Product images (max 5MB) |
-| `sets/{userId}/{timestamp}_{title}` | Full performance videos |
-| `sets/audio/{...}` | Separate audio tracks for sets |
-
-### Firestore Indexes
-
-- `products`: category + name
-- `setups`: ownerId + createdAt (desc)
-- `sets`: creatorId + createdAt (desc)
+**Storage:** `models/*.glb` (≤10MB target), `images/*`, `sets/{uid}/...`, `sets/audio/...`.
+**Rules:** signed-in read; writes require ownerId/creatorId == uid; product update/delete needs `admin` claim.
+**Indexes:** products(category+name), setups(ownerId+createdAt desc), sets(creatorId+createdAt desc).
 
 ---
 
-## 3D Scene System (ThreeScene.js + src/scenes/)
+## 3D Scene System (`ThreeScene.js` ~3400 lines + `src/scenes/`)
 
-`ThreeScene.js` orchestrates the 3D viewport (ghost spots, device placement, raycasting, hover menu, product modal). The environment geometry per `(setupType, sceneVariant)` lives in `src/scenes/` — each variant exports `build(scene, ctx)` returning a `{ dispose() }` handle, and `src/scenes/index.js` exposes `buildEnvironment(scene, variantKey, ctx)` as the dispatcher. The selected variant is persisted on `setups.sceneVariant` and surfaced via the bottom-center `SceneVariantSwitcher`.
+`ThreeScene.js` orchestrates the viewport (ghost spots, placement, raycasting, hover menu, product modal, mobile gestures, cables). Environment geometry per `(setupType, setting)` lives in `src/scenes/` — each variant exports `build(scene, ctx)` → `{dispose()}`; `scenes/index.js` `buildEnvironment(scene, variantKey, ctx)` dispatches. Selected variant persists on `setups.setting`, switched via the **in-scene segmented `Stage | …` control** (top-left of the canvas).
 
-Available variants:
-- **DJ:** `dj-club` (default), `dj-rooftop`
-- **Producer:** `producer-studio-desk` (default), `producer-bedroom`
-- **Musician:** `musician-rehearsal` (default), `musician-live-stage`
+**Variants:** DJ `dj-club`/`dj-rooftop`; Producer `producer-studio-desk`/`producer-bedroom`; Musician `musician-rehearsal`/`musician-live-stage`.
 
-### Setup Types and Ghost Spots
+**Scale:** `1 scene unit = 400mm`. DJ ghost spots spaced 1.15u; spots carry a `recommendedType` used to sort/filter the picker. Geometry & spot table: see `src/scenes/` and `utils/devicePlacement.js`.
 
-Three setup types, each with predefined "ghost spots" (translucent placement cubes):
+**Auto-scaling (`dimensionScaler.js`):** `computeAutoScale(name, glbBbox)` = `(realMm/400)/glbDim`; final = `autoScale × (product.modelScale||1)`. Fuzzy-matches names against `data/productDimensions.json` (strip brand, normalize, `match_keys`). `modelScale` is a manual multiplier (1.0 = real size); fallback = absolute scale if name unmatched.
 
-| Type | Spots | Layout |
-|------|-------|--------|
-| **DJ** | center (mixer), left/right (CDJs), sides (FX/speakers) | Club booth layout |
-| **Producer** | desk center, desk sides, rack units (angled 45 degrees), monitor speakers on poles | Studio desk with equipment racks |
-| **Musician** | guitar/bass racks, keyboard stand, drum riser, amp spots, floor pedal spots | Rehearsal room / stage |
+**Brain device** (core, must be placed first): DJ = mixer/laptop; Producer = interface/laptop/console; Musician = none. `isBrainProduct()`, `setupHasBrain()`.
 
-Each ghost spot has a `recommendedType` (e.g., "Mixer (DJM)", "Guitar / Bass", "Effects Pedal") used to sort search results.
+**Device tracking:** `devicesRef.current` keyed by `uniqueId` (`{productId}-{x}-{y}-{z}`) so duplicate products coexist. `removeDevice(uniqueId)` disposes geometry/materials, removes instance-specific cables (via `sourceDeviceUniqueId`/`targetDeviceUniqueId`), updates list/ghosts.
 
-### DJ Table and Booth Geometry
-
-The DJ booth uses a `PlaneGeometry(6, 1.4)` table at `y: 0.95`. The booth is represented as 2400mm wide, 560mm deep, and 900mm tall in real-world terms. The **scene-to-real conversion** is `1 scene unit = 400mm`. This determines how all products are auto-scaled.
-
-Ghost spot positions (center-to-center spacing of **1.15 units** between adjacent deck slots):
-
-| Spot | Position (x, y, z) | Purpose |
-|------|-------------------|---------|
-| MIDDLE | (0, 1.05, 0) | Mixer |
-| MIDDLE_LEFT | (-1.15, 1.05, 0) | Inner left player |
-| MIDDLE_RIGHT | (1.15, 1.05, 0) | Inner right player |
-| FAR_LEFT | (-2.3, 1.05, 0) | Outer left player |
-| FAR_RIGHT | (2.3, 1.05, 0) | Outer right player |
-| FX_LEFT | (-0.58, 1.05, -0.5) | FX behind left gap |
-| FX_RIGHT | (0.58, 1.05, -0.5) | FX behind right gap |
-| FX_TOP | (0, 1.5, -0.6) | Elevated FX behind mixer |
-| FX_FRONT | (0, 1.05, 0.45) | FX in front of deck |
-| SPEAKER_LEFT | (4.5, 0.05, -0.25) | Left speaker (floor) |
-| SPEAKER_RIGHT | (-4.5, 0.05, -0.25) | Right speaker (floor) |
-
-### Key Internal Functions
-
-| Function | Purpose |
-|----------|---------|
-| `buildEnvironment(scene, variantKey, ctx)` (from `src/scenes`) | Builds the 3D room geometry for the chosen variant; returns a disposable handle |
-| `createGhostPlacementSpots(scene)` | Creates interactive ghost cubes at predefined positions |
-| `addProductToPosition(product, posIndex)` | Loads GLB model, auto-scales it, places it at ghost spot |
-| `removeDevice(uniqueId)` | Removes model from scene, disposes geometry/materials, cleans up devicesRef and cables, closes mini profile if showing the removed device |
-| `fetchProductsFromFirestore()` | Loads products for the search modal |
-| `sortProductsByRecommendation()` | Sorts by brain-first, then recommended, then alphabetical |
-| `updateConnections(deviceList)` | Draws cables between placed devices |
-| `drawCable()` / `drawCableToGhostSquare()` | Renders 3D cable lines (cables store `sourceDeviceUniqueId` / `targetDeviceUniqueId` for instance-specific removal) |
-| `isBrainProduct(product)` | Checks if product is a mixer/laptop/interface (core device) |
-| `setupHasBrain()` | Whether the current setup has a core device placed |
-
-### Brain Detection Logic
-
-- **DJ**: mixer or laptop = brain. Must be placed first.
-- **Producer**: audio interface, laptop, or console = brain. Must be placed first.
-- **Musician**: no brain requirement. Spot-specific suggestions only.
-
-### Device Tracking (`devicesRef`)
-
-All placed 3D models are stored in `devicesRef.current` keyed by **`uniqueId`** (format: `{productId}-{x}-{y}-{z}`). This allows multiple instances of the same product to coexist independently. The `removeDevice` function:
-
-1. Looks up the entry by `uniqueId` (not product `id`)
-2. Removes the 3D model from the scene and disposes all geometry/materials (prevents ghost raycasting)
-3. Deletes the `devicesRef` entry
-4. Removes only cables connected to that specific instance (via `sourceDeviceUniqueId`/`targetDeviceUniqueId`)
-5. Closes the mini profile panel if it was showing the removed device
-6. Updates `placedDevicesList` state and triggers ghost spot refresh if needed
+**Builder mobile chrome:**
+- `MobileNavigation.js` — hamburger menu (Add Device, etc.).
+- `components/CameraAngleControls` — save/recall camera angles (bottom-left).
+- `components/BuilderControls.css` — App.js-rendered **bottom action bar** (Feed · Connection Guide · Save) on mobile; top-right cluster on desktop.
+- `DeviceHoverMenu` — remove / swap / buy, anchored above a tapped device.
+- `ProductSelectorModal` — spot-aware picker (hard-filters to `recommendedType`, swap mode).
 
 ---
 
-## Real-World Dimensions Auto-Scaling (dimensionScaler.js)
+## Other Systems
 
-Products are automatically scaled to their correct real-world size when loaded into the 3D scene.
-
-### How It Works
-
-1. `src/data/productDimensions.json` contains real-world measurements (in mm) for 36+ products, plus scene reference dimensions
-2. `dimensionScaler.js` provides the scaling logic:
-   - `lookupDimensions(productName)` — fuzzy-matches product names (strips brand prefixes, normalizes hyphens/spaces, checks `match_keys`)
-   - `computeAutoScale(productName, glbBboxSize)` — computes scale factor: `(realDimension_mm / 400) / glbBboxDimension`
-   - `SCENE_UNIT_MM = 400` — 1 scene unit equals 400mm
-
-### Scale Formula (applied at GLB load time)
-
-```
-autoScale = computeAutoScale(product.name, glbBoundingBox)
-manualMultiplier = product.modelScale || 1.0
-finalScale = autoScale * manualMultiplier
-model.scale.setScalar(finalScale)
-```
-
-### `modelScale` Field Semantics
-
-`modelScale` in Firestore is a **manual multiplier** on top of auto-scaling (default `1.0`). If `modelScale` is `1.0`, the product appears at its correct real-world size. If set to `2.0`, it appears 2x real size. If a product is not found in the dimensions JSON, `modelScale` acts as the absolute scale factor (fallback behavior).
-
-### Product Name Matching
-
-The JSON uses full names like `"Pioneer CDJ-3000"` while Firestore uses short names like `"CDJ-3000"`. Matching strategy:
-1. Normalize both: lowercase, strip brand prefixes, remove hyphens/spaces
-2. Exact normalized name match
-3. Exact `match_keys` match
-4. Substring match (either direction)
-5. Results cached for performance
+- **Feed (`Feed.js`)** — `clips` paginated (followed creators first), scroll-snap autoplay, optional drift-corrected audio track, tight `clipStart`/`clipEnd` loop, Copy Setup + Full Set, upload FAB.
+- **Affiliate monetization** — `utils/affiliateLink.js` (link builder) + `utils/affiliateClicks.js` (ledger); buy buttons in mini-profile & `DeviceHoverMenu`; `affiliateUrl` in Product Manager; `/legal` disclosure. Amazon Associates signup pending.
+- **Multi-angle editor (`SetEditor.js`)** — up to 3 cameras + lossless master audio, sync preview (`utils/syncEditorMath`).
+- **Product Manager (`ProductManagerForm.js`)** — two-panel add/edit with live 3D preview, auto-scale badge, manual multiplier.
+- **`productManager.js`** — `PRODUCT_CATEGORIES`, `DEFAULT_PRODUCT_TEMPLATE`, `CONNECTION_TYPES` (RCA/XLR/¼"/USB/MIDI/…).
 
 ---
 
-## Product Manager Form (ProductManagerForm.js)
+## Key `App.js` State
 
-Two-panel layout for adding/editing products:
-
-**Left panel**: Form fields (name, brand, category, connections, image, submit)
-
-**Right panel**: 3D model management
-- Shows current model status (loaded from Firebase / new file selected / no model)
-- "Replace 3D Model" button with "Revert to Current" option
-- Inline 3D viewer with orbit controls and a wireframe reference cube for scale comparison
-- Auto-scale badge showing matched dimensions and base scale factor
-- Real-world dimensions display from JSON (e.g., "330 x 411 x 116 mm")
-- Manual multiplier slider (0.1x to 5x) with preset buttons
-- Scene-unit dimension readout (W, H, D)
-
-The `ModelViewer` component inside the form calls `computeAutoScale` on GLB load and applies `effectiveScale = autoScale * manualMultiplier` per frame.
+`user` · `selectedSetup` (truthy → builder) · `selectedSetting` (scene variant) · `setupDevices{DJ,Producer,Musician}` · `actualDevices` · `theme` (localStorage `livet-set-theme`, default `light`) · `affiliateAttribution` · `showFeedPostSetModal`.
 
 ---
 
-## Feed System (Feed.js)
+## Conventions
 
-- Loads `clips` ordered by `createdAt` desc, paginated with `startAfter`
-- Prioritizes clips from followed creators
-- Full-viewport scroll-snap with autoplay/pause on scroll
-- Supports optional separate audio track (`audioTrackURL`) with drift-corrected sync
-- Custom `requestAnimationFrame` loop for tight segment looping (`clipStart`/`clipEnd`)
-- Ghost pause overlay with fade-in animation
-- "Copy Setup" button loads the clip's linked setup into the 3D builder
-- "Full Set" button opens the complete performance in `LiveSetPlayer`
-- Upload FAB (floating action button) top-right
+- Match surrounding code style. Prefer `ui/` components + `tokens.css` vars over bespoke CSS/hex.
+- **Mobile changes gate on `useIsMobile()` / `max-width:1023px`; never regress desktop.**
+- Filled gold surfaces use `--primary-contrast` text (gold is pale).
+- 3D models: GLB ≤10MB; flag/optimize larger.
 
----
-
-## Product Categories (productManager.js)
-
-```
-PRODUCT_CATEGORIES = {
-  DJ: { players, mixers, effects, speakers, cables, accessories }
-  Producer: { audio-interface, synthesizers, controllers, monitors, microphones, software }
-  Musician: { instruments, amplifiers, effects, microphones, cables, accessories }
-}
-```
-
-Each subcategory has: `name`, `description`, `icon` (emoji), `types[]` (for matching).
-
-`DEFAULT_PRODUCT_TEMPLATE` defines the shape of a product document: `name`, `type`, `brand`, `description`, `category`, `subcategory`, `price`, `locationPriority`, `inputs[]`, `outputs[]`, `connections[]`, `specifications{}`, `features[]`, `modelPath`, `modelScale` (1.0), `imageUrl`, `isActive`, timestamps.
-
-### Connection Types
-
-`CONNECTION_TYPES`: RCA, XLR, 1/4", 3.5mm, USB, USB-C, Ethernet, Link, MIDI, SD, CF, Power, DC — each with type category, color key, and description.
-
----
-
-## Device Placement (devicePlacement.js)
-
-| Export | Purpose |
-|--------|---------|
-| `DEVICE_ROLES` | brain, input, output, effects, accessory |
-| `SPOT_PRIORITIES` | Per setup type, ordered spot names per role |
-| `getDeviceRole(device)` | Determines a product's role |
-| `findBrainDevice(devices)` | Finds the core device in a list |
-| `getRecommendedPosition(device, setupType, existingDevices, spotConfig)` | Returns `{ x, y, z, spotType }` |
-| `getSetupReadiness(devices, setupType)` | Returns readiness percentage |
-
----
-
-## Device Hover Menu
-
-Hovering a placed device applies a blue emissive rim highlight (`0x00a2ff`, intensity `0.35`) to its meshes (`applyHoverHighlight`/`clearHoverHighlight` in `ThreeScene.js`). Clicking the device opens `DeviceHoverMenu` — a small HTML overlay anchored above the device's bounding-box top-center, kept in sync each render frame. The menu has two actions:
-
-- **✕ Remove** — calls `removeDevice(uniqueId)`.
-- **⟳ Swap** — sets `swapTargetUniqueIdRef.current` to the device's `uniqueId`, opens `ProductSelectorModal` in `swap` mode pre-filtered to that spot's `recommendedType`, and on selection removes the old device and places the chosen product at the same `placementIndex`.
-
-Esc or any outside click dismisses the menu.
-
----
-
-## Product Selector Modal
-
-`ProductSelectorModal` is opened either by clicking a ghost spot (place mode) or by the Swap action (swap mode). By default it **hard-filters** the product grid to the spot's `recommendedType` via `filterByRecommendedType` (in `src/utils/productRecommendation.js`). A "Show all products" toggle drops the filter. In swap mode, the current product is shown with a "Current" badge and selecting it is a no-op.
-
----
-
-## Authentication and Authorization
-
-- **Auth**: Google popup only (`Auth.js`)
-- **On sign-in**: `App.js` creates/updates `users/{uid}` doc, calls `initializeDatabase()`
-- **Firestore rules**: signed-in read for most data; writes require `ownerId`/`creatorId` == `request.auth.uid`; product update/delete requires `admin` custom claim token
-- **Storage rules**: public read for models/textures/sets; write requires auth with size/type constraints
-
----
-
-## Key State in App.js
-
-| State | Type | Purpose |
-|-------|------|---------|
-| `user` | Firebase User | Current authenticated user |
-| `selectedSetup` | string | Active setup ID (shows 3D builder when set) |
-| `setupDevices` | `{ DJ: [], Producer: [], Musician: [] }` | Devices per setup type |
-| `actualDevices` | array | Devices currently in the 3D scene |
-| `currentView` | string/null | Navigation state |
-| `profileUserId` | string/null | Which user's profile to show (null = own) |
-| `theme` | string | Persisted in localStorage as `livet-set-theme` |
-| `showFeedPostSetModal` | bool | Controls PostSetModal visibility |
-
----
-
-## Build and Deploy
-
-```bash
-npm start          # Dev server at localhost:3000
-npm run build      # Production build (no sourcemaps)
-npm run deploy     # Build + firebase deploy (both hosting sites)
-npm run emulate    # Firebase emulators (auth:9099, firestore:8080, storage:9199)
-```
-
-Firebase config uses `REACT_APP_FIREBASE_*` env vars from `.env`.
-
----
-
-## File Size and Complexity Notes
-
-- `ThreeScene.js` is ~3400 lines — the heart of the app. Contains 3D scene orchestration, ghost-spot raycasting, device placement, hover menu wiring, cable rendering, mobile gestures, and admin tools. Environment geometry now lives in `src/scenes/`, and the product picker / device hover menu / scene switcher are extracted components.
-- `App.js` is ~800 lines — manages global state, auth, and view switching.
-- `Feed.js` is ~600 lines — complex video playback with audio sync.
-- `PostSetModal.js` is ~500 lines — multi-step upload wizard with waveform alignment.
-- `dimensionScaler.js` is ~110 lines — auto-scaling engine with fuzzy product name matching.
-- `productDimensions.json` — 36 products with real-world mm dimensions and match keys.
-
----
-
-## Legacy / Unused Files
-
-These files exist but are not imported from the main app flow:
-- `AudioCableLogic.js` — cable routing class (not wired up)
-- `ConnectionPanel.js`, `DeviceDisplay.js` — unused UI components
-- `ModelViewer.js` — standalone model viewer (superseded by inline `ModelViewer` in `ProductManagerForm`)
-- `ProductForm.js`, `ProductSubmissionForm.js` — older product forms
-- `deviceLibrary.js` — deprecated static product data
-- `liveset_product_dimensions.json` (root) — original dimensions file, superseded by `src/data/productDimensions.json`
-- Migration scripts: `migrateProducts.js`, `categorizeProducts.js`, `addMixerSendReturnPorts.js`, `addTeileRevoloHelper.js`, `updateMixerMasterOut.js`, `updateTeileRevoloConnections.js`
+### Legacy / unused (not in main flow)
+`AudioCableLogic.js`, `ConnectionPanel.js`, `DeviceDisplay.js`, `ModelViewer.js`, `ProductForm.js`, `ProductSubmissionForm.js`, `deviceLibrary.js`, root `liveset_product_dimensions.json`, and migration scripts (`migrateProducts.js`, `categorizeProducts.js`, `addMixerSendReturnPorts.js`, `addTeileRevoloHelper.js`, `updateMixerMasterOut.js`, `updateTeileRevoloConnections.js`).

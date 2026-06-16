@@ -31,7 +31,7 @@ export default function ConnectionGuideButton({ currentDevices, setupType }) {
           <line x1="9" y1="10" x2="9" y2="20" />
           <line x1="15" y1="10" x2="15" y2="20" />
         </svg>
-        Connection Guide
+        <span className="builder-ctl-label">Connection Guide</span>
       </button>
 
       {open && (

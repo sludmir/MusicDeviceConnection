@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, deleteDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose, MdVideocam } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose, MdVideocam, MdSearch } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
 import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
 import { attachHls } from '../utils/attachHls';
+import { getSignedBunnyUrls } from '../utils/bunnyUrl';
+import useIsMobile from '../utils/useIsMobile';
 import { listSettings, hasMultipleSettings, defaultSettingFor } from '../data/settings';
 import './HubLandingPage.css';
 
@@ -33,10 +35,12 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
+function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick }) {
   const toast = useToast();
+  const isMobile = useIsMobile();
   const [savedSetups, setSavedSetups] = useState([]);
   const [featured, setFeatured] = useState([]);
+  const [featuredClips, setFeaturedClips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showPostSetModal, setShowPostSetModal] = useState(false);
@@ -104,9 +108,31 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
           recent = [];
         }
 
+        // Featured clips: most-recent feed clips tied to a full set, with their
+        // Bunny playback URLs signed for thumbnails / playback.
+        let clips = [];
+        try {
+          const clipsQ = query(collection(db, 'clips'), orderBy('createdAt', 'desc'), limit(12));
+          const clipsSnap = await getDocs(clipsQ);
+          const raw = [];
+          clipsSnap.forEach((d) => raw.push({ id: d.id, ...d.data() }));
+          clips = await Promise.all(
+            raw.filter((c) => c.fullSetId).slice(0, 8).map(async (c) => {
+              try {
+                const signed = await getSignedBunnyUrls('clip', c.id);
+                if (signed.videoURL) c.videoURL = signed.videoURL;
+              } catch { /* keep raw videoURL */ }
+              return c;
+            })
+          );
+        } catch {
+          clips = [];
+        }
+
         if (!cancelled) {
           setSavedSetups(setups);
           setFeatured(recent);
+          setFeaturedClips(clips);
         }
       } catch (err) {
         console.error('Hub data load failed:', err);
@@ -151,11 +177,23 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
           <SectionHeader
             eyebrow="FEATURED"
             title="From the community"
-            action={onFeedClick && (
-              <button type="button" className="hub-link" onClick={onFeedClick}>
-                Open feed <MdArrowForward size={14} />
-              </button>
-            )}
+            action={isMobile
+              ? (onSearchClick && (
+                  <button
+                    type="button"
+                    className="hub-icon-btn press"
+                    onClick={onSearchClick}
+                    aria-label="Search users"
+                  >
+                    <MdSearch size={22} />
+                  </button>
+                ))
+              : (onFeedClick && (
+                  <button type="button" className="hub-link" onClick={onFeedClick}>
+                    Open feed <MdArrowForward size={14} />
+                  </button>
+                ))
+            }
           />
 
           {loading ? (
@@ -227,6 +265,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
             </div>
           )}
 
+          {!isMobile && (
           <div className="hub-post-cta">
             <button
               type="button"
@@ -265,9 +304,36 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
               </div>
             </button>
           </div>
+          )}
         </section>
 
-        {/* ---- YOUR SETUPS ---- */}
+        {/* ---- FEATURED CLIPS (mobile only) ---- */}
+        {isMobile && featuredClips.length > 0 && (
+          <section className="hub__section">
+            <SectionHeader eyebrow="FEATURED" title="Clips" />
+            <div className="hub-clips-row">
+              {featuredClips.map((clip) => (
+                <button
+                  key={clip.id}
+                  type="button"
+                  className="hub-clip-tile press-card"
+                  onClick={() => setPlayingSet(clip)}
+                  aria-label="Play clip"
+                >
+                  <div className="hub-clip-tile__thumb">
+                    {clip.videoURL ? (
+                      <video src={clip.videoURL} muted preload="metadata" playsInline />
+                    ) : null}
+                    <div className="hub-clip-tile__play"><MdPlayArrow size={22} /></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ---- YOUR SETUPS (desktop only) ---- */}
+        {!isMobile && (
         <section className="hub__section">
           <SectionHeader
             eyebrow="YOUR SETUPS"
@@ -350,6 +416,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick }) {
             </div>
           )}
         </section>
+        )}
 
       </div>
 

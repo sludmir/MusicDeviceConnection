@@ -87,8 +87,8 @@ const MobileNavigation = ({
                         }}
                         style={{
                             ...mobileButtonStyle,
-                            backgroundColor: 'rgba(0, 162, 255, 0.2)',
-                            borderColor: 'rgba(0, 162, 255, 0.3)'
+                            backgroundColor: 'var(--primary-soft)',
+                            borderColor: 'var(--primary-border)'
                         }}
                     >
                         Add Device

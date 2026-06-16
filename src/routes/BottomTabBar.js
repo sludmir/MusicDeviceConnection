@@ -7,17 +7,20 @@ function BottomTabBar() {
   const items = NAV_ITEMS.filter((i) => !i.mobileHidden);
   return (
     <nav className="app-tabbar" aria-label="Primary">
-      {items.map(({ path, label, icon: Icon }) => (
+      {items.map(({ path, label, icon: Icon, accent }) => (
         <NavLink
           key={path}
           to={path}
           end={path === "/hub"}
+          aria-label={label}
           className={({ isActive }) =>
-            `app-tabbar__tab ${isActive ? "app-tabbar__tab--active" : ""}`
+            `app-tabbar__tab press ${accent ? "app-tabbar__tab--accent" : ""} ${isActive ? "app-tabbar__tab--active" : ""}`
           }
         >
-          <Icon size={22} aria-hidden="true" />
-          <span className="app-tabbar__label mono-label">{label}</span>
+          <span className="app-tabbar__icon">
+            <Icon size={28} aria-hidden="true" />
+          </span>
+          <span className="sr-only">{label}</span>
         </NavLink>
       ))}
     </nav>

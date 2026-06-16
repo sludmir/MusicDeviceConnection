@@ -24,4 +24,4 @@
   padding: 8px 12px; border-radius: 8px; color: #e3e6ec; cursor: pointer; font-size: 13px;
 }
 .svs-item:hover { background: #1f242d; }
-.svs-item.is-active { background: #15303d; color: #00a2ff; }
+.svs-item.is-active { background: #15303d; color: var(--primary); }

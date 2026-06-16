@@ -1,0 +1,90 @@
+/* mobile.css — global touch layer
+ *
+ * Sits on top of tokens.css. Adds touch-target sizing tokens, safe-area
+ * helpers, press feedback, and the small global behaviours that make the app
+ * feel native on a phone (no tap-highlight flash, momentum scrolling, no
+ * text-size auto-inflation). Desktop is unaffected — the utilities are inert
+ * with a mouse and the @media blocks are phone-scoped.
+ */
+
+:root {
+  /* Touch targets (Apple HIG minimum 44px; 48px = comfortable) */
+  --tap-min: 44px;
+  --tap-comfortable: 48px;
+
+  /* Safe-area insets, with 0 fallback for non-notched devices */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Chrome heights (kept in one place so screens can offset against them) */
+  --tabbar-h: 58px;
+}
+
+/* ---- Global touch behaviour ---- */
+* {
+  /* Kill the grey tap flash on iOS/Android; we provide our own press states */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* Don't let mobile browsers auto-inflate font sizes */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Avoid rubber-band overscroll chaining to the page behind overlays */
+  overscroll-behavior-y: none;
+}
+
+/* Momentum scrolling for any explicitly scrollable region */
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---- Press feedback utility ----
+ * Add `press` to any tappable element for an instant, springy response.
+ * Inert on mouse (no :active drag), lively on touch. */
+.press {
+  transition: transform var(--dur-micro) var(--ease-screen),
+              opacity var(--dur-micro) var(--ease-screen);
+  touch-action: manipulation; /* removes the 300ms tap delay */
+}
+.press:active {
+  transform: scale(0.96);
+  opacity: 0.82;
+}
+/* Stronger squish for big surfaces like cards */
+.press-card:active {
+  transform: scale(0.985);
+  opacity: 0.92;
+}
+
+/* Accessible visually-hidden text (used to keep labels for screen readers
+   while the UI is icon-only). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Phone-scoped enforcement of minimum tap sizes ----
+ * Any element carrying `tap-target` is guaranteed thumb-friendly on a phone. */
+@media (max-width: 1023px) {
+  .tap-target {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

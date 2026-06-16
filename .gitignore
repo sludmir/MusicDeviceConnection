@@ -46,3 +46,7 @@ Blender files export/
 *.blend1
 # Git worktrees
 .worktrees/
+
+# Local tooling / scratch (not app code)
+.superpowers/
+models/

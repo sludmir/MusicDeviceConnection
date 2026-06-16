@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import './App.css';
+import './components/BuilderControls.css';
 import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline } from 'react-icons/md';
 import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { signInWithGoogle, logout } from "./Auth";
@@ -17,6 +18,7 @@ import MySetsImport from './MySets';
 import SettingsImport from './Settings';
 import PreferencesImport from './Preferences';
 import HubLandingPageImport from './components/HubLandingPage';
+import CreateHubImport from './components/CreateHub';
 import LegalPage from './components/LegalPage';
 import SaveSetupButtonImport from './components/SaveSetupButton';
 import ConnectionGuideButtonImport from './components/ConnectionGuideButton';
@@ -43,6 +45,7 @@ const MySets = unwrap(MySetsImport);
 const Settings = unwrap(SettingsImport);
 const Preferences = unwrap(PreferencesImport);
 const HubLandingPage = unwrap(HubLandingPageImport);
+const CreateHub = unwrap(CreateHubImport);
 const Feed = unwrap(FeedImport);
 const PostSetModal = unwrap(PostSetModalImport);
 const Upload = unwrap(UploadImport);
@@ -377,7 +380,7 @@ function AppRoutes({
         <div className="App-header-left">
           <button
             type="button"
-            className="theme-toggle"
+            className="theme-toggle press"
             onClick={toggleTheme}
             aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
             title={theme === 'light' ? 'Dark mode' : 'Light mode'}
@@ -386,7 +389,7 @@ function AppRoutes({
           </button>
         </div>
         <div
-          className="App-header-center"
+          className="App-header-center press"
           onClick={handleLogoClick}
           style={{
             cursor: 'pointer',
@@ -406,17 +409,17 @@ function AppRoutes({
         <div className="App-header-right">
           <div className="profile-dropdown-container" style={{ position: 'relative' }}>
             <div
-              className="header-profile-trigger"
+              className="header-profile-trigger press"
               onClick={toggleProfileDropdown}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px 8px', borderRadius: '5px', transition: 'background-color 0.2s ease' }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProfileDropdown(); } }}
             >
-              <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#00a2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '10px' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-contrast)', fontWeight: 'bold', fontSize: '10px' }}>
                 {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
               </div>
-              <div>
+              <div className="header-profile-meta">
                 <p style={{ margin: 0, fontSize: '10px', fontWeight: '500' }}>{user.displayName || 'User'}</p>
                 <p style={{ margin: 0, fontSize: '8px', opacity: 0.7 }}>{user.email}</p>
               </div>
@@ -507,9 +510,13 @@ function AppRoutes({
                 onSetupSelect={handleSetupSelectFromLanding}
                 onNewSetup={handleNewSetupFromLanding}
                 onFeedClick={() => navigate('/feed')}
+                onSearchClick={() => navigate('/search')}
                 onAddProducts={() => navigate('/admin/products-import')}
                 theme={theme}
               />
+            } />
+            <Route path="/create" element={
+              <CreateHub onNewSetup={handleNewSetupFromLanding} />
             } />
             <Route path="/feed" element={
               <Feed
@@ -574,7 +581,7 @@ function AppRoutes({
               <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
                 <div className="setup-container" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <div className="main-content" style={{ flex: 1, position: 'relative', marginBottom: '80px' }}>
-                    <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 250, display: 'flex', gap: '10px' }}>
+                    <div className="builder-controls">
                       <button
                         type="button"
                         className="builder-feed-btn"
@@ -582,7 +589,7 @@ function AppRoutes({
                         title="Open the LiveSet feed"
                       >
                         <MdPlayCircleOutline size={18} />
-                        Feed
+                        <span className="builder-ctl-label">Feed</span>
                       </button>
                       <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
                       <SaveSetupButton
@@ -607,13 +614,6 @@ function AppRoutes({
                       affiliateAttribution={affiliateAttribution}
                     />
                   </div>
-                  {SceneVariantSwitcher && (
-                    <SceneVariantSwitcher
-                      setupType={selectedSetup}
-                      value={selectedSetting || defaultSettingFor(selectedSetup)}
-                      onChange={setSelectedSetting}
-                    />
-                  )}
                 </div>
               </Suspense>
             ) : (
