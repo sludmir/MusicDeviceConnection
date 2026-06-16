@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import ReactDOM from 'react-dom';
 import SetupDiagram from './SetupDiagram';
 import { buildMobileDiagram } from '../utils/buildMobileDiagram';
 import './ConnectionGuideButton.css';
@@ -34,7 +35,7 @@ export default function ConnectionGuideButton({ currentDevices, setupType }) {
         <span className="builder-ctl-label">Connection Guide</span>
       </button>
 
-      {open && (
+      {open && ReactDOM.createPortal((
         <div className="connection-guide-overlay" onClick={close}>
           <div className="connection-guide-modal" onClick={(e) => e.stopPropagation()}>
             <div className="connection-guide-header">
@@ -90,7 +91,7 @@ export default function ConnectionGuideButton({ currentDevices, setupType }) {
             )}
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }

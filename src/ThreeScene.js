@@ -14,6 +14,7 @@ import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
 import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
+import ConnectionGuideButton from './components/ConnectionGuideButton';
 import GhostSpotContextMenu from './components/GhostSpotContextMenu';
 import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
 import CameraAngleControls from './components/CameraAngleControls';
@@ -1186,6 +1187,16 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const openHamburgerSearch = () => {
         openSearch('hamburger');
     };
+
+    // Bridge: the builder's bottom action bar lives in App.js (outside this
+    // component). Its "Add device" button dispatches this window event so we can
+    // open the same add-device search from here.
+    useEffect(() => {
+        const handler = () => openHamburgerSearch();
+        window.addEventListener('liveset:add-device', handler);
+        return () => window.removeEventListener('liveset:add-device', handler);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Update fetchProductsFromFirestore to be more efficient
     const fetchProductsFromFirestore = async () => {
@@ -4950,6 +4961,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                         onRemoveDevice={removeDevice}
                         isUpdatingPaths={isUpdatingPaths}
                         onUpdateModelPaths={handleUpdateModelPaths}
+                        actionsSlot={
+                            <ConnectionGuideButton
+                                currentDevices={placedDevicesList}
+                                setupType={currentSetupType}
+                            />
+                        }
                         style={{
                             position: 'fixed',
                             top: '20px',

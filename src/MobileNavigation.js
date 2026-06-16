@@ -6,6 +6,7 @@ const MobileNavigation = ({
     onRemoveDevice,
     isUpdatingPaths,
     onUpdateModelPaths,
+    actionsSlot,
     style
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -103,6 +104,9 @@ const MobileNavigation = ({
                     >
                         Update Model Paths
                     </button>
+                    {actionsSlot && (
+                        <div onClick={() => setIsOpen(false)}>{actionsSlot}</div>
+                    )}
                 </div>
 
                 {/* Current Setup */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import './App.css';
 import './components/BuilderControls.css';
-import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline } from 'react-icons/md';
+import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline, MdAdd } from 'react-icons/md';
 import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { signInWithGoogle, logout } from "./Auth";
 import { auth } from "./firebaseConfig";
@@ -29,6 +29,7 @@ import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
 import SetEditorImport from './components/SetEditor';
+import useIsMobile from './utils/useIsMobile';
 
 const ThreeScene = lazy(() =>
   import('./ThreeScene').then((m) => {
@@ -314,6 +315,7 @@ function AppRoutes({
   setAffiliateAttribution,
 }) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const closeDropdown = () => setIsProfileDropdownOpen(false);
   const toggleProfileDropdown = () => setIsProfileDropdownOpen((o) => !o);
@@ -591,7 +593,19 @@ function AppRoutes({
                         <MdPlayCircleOutline size={18} />
                         <span className="builder-ctl-label">Feed</span>
                       </button>
-                      <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
+                      {isMobile ? (
+                        <button
+                          type="button"
+                          className="builder-add-btn press"
+                          onClick={() => window.dispatchEvent(new CustomEvent('liveset:add-device'))}
+                          title="Add a device"
+                        >
+                          <MdAdd size={20} />
+                          <span className="builder-ctl-label">Add device</span>
+                        </button>
+                      ) : (
+                        <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
+                      )}
                       <SaveSetupButton
                         currentDevices={actualDevices}
                         setupType={selectedSetup}

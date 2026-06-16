@@ -34,16 +34,18 @@
     display: flex;
     gap: 0;
     align-items: stretch;
-    background: rgba(12, 14, 18, 0.96);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    /* NOTE: do not use backdrop-filter/filter/transform here — it would make
+       the Save / Connection Guide modals (position:fixed children) render
+       relative to this bar instead of the viewport, trapping them at the
+       bottom. Keep an opaque background instead. */
+    background: #0c0e12;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding: 0 0 env(safe-area-inset-bottom, 0px);
   }
 
   /* Each control becomes an equal-width bar item. */
   .builder-controls > .builder-feed-btn,
-  .builder-controls > .connection-guide-btn,
+  .builder-controls > .builder-add-btn,
   .builder-controls > .save-setup-btn {
     flex: 1 1 0;
     min-width: 0;
@@ -64,7 +66,7 @@
 
   /* Scale the icons up for touch legibility (24px). */
   .builder-controls > .builder-feed-btn svg,
-  .builder-controls > .connection-guide-btn svg,
+  .builder-controls > .builder-add-btn svg,
   .builder-controls > .save-setup-btn svg {
     width: 24px;
     height: 24px;
@@ -75,13 +77,26 @@
     display: none;
   }
 
-  /* Save is the primary action — tint it with the accent. */
+  /* Add device is the primary builder action — emphasized filled-gold pill. */
+  .builder-controls > .builder-add-btn {
+    color: var(--primary-contrast);
+  }
+  .builder-controls > .builder-add-btn svg {
+    width: 26px;
+    height: 26px;
+    padding: 3px 14px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-sizing: content-box;
+  }
+
+  /* Save: gold text accent. */
   .builder-controls > .save-setup-btn {
     color: var(--primary);
   }
 
   .builder-controls > .builder-feed-btn:active,
-  .builder-controls > .connection-guide-btn:active,
+  .builder-controls > .builder-add-btn:active,
   .builder-controls > .save-setup-btn:active {
     background: rgba(255, 255, 255, 0.06);
   }
