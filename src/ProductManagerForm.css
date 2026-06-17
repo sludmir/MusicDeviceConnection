@@ -58,7 +58,7 @@
 }
 
 .pmf-right h3 {
-  color: #00a2ff;
+  color: var(--accent);
   margin: 0;
   font-size: 18px;
   border-bottom: 1px solid #333;
@@ -77,8 +77,8 @@
   flex-wrap: wrap;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(0, 162, 255, 0.08);
-  border: 1px solid rgba(0, 162, 255, 0.15);
+  background: var(--primary-softer);
+  border: 1px solid var(--primary-border);
 }
 
 .pmf-current-model.pmf-new-file {
@@ -130,8 +130,8 @@
   align-items: center;
   justify-content: center;
   padding: 10px 16px;
-  background: #00a2ff;
-  color: white;
+  background: var(--primary);
+  color: var(--primary-contrast);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -141,7 +141,7 @@
 }
 
 .pmf-upload-btn:hover {
-  background: #0088dd;
+  background: var(--primary-hover);
 }
 
 .pmf-revert-btn {
@@ -204,7 +204,7 @@
 }
 
 .pmf-scale-value {
-  color: #00a2ff;
+  color: var(--accent);
   font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -225,7 +225,7 @@
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #00a2ff;
+  background: var(--primary);
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid #111;
@@ -234,7 +234,7 @@
 .pmf-scale-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
-  background: #00a2ff;
+  background: var(--primary);
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid #111;
@@ -265,9 +265,9 @@
 }
 
 .pmf-preset-btn.active {
-  background: rgba(0, 162, 255, 0.15);
-  color: #00a2ff;
-  border-color: rgba(0, 162, 255, 0.3);
+  background: var(--primary-softer);
+  color: var(--accent);
+  border-color: var(--primary-border);
 }
 
 .pmf-dimensions {
@@ -369,7 +369,7 @@
 
 .form-header h2 {
   margin: 0;
-  color: #00a2ff;
+  color: var(--accent);
   font-size: 24px;
 }
 
@@ -416,7 +416,7 @@
 }
 
 .form-section h3 {
-  color: #00a2ff;
+  color: var(--accent);
   margin-bottom: 12px;
   font-size: 16px;
   border-bottom: 1px solid #333;
@@ -457,8 +457,8 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #00a2ff;
-  box-shadow: 0 0 0 2px rgba(0, 162, 255, 0.2);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
 }
 
 .form-group input:disabled {
@@ -485,8 +485,8 @@
 }
 
 .add-connection-btn {
-  background-color: #00a2ff;
-  color: white;
+  background-color: var(--primary);
+  color: var(--primary-contrast);
   border: none;
   padding: 6px 14px;
   border-radius: 6px;
@@ -496,7 +496,7 @@
 }
 
 .add-connection-btn:hover {
-  background-color: #0088cc;
+  background-color: var(--primary-hover);
 }
 
 .connection-point {
@@ -576,7 +576,7 @@
 
 .file-info {
   margin-top: 5px;
-  color: #00a2ff;
+  color: var(--accent);
   font-size: 12px;
 }
 
@@ -617,8 +617,8 @@
 }
 
 .submit-btn {
-  background-color: #00a2ff;
-  color: white;
+  background-color: var(--primary);
+  color: var(--primary-contrast);
   border: none;
   padding: 11px 22px;
   border-radius: 6px;
@@ -629,7 +629,7 @@
 }
 
 .submit-btn:hover:not(:disabled) {
-  background-color: #0088cc;
+  background-color: var(--primary-hover);
 }
 
 .submit-btn:disabled {

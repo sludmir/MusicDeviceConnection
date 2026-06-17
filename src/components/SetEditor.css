@@ -250,8 +250,8 @@
 }
 
 .set-editor__add-card:hover {
-  border-color: rgba(0, 162, 255, 0.6);
-  background: rgba(0, 162, 255, 0.06);
+  border-color: var(--primary-border);
+  background: var(--primary-softer);
 }
 
 .set-editor__add-card--wide {
@@ -300,8 +300,8 @@
 .set-editor__primary {
   padding: 10px 18px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #00a2ff 0%, #0066ff 100%);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-contrast);
   border: none;
   font-size: 14px;
   font-weight: 600;
@@ -334,8 +334,8 @@
   gap: 6px;
   padding: 6px 14px 6px 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #00a2ff 0%, #0066ff 100%);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-contrast);
   border: none;
   font-size: 13px;
   font-weight: 600;
@@ -370,8 +370,8 @@
 }
 
 .set-editor__ab-btn.active {
-  background: rgba(0, 162, 255, 0.18);
-  color: #00a2ff;
+  background: var(--primary-soft);
+  color: var(--accent);
   opacity: 1;
 }
 
@@ -408,9 +408,9 @@
   cursor: pointer;
 }
 .set-editor__preview-tab.active {
-  background: #00a2ff;
-  border-color: #00a2ff;
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-contrast);
 }
 .set-editor__preview-nudges { display: flex; align-items: center; gap: 6px; }
 .set-editor__nudge-btn {
@@ -463,11 +463,11 @@
 
 /* Focused angle highlight */
 .set-editor__sync-row--focused {
-  background: rgba(0, 162, 255, 0.08);
+  background: var(--primary-softer);
 }
 
 .set-editor--light .set-editor__sync-row--focused {
-  background: rgba(0, 102, 255, 0.08);
+  background: var(--primary-softer);
 }
 
 /* Stop browser from fighting the drag with native horizontal pan. */
@@ -568,12 +568,12 @@
 }
 
 .set-editor__setup-option:hover {
-  border-color: rgba(0, 162, 255, 0.5);
+  border-color: var(--primary-border);
 }
 
 .set-editor__setup-option.active {
-  border-color: #00a2ff;
-  background: rgba(0, 162, 255, 0.1);
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
 }
 
 .set-editor__setup-option-icon { font-size: 18px; }
@@ -589,7 +589,7 @@
   margin-top: 18px;
   padding: 12px 14px;
   border-radius: 10px;
-  background: rgba(0, 162, 255, 0.08);
+  background: var(--primary-softer);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -615,7 +615,7 @@
 
 .set-editor__progress-fill {
   height: 100%;
-  background: linear-gradient(135deg, #00a2ff 0%, #0066ff 100%);
+  background: var(--primary);
   transition: width 0.2s;
 }
 
@@ -769,15 +769,15 @@
   font-size: 11px;
   font-weight: 500;
   border-radius: 999px;
-  background: rgba(0, 162, 255, 0.15);
-  color: #00a2ff;
-  border: 1px solid rgba(0, 162, 255, 0.3);
+  background: var(--primary-softer);
+  color: var(--accent);
+  border: 1px solid var(--primary-border);
   cursor: pointer;
   font-family: inherit;
 }
 
 .set-editor__sync-action:hover:not(:disabled) {
-  background: rgba(0, 162, 255, 0.25);
+  background: var(--primary-soft);
 }
 
 .set-editor__sync-action:disabled {

@@ -110,8 +110,8 @@
 }
 
 .post-set-upload-zone:hover {
-  border-color: rgba(0, 162, 255, 0.4);
-  background: rgba(0, 162, 255, 0.05);
+  border-color: var(--primary-border);
+  background: var(--primary-softer);
 }
 
 .post-set-upload-zone-small {
@@ -180,8 +180,8 @@
 
 .post-set-swap-audio-btn:hover {
   background: var(--card-bg-hover, rgba(0, 0, 0, 0.06));
-  border-color: rgba(0, 162, 255, 0.4);
-  color: #0066b3;
+  border-color: var(--primary-border);
+  color: var(--accent);
 }
 
 .post-set-audio-toggle {
@@ -216,13 +216,13 @@
 
 .post-set-toggle-btn:hover {
   background: var(--card-bg-hover, rgba(0, 0, 0, 0.06));
-  border-color: rgba(0, 162, 255, 0.3);
+  border-color: var(--primary-border);
 }
 
 .post-set-toggle-btn.active {
-  background: rgba(0, 162, 255, 0.2);
-  border-color: rgba(0, 162, 255, 0.5);
-  color: #0066b3;
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+  color: var(--accent);
 }
 
 .post-set-waveform-wrap {
@@ -295,7 +295,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #00a2ff;
+  background: var(--primary);
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
@@ -304,7 +304,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #00a2ff;
+  background: var(--primary);
   cursor: pointer;
   border: none;
 }
@@ -320,8 +320,8 @@
   padding: 14px 24px;
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #00a2ff 0%, #0066b3 100%);
+  color: var(--primary-contrast);
+  background: var(--primary);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -380,14 +380,14 @@
 }
 
 .post-set-num-clip-btn:hover {
-  border-color: rgba(0, 162, 255, 0.5);
-  background: rgba(0, 162, 255, 0.06);
+  border-color: var(--primary-border);
+  background: var(--primary-softer);
 }
 
 .post-set-num-clip-btn.active {
-  border-color: rgba(0, 100, 200, 0.8);
-  background: rgba(0, 162, 255, 0.15);
-  color: #0066b3;
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--accent);
 }
 
 .post-set-clip-tabs {
@@ -409,14 +409,14 @@
 }
 
 .post-set-clip-tab:hover {
-  background: rgba(0, 162, 255, 0.06);
-  border-color: rgba(0, 162, 255, 0.3);
+  background: var(--primary-softer);
+  border-color: var(--primary-border);
 }
 
 .post-set-clip-tab.active {
-  background: rgba(0, 162, 255, 0.12);
-  border-color: rgba(0, 100, 200, 0.6);
-  color: #0066b3;
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+  color: var(--accent);
 }
 
 .post-set-timeline-clip-label {
@@ -470,7 +470,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 8px;
-  background: linear-gradient(90deg, rgba(0, 162, 255, 0.5), rgba(0, 100, 200, 0.6));
+  background: var(--primary-soft);
   border-radius: 4px;
   pointer-events: none;
 }
@@ -486,7 +486,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   cursor: grab;
   z-index: 2;
-  border: 2px solid rgba(0, 162, 255, 0.6);
+  border: 2px solid var(--primary-border);
 }
 
 .post-set-timeline-thumb:active {
@@ -494,8 +494,8 @@
 }
 
 .post-set-timeline-thumb-end {
-  background: rgba(0, 162, 255, 0.9);
-  border-color: #0066b3;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .post-set-timeline-labels {
@@ -507,7 +507,7 @@
 
 .post-set-timeline-dur {
   font-weight: 600;
-  color: #0066b3;
+  color: var(--accent);
 }
 
 .post-set-thumbnail-row {
@@ -538,8 +538,8 @@
 }
 
 .post-set-thumbnail-empty:hover {
-  border-color: #00a2ff;
-  background: rgba(0, 162, 255, 0.06);
+  border-color: var(--primary);
+  background: var(--primary-softer);
 }
 
 .post-set-thumbnail-empty-icon {
@@ -593,8 +593,8 @@
 }
 
 .post-set-thumbnail-btn:hover {
-  border-color: #00a2ff;
-  color: #00a2ff;
+  border-color: var(--primary);
+  color: var(--accent);
 }
 
 .post-set-thumbnail-btn--danger:hover {
@@ -644,7 +644,7 @@
 
 .post-set-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #00a2ff, #0066b3);
+  background: var(--primary);
   border-radius: 4px;
   transition: width 0.2s ease;
 }
@@ -659,8 +659,8 @@
   padding: 14px 24px;
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #00a2ff 0%, #0066b3 100%);
+  color: var(--primary-contrast);
+  background: var(--primary);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -721,13 +721,13 @@
 }
 
 .post-set-setup-option:hover {
-  border-color: rgba(0, 162, 255, 0.4);
-  background: rgba(0, 162, 255, 0.04);
+  border-color: var(--primary-border);
+  background: var(--primary-softer);
 }
 
 .post-set-setup-option.active {
-  border-color: rgba(0, 100, 200, 0.7);
-  background: rgba(0, 162, 255, 0.1);
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
 }
 
 .post-set-setup-option-icon {
