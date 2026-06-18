@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, set
 import { db, auth } from '../firebaseConfig';
 import { MdDelete, MdPlayArrow } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
+import { useSetPlayer } from './SetPlayerProvider';
 import {
   Avatar,
   Button,
@@ -28,6 +29,7 @@ function formatDate(ts) {
 
 function Profile({ userId, onSetupSelect }) {
   const toast = useToast();
+  const { playSet } = useSetPlayer();
   const [profile, setProfile] = useState(null);
   const [sets, setSets] = useState([]);
   const [setups, setSetups] = useState([]);
@@ -292,12 +294,17 @@ function Profile({ userId, onSetupSelect }) {
             ) : (
               <div className="profile__sets-grid">
                 {sets.map((set) => (
-                  <a
+                  <div
                     key={set.id}
-                    href={set.videoURL || '#'}
-                    target={set.videoURL ? '_blank' : undefined}
-                    rel={set.videoURL ? 'noopener noreferrer' : undefined}
-                    onClick={(e) => { if (!set.videoURL) e.preventDefault(); }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { if (set.videoURL) playSet(set); }}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && set.videoURL) {
+                        e.preventDefault();
+                        playSet(set);
+                      }
+                    }}
                     className="profile-set"
                   >
                     <div className="profile-set__thumb">
@@ -313,7 +320,7 @@ function Profile({ userId, onSetupSelect }) {
                         <button
                           type="button"
                           className="profile-set__delete"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSetToDelete(set); }}
+                          onClick={(e) => { e.stopPropagation(); setSetToDelete(set); }}
                           aria-label="Remove this set"
                         >
                           <MdDelete size={16} />
@@ -324,7 +331,7 @@ function Profile({ userId, onSetupSelect }) {
                       <div className="profile-set__title">{set.title || 'Untitled set'}</div>
                       <div className="profile-set__date mono-label">{formatDate(set.createdAt)}</div>
                     </div>
-                  </a>
+                  </div>
                 ))}
               </div>
             )

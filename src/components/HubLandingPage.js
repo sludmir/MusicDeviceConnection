@@ -4,6 +4,7 @@ import { db, auth } from '../firebaseConfig';
 import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose, MdVideocam, MdSearch } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
+import { useSetPlayer } from './SetPlayerProvider';
 import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
 import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
@@ -38,6 +39,7 @@ function formatDuration(seconds) {
 function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick }) {
   const toast = useToast();
   const isMobile = useIsMobile();
+  const { playSet } = useSetPlayer();
   const [savedSetups, setSavedSetups] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [featuredClips, setFeaturedClips] = useState([]);
@@ -46,24 +48,27 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
   const [showPostSetModal, setShowPostSetModal] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [pendingSettingType, setPendingSettingType] = useState(null);
-  const [playingSet, setPlayingSet] = useState(null);
+  const [playingClip, setPlayingClip] = useState(null);
   const playerVideoRef = useRef(null);
 
+  // The bespoke inline player handles only the mobile featured CLIPS (clips
+  // docs with a pre-signed videoURL). Featured SETS go through LiveSetPlayer,
+  // which signs the set and overlays its uploaded lossless audio track.
   useEffect(() => {
-    if (!playingSet || !playerVideoRef.current) return undefined;
-    const url = playingSet.videoURL;
+    if (!playingClip || !playerVideoRef.current) return undefined;
+    const url = playingClip.videoURL;
     if (!url) return undefined;
     const cleanup = attachHls(playerVideoRef.current, url);
     playerVideoRef.current.play().catch(() => {});
     return cleanup;
-  }, [playingSet]);
+  }, [playingClip]);
 
   useEffect(() => {
-    if (!playingSet) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setPlayingSet(null); };
+    if (!playingClip) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setPlayingClip(null); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [playingSet]);
+  }, [playingClip]);
 
   const startNewSetup = (type) => {
     setShowTypePicker(false);
@@ -208,7 +213,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
               <button
                 type="button"
                 className="hub-hero"
-                onClick={() => setPlayingSet(hero)}
+                onClick={() => playSet(hero)}
                 aria-label={`Watch ${hero.title || 'set'}`}
               >
                 <div className="hub-hero__thumb">
@@ -241,7 +246,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
                       key={set.id}
                       type="button"
                       className="hub-set-tile"
-                      onClick={() => setPlayingSet(set)}
+                      onClick={() => playSet(set)}
                       aria-label={`Open ${set.title || 'set'}`}
                     >
                       <div className="hub-set-tile__thumb">
@@ -317,7 +322,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
                   key={clip.id}
                   type="button"
                   className="hub-clip-tile press-card"
-                  onClick={() => setPlayingSet(clip)}
+                  onClick={() => setPlayingClip(clip)}
                   aria-label="Play clip"
                 >
                   <div className="hub-clip-tile__thumb">
@@ -420,20 +425,20 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
 
       </div>
 
-      {playingSet && (
+      {playingClip && (
         <div
           className="hub-player-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={playingSet.title || 'Set player'}
-          onClick={(e) => { if (e.target === e.currentTarget) setPlayingSet(null); }}
+          aria-label={playingClip.title || 'Clip player'}
+          onClick={(e) => { if (e.target === e.currentTarget) setPlayingClip(null); }}
         >
           <div className="hub-player">
             <button
               type="button"
               className="hub-player__close"
               aria-label="Close player"
-              onClick={() => setPlayingSet(null)}
+              onClick={() => setPlayingClip(null)}
             >
               <MdClose size={22} />
             </button>
@@ -445,8 +450,8 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick 
               autoPlay
             />
             <div className="hub-player__meta">
-              <div className="mono-label hub-player__creator">{playingSet.creatorName || 'Unknown'}</div>
-              <div className="hub-player__title">{playingSet.title || 'Untitled set'}</div>
+              <div className="mono-label hub-player__creator">{playingClip.creatorName || 'Unknown'}</div>
+              <div className="hub-player__title">{playingClip.title || 'Untitled set'}</div>
             </div>
           </div>
         </div>

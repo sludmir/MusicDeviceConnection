@@ -23,6 +23,16 @@ function getClipAudioTrackURL(clip) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+// True when the uploaded lossless track should replace the video's own (camera
+// mic) audio: there is an external track, the clip opts in, and the track loaded
+// OK. When this is true the <video> must stay muted so only the track is heard.
+function audioReplacesVideoFor(clip, failedAudioClipIds) {
+  if (!getClipAudioTrackURL(clip)) return false;
+  if (clip?.audioReplacesVideo === false) return false;
+  const failed = clip?.id ? failedAudioClipIds.has(clip.id) : false;
+  return !failed;
+}
+
 function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +51,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const feedAudioRef = useRef(null);
   const pauseTimerRef = useRef(null);
   const fullSetVideoRef = useRef(null);
+  const fullSetAudioRef = useRef(null);
   const hlsCleanupsRef = useRef(new Map()); // clipId -> cleanup fn for attached HLS
   const currentUserId = auth.currentUser?.uid;
 
@@ -473,7 +484,9 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
 
     if (v.paused) {
-      v.muted = false;
+      // Keep the video muted when an uploaded lossless track replaces its audio;
+      // only unmute to fall back to the camera mic when there is no track.
+      v.muted = audioReplacesVideoFor(clips[index], failedExternalAudioClipIds);
       v.volume = 1;
       v.play().catch((err) => {
         logAudioDebug('videoPlayRejected-onUserClick', {
@@ -515,8 +528,55 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     const vid = fullSetVideoRef.current;
     if (!fullSetClip || !vid) return;
     const url = fullSetClip.fullVideoURL || fullSetClip.videoURL;
-    return attachHls(vid, url);
-  }, [fullSetClip]);
+    const detachHls = attachHls(vid, url);
+
+    // Mirror the feed-clip lossless-audio overlay for the full set: keep the
+    // video muted and play the uploaded track in sync. Unlike the clip, the
+    // full set plays from 0, so we add only audioOffsetSeconds (no clipStart).
+    const audioTrackURL = getClipAudioTrackURL(fullSetClip);
+    const audioEl = fullSetAudioRef.current;
+    if (!audioTrackURL || !audioEl || !audioReplacesVideoFor(fullSetClip, failedExternalAudioClipIds)) {
+      return () => { detachHls(); };
+    }
+
+    const offset = Number(fullSetClip.audioOffsetSeconds) || 0;
+    const safePlayAudio = () => { audioEl.play().catch(() => {}); };
+
+    const syncAudio = () => {
+      const expected = vid.currentTime + offset;
+      if (Math.abs(audioEl.currentTime - expected) > AUDIO_DRIFT_THRESHOLD) {
+        audioEl.currentTime = expected;
+      }
+    };
+
+    const onPlay = () => {
+      audioEl.currentTime = vid.currentTime + offset;
+      safePlayAudio();
+    };
+    const onPause = () => { audioEl.pause(); };
+    const onSeeked = () => { audioEl.currentTime = vid.currentTime + offset; };
+    const onTimeUpdate = syncAudio;
+
+    audioEl.src = audioTrackURL;
+    vid.addEventListener('play', onPlay);
+    vid.addEventListener('pause', onPause);
+    vid.addEventListener('seeked', onSeeked);
+    vid.addEventListener('timeupdate', onTimeUpdate);
+    if (!vid.paused) {
+      audioEl.currentTime = vid.currentTime + offset;
+      safePlayAudio();
+    }
+
+    return () => {
+      detachHls();
+      vid.removeEventListener('play', onPlay);
+      vid.removeEventListener('pause', onPause);
+      vid.removeEventListener('seeked', onSeeked);
+      vid.removeEventListener('timeupdate', onTimeUpdate);
+      audioEl.pause();
+      audioEl.removeAttribute('src');
+    };
+  }, [fullSetClip, failedExternalAudioClipIds]);
 
   const handleDeleteClick = (e, clip) => {
     e.stopPropagation();
@@ -643,8 +703,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
           const isCurrent = index === currentIndex;
           const hasExternalAudio = Boolean(getClipAudioTrackURL(clip));
           const externalAudioFailed = clip?.id ? failedExternalAudioClipIds.has(clip.id) : false;
-          const audioReplacesVideo = hasExternalAudio && (clip?.audioReplacesVideo !== false);
-          const shouldMuteVideo = !isCurrent || (audioReplacesVideo && !externalAudioFailed);
+          const shouldMuteVideo = !isCurrent || audioReplacesVideoFor(clip, failedExternalAudioClipIds);
 
           return (
           <div key={clip.id} className="feed-item">
@@ -854,7 +913,9 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
                 autoPlay
                 playsInline
                 preload="auto"
+                muted={audioReplacesVideoFor(fullSetClip, failedExternalAudioClipIds)}
               />
+              <audio ref={fullSetAudioRef} style={{ display: 'none' }} />
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
 import { defaultSettingFor } from './data/settings';
 import AppShell from './AppShell';
+import { SetPlayerProvider } from './components/SetPlayerProvider';
 import ProductImporter from './ProductImporter';
 import SceneVariantSwitcherImport from './components/SceneVariantSwitcher';
 import ProductDashboardImport from './ProductDashboard';
@@ -256,6 +257,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <SetPlayerProvider theme={theme}>
       <AppRoutes
         user={user}
         theme={theme}
@@ -283,6 +285,7 @@ function App() {
         affiliateAttribution={affiliateAttribution}
         setAffiliateAttribution={setAffiliateAttribution}
       />
+      </SetPlayerProvider>
     </BrowserRouter>
   );
 }
@@ -375,6 +378,24 @@ function AppRoutes({
     setCurrentCameraAngles(null);
     navigate('/builder');
   };
+
+  // The global set player (mounted above the router) requests opening a set's
+  // linked setup via this event; load it and route into the builder.
+  useEffect(() => {
+    const handler = async (e) => {
+      const setupId = e.detail?.setupId;
+      if (!setupId) return;
+      try {
+        const snap = await getDoc(doc(db, 'setups', setupId));
+        if (snap.exists()) handleSetupSelectFromLanding({ id: snap.id, ...snap.data() });
+      } catch (err) {
+        console.error('Error opening setup from player:', err);
+      }
+    };
+    window.addEventListener('liveset:view-setup', handler);
+    return () => window.removeEventListener('liveset:view-setup', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
