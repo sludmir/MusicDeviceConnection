@@ -1,13 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff, MdFullscreen, MdFullscreenExit, MdGraphicEq } from 'react-icons/md';
+import React, { useState, useRef, useEffect } from 'react';
+import { doc, updateDoc, increment } from 'firebase/firestore';
+import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff, MdFullscreen, MdFullscreenExit, MdGraphicEq, MdVisibility } from 'react-icons/md';
+import { db } from '../firebaseConfig';
 import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
+import { createAudioMasterSync } from '../utils/audioVideoSync';
+import { formatCompactNumber } from '../utils/formatCount';
 import './LiveSetPlayer.css';
-
-// How far the overlaid audio track may drift from the video before we re-seek
-// it. Re-seeking on every timeupdate causes audible stutter/relooping, so we
-// only correct when the gap exceeds this.
-const AUDIO_DRIFT_THRESHOLD = 0.25;
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
@@ -23,6 +22,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const timelineRef = useRef(null);
+  const syncRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -30,6 +30,13 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const [dragging, setDragging] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  // One view per mount (SetPlayerProvider remounts this via `key={set.id}`),
+  // counted on the first real play — never on autoplay, since nothing here
+  // autoplays without a user tap.
+  const viewCountedRef = useRef(false);
+  // Shown in the header; starts at the count Hub/Feed already fetched and
+  // bumps instantly on the first play so the badge doesn't wait on a re-fetch.
+  const [displayViews, setDisplayViews] = useState(() => Number(set?.views) || 0);
 
   // Sign Bunny URLs (no-op for non-Bunny URLs). signed is null until
   // the cloud function returns; we hold off attaching HLS until then.
@@ -54,16 +61,14 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const audioReplacesVideo = audioTrackURL
     ? (set?.audioReplacesVideo !== false)
     : false;
+  // Optional trim window (video time) set in the multi-angle editor: playback
+  // is confined to [trimStart, trimEnd] and the timeline shows only that span.
+  const trimStart = Math.max(0, Number(set?.trimStartSeconds) || 0);
+  const rawTrimEnd = Number(set?.trimEndSeconds);
+  const trimEnd = Number.isFinite(rawTrimEnd) && rawTrimEnd > trimStart ? rawTrimEnd : null;
   const title = set?.title || 'Live set';
 
   const isDark = theme === 'dark';
-
-  const syncAudioToVideo = useCallback(() => {
-    const v = videoRef.current;
-    const a = audioRef.current;
-    if (!a || !v || !audioTrackURL) return;
-    a.currentTime = v.currentTime + audioOffsetSeconds;
-  }, [audioTrackURL, audioOffsetSeconds]);
 
   useEffect(() => {
     if (!videoURL) return;
@@ -82,13 +87,31 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onTimeUpdate = () => setCurrentTime(v.currentTime);
+    const onTimeUpdate = () => {
+      setCurrentTime(v.currentTime);
+      if (trimEnd && v.currentTime >= trimEnd) {
+        const sync = syncRef.current;
+        if (sync) sync.pause();
+        else { try { v.pause(); } catch (_) {} }
+      }
+    };
     const onLoadedMetadata = () => {
       setDuration(v.duration);
       setLoaded(true);
+      if (trimStart > 0 && v.currentTime < trimStart) {
+        try { v.currentTime = trimStart; } catch (_) {}
+        setCurrentTime(trimStart);
+      }
     };
     const onDurationChange = () => setDuration(v.duration);
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      if (!viewCountedRef.current && set?.id) {
+        viewCountedRef.current = true;
+        setDisplayViews((v) => v + 1);
+        updateDoc(doc(db, 'sets', set.id), { views: increment(1) }).catch(() => {});
+      }
+    };
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
     v.addEventListener('timeupdate', onTimeUpdate);
@@ -105,42 +128,24 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
       v.removeEventListener('pause', onPause);
       v.removeEventListener('ended', onEnded);
     };
-  }, [videoURL]);
+  }, [videoURL, set?.id, trimStart, trimEnd]);
 
-  // Keep the overlaid audio track locked to the (muted) video. Crucially the
-  // audio must pause when the video pauses and re-seek only on real seeks or
-  // when it drifts — otherwise it keeps playing past a pause and stutters.
+  // Audio-master sync (see utils/audioVideoSync): the lossless track is the
+  // clock and is never seeked during playback; the muted video is slaved to it
+  // via tiny playbackRate nudges. Seeking an <audio> element stalls on iOS, so
+  // the old "chase the video by re-seeking the audio" approach stuttered there.
+  // Only engaged when the uploaded track replaces the video's own audio.
   useEffect(() => {
     const v = videoRef.current;
     const a = audioRef.current;
-    if (!audioTrackURL || !a || !v) return;
-    const resync = () => { a.currentTime = v.currentTime + audioOffsetSeconds; };
-    const onPlay = () => { resync(); a.play().catch(() => {}); };
-    const onPause = () => { a.pause(); };
-    const onSeeked = () => { resync(); };
-    const onEnded = () => { a.pause(); };
-    const onTimeUpdate = () => {
-      const expected = v.currentTime + audioOffsetSeconds;
-      if (Math.abs(a.currentTime - expected) > AUDIO_DRIFT_THRESHOLD) {
-        a.currentTime = expected;
-      }
-    };
-    v.addEventListener('play', onPlay);
-    v.addEventListener('pause', onPause);
-    v.addEventListener('seeked', onSeeked);
-    v.addEventListener('ended', onEnded);
-    v.addEventListener('timeupdate', onTimeUpdate);
-    if (!v.paused) { resync(); a.play().catch(() => {}); }
-    return () => {
-      v.removeEventListener('play', onPlay);
-      v.removeEventListener('pause', onPause);
-      v.removeEventListener('seeked', onSeeked);
-      v.removeEventListener('ended', onEnded);
-      v.removeEventListener('timeupdate', onTimeUpdate);
-      a.pause();
-      a.removeAttribute('src');
-    };
-  }, [videoURL, audioTrackURL, audioOffsetSeconds]);
+    if (!audioReplacesVideo || !audioTrackURL || !a || !v || !videoURL) return undefined;
+    const sync = createAudioMasterSync(v, a, {
+      offset: audioOffsetSeconds,
+      audioStart: trimStart + audioOffsetSeconds,
+    });
+    syncRef.current = sync;
+    return () => { sync.destroy(); syncRef.current = null; };
+  }, [videoURL, audioTrackURL, audioOffsetSeconds, audioReplacesVideo, trimStart]);
 
   // Esc shrinks the expanded view to the pip rather than closing it, so
   // playback isn't lost by accident. Use the ✕ to close fully.
@@ -154,8 +159,25 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) v.play().catch(() => {});
-    else v.pause();
+    const sync = syncRef.current;
+    const atTrimEnd = trimEnd != null && v.currentTime >= trimEnd - 0.05;
+    if (sync && audioReplacesVideo) {
+      if (v.paused) {
+        if (atTrimEnd) sync.seek(trimStart);
+        sync.play();
+      } else {
+        sync.pause();
+      }
+      return;
+    }
+    if (v.paused) {
+      if (atTrimEnd || v.currentTime < trimStart) {
+        try { v.currentTime = trimStart; } catch (_) {}
+      }
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
   };
 
   const toggleMuted = () => {
@@ -175,7 +197,10 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     window.dispatchEvent(new CustomEvent('liveset:view-setup', { detail: { setupId } }));
   };
 
-  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const effDuration = Math.max(0, (trimEnd ?? duration) - trimStart);
+  const progress = effDuration > 0
+    ? Math.min(1, Math.max(0, (currentTime - trimStart) / effDuration))
+    : 0;
 
   const TIMELINE_PAD = 8;
 
@@ -186,9 +211,11 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     const x = clientX - rect.left;
     const usable = rect.width - 2 * TIMELINE_PAD;
     const p = usable > 0 ? Math.max(0, Math.min(1, (x - TIMELINE_PAD) / usable)) : 0;
-    const t = p * duration;
+    const t = trimStart + p * effDuration;
     if (videoRef.current) {
-      videoRef.current.currentTime = t;
+      const sync = syncRef.current;
+      if (sync && audioReplacesVideo) sync.seek(t);
+      else videoRef.current.currentTime = t;
       setCurrentTime(t);
     }
   };
@@ -234,6 +261,11 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
       <div className="live-set-player-panel" role="dialog" aria-modal={!minimized} aria-label={title}>
         <div className="live-set-player-panel-header">
           <span className="live-set-player-title" title={title}>{title}</span>
+          {!minimized && (
+            <span className="live-set-player-views" title={`${displayViews} views`}>
+              <MdVisibility size={13} /> {formatCompactNumber(displayViews)}
+            </span>
+          )}
           <div className="live-set-player-header-actions">
             <button
               type="button"
@@ -263,7 +295,6 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             preload="metadata"
             muted={audioReplacesVideo || muted}
             playsInline
-            onLoadedMetadata={syncAudioToVideo}
           />
           {!loaded && <div className="live-set-player-loading">Loading…</div>}
           <div className={`live-set-player-play-overlay ${!playing ? 'visible' : ''}`}>
@@ -279,20 +310,21 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
-          aria-valuemax={duration}
-          aria-valuenow={currentTime}
+          aria-valuemax={effDuration}
+          aria-valuenow={Math.max(0, currentTime - trimStart)}
           tabIndex={0}
           onKeyDown={(e) => {
             const v = videoRef.current;
             if (!v || !duration) return;
             const step = e.shiftKey ? 30 : 5;
-            if (e.key === 'ArrowLeft') {
-              e.preventDefault();
-              v.currentTime = Math.max(0, v.currentTime - step);
-            } else if (e.key === 'ArrowRight') {
-              e.preventDefault();
-              v.currentTime = Math.min(duration, v.currentTime + step);
-            }
+            const seekRel = (delta) => {
+              const target = Math.max(trimStart, Math.min(trimEnd ?? duration, v.currentTime + delta));
+              const sync = syncRef.current;
+              if (sync && audioReplacesVideo) sync.seek(target);
+              else v.currentTime = target;
+            };
+            if (e.key === 'ArrowLeft') { e.preventDefault(); seekRel(-step); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); seekRel(step); }
           }}
         >
           <div className="live-set-player-timeline-track" />
@@ -328,7 +360,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             </button>
           )}
           <span className="live-set-player-time">
-            {formatTime(currentTime)} / {formatTime(duration)}
+            {formatTime(Math.max(0, currentTime - trimStart))} / {formatTime(effDuration)}
           </span>
         </div>
       </div>

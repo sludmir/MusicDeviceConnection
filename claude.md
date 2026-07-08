@@ -54,7 +54,7 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 | `/legal` | affiliate-disclosure page (public) |
 | `/admin/products` `/admin/products-import` | admin (admin claim) |
 | `/upload` `/set-editor` | clip upload / multi-angle editor |
-| `/builder` | 3D builder (`ThreeScene`); requires `selectedSetup`, else redirects to `/hub` |
+| `/builder` | 3D builder (`ThreeScene`); requires `selectedSetup`, else redirects to `/hub`. Inside `AppShell` (desktop sidebar visible; scene framed in `.builder-stage`; on mobile the tab bar is hidden via `app-shell--builder` — the builder keeps its own bottom bar) |
 
 **Tabs** (`routes/NavConfig.js`, flags `mobileHidden` / `desktopHidden` / `accent`):
 - **Mobile** (`BottomTabBar`): Home · Feed · **Create (+, gold)** · Notifications · Profile
@@ -94,13 +94,15 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 
 ---
 
-## 3D Scene System (`ThreeScene.js` ~3400 lines + `src/scenes/`)
+## 3D Scene System (`ThreeScene.js` ~4700 lines + `src/data/settings.js`)
 
-`ThreeScene.js` orchestrates the viewport (ghost spots, placement, raycasting, hover menu, product modal, mobile gestures, cables). Environment geometry per `(setupType, setting)` lives in `src/scenes/` — each variant exports `build(scene, ctx)` → `{dispose()}`; `scenes/index.js` `buildEnvironment(scene, variantKey, ctx)` dispatches. Selected variant persists on `setups.setting`, switched via the **in-scene segmented `Stage | …` control** (top-left of the canvas).
+`ThreeScene.js` orchestrates the viewport (ghost spots, placement, raycasting, hover menu, product modal, mobile gestures, cables). Scene environments are declared in the **`src/data/settings.js` registry** per `(setupType, settingKey)`: `type: 'procedural'` variants are built inline by `ThreeScene.createClubEnvironment`; `type: 'glb'` variants load from `public/scenes/*.glb` (+ optional draco). Selected variant persists on `setups.setting`, switched via the **in-scene segmented control** (top-left of the canvas). GLB scene sources are the `.blend` files in **`blender/`** — see `blender/README.md` for the headless export commands and the three.js material compatibility rules (no transmission glass, no procedural emission, no mirror chrome).
 
-**Variants:** DJ `dj-club`/`dj-rooftop`; Producer `producer-studio-desk`/`producer-bedroom`; Musician `musician-rehearsal`/`musician-live-stage`.
+**Variants:** DJ `club`(procedural)/`rooftop`(glb)/`dojo`(glb); Producer `studio`(procedural); Musician `stage`(procedural)/`guitarRoom`(glb).
 
-**Scale:** `1 scene unit = 400mm`. DJ ghost spots spaced 1.15u; spots carry a `recommendedType` used to sort/filter the picker. Geometry & spot table: see `src/scenes/` and `utils/devicePlacement.js`.
+**Lighting:** each setting has `lighting.day` / `lighting.night` blocks (`background`, `toneMappingExposure`, `envMapIntensity`, `globalLights`, accent `lights[]`), switched by the **in-scene sun/moon toggle** next to the variant control — deliberately independent of the app UI theme. Renderer: ACESFilmic tone mapping, retina pixel ratio (≤2), PCFSoft shadow map, PMREM `RoomEnvironment` IBL on `scene.environment` (per-setting strength via `envMapIntensity`, applied material-by-material since three r162 lacks `scene.environmentIntensity`).
+
+**Scale:** `1 scene unit = 400mm`. DJ ghost spots spaced 1.15u; spots carry a `recommendedType` used to sort/filter the picker. Spot table: see `utils/devicePlacement.js`.
 
 **Auto-scaling (`dimensionScaler.js`):** `computeAutoScale(name, glbBbox)` = `(realMm/400)/glbDim`; final = `autoScale × (product.modelScale||1)`. Fuzzy-matches names against `data/productDimensions.json` (strip brand, normalize, `match_keys`). `modelScale` is a manual multiplier (1.0 = real size); fallback = absolute scale if name unmatched.
 
@@ -111,7 +113,7 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 **Builder mobile chrome:**
 - `MobileNavigation.js` — hamburger menu (Add Device, etc.).
 - `components/CameraAngleControls` — save/recall camera angles (bottom-left).
-- `components/BuilderControls.css` — App.js-rendered **bottom action bar** (Feed · Connection Guide · Save) on mobile; top-right cluster on desktop.
+- `components/BuilderControls.css` — builder layout (`.builder-page`/`.builder-stage` framed panel) + App.js-rendered controls: mobile **bottom action bar** (Home · Feed · Add device · Save); desktop top-right cluster is actions only (Connection Guide · Save — the sidebar owns navigation).
 - `DeviceHoverMenu` — remove / swap / buy, anchored above a tapped device.
 - `ProductSelectorModal` — spot-aware picker (hard-filters to `recommendedType`, swap mode).
 

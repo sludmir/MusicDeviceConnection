@@ -1,4 +1,4 @@
-import { nudgeOffset, angleTimeAtMaster, formatOffsetMs } from './syncEditorMath';
+import { nudgeOffset, angleTimeAtMaster, formatOffsetMs, parseClockTime, formatClockTime } from './syncEditorMath';
 
 describe('nudgeOffset', () => {
   test('adds delta to current offset', () => {
@@ -33,5 +33,35 @@ describe('formatOffsetMs', () => {
   });
   test('non-finite input renders as zero', () => {
     expect(formatOffsetMs(NaN)).toBe('+0.000s');
+  });
+});
+
+describe('parseClockTime', () => {
+  test('parses seconds, m:ss, and h:mm:ss', () => {
+    expect(parseClockTime('83')).toBe(83);
+    expect(parseClockTime('1:23')).toBe(83);
+    expect(parseClockTime('1:02:03')).toBe(3723);
+    expect(parseClockTime('0:05.5')).toBe(5.5);
+  });
+  test('empty or invalid input returns null', () => {
+    expect(parseClockTime('')).toBeNull();
+    expect(parseClockTime('  ')).toBeNull();
+    expect(parseClockTime('abc')).toBeNull();
+    expect(parseClockTime('1:xx')).toBeNull();
+    expect(parseClockTime(null)).toBeNull();
+  });
+});
+
+describe('formatClockTime', () => {
+  test('formats m:ss and h:mm:ss', () => {
+    expect(formatClockTime(83)).toBe('1:23');
+    expect(formatClockTime(3723)).toBe('1:02:03');
+    expect(formatClockTime(0)).toBe('0:00');
+  });
+  test('keeps fractional seconds when present', () => {
+    expect(formatClockTime(5.5)).toBe('0:05.5');
+  });
+  test('round-trips with parseClockTime', () => {
+    expect(parseClockTime(formatClockTime(383.5))).toBe(383.5);
   });
 });

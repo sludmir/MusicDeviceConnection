@@ -10,6 +10,13 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // Verified-creator flag on users/{uid}, granted only by the admin.
+    // Gates live-set posting (sets + clips); admins count as creators.
+    function isCreator() {
+      return request.auth.token.admin == true
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('creator', false) == true;
+    }
+
     function isValidSetup() {
       return request.resource.data.keys().hasAll(['name', 'ownerId', 'createdAt', 'devices'])
         && request.resource.data.name is string
@@ -59,10 +66,19 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.token.admin == true;
     }
 
-    // User profiles
+    // User profiles. Owners manage their own doc but can never grant
+    // themselves the `creator` flag — only the admin can flip it.
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId)
+        && !('creator' in request.resource.data);
+      allow update: if isSignedIn() && (
+        (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creator'])) ||
+        (request.auth.token.admin == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creator']))
+      );
+      allow delete: if isSignedIn() && isOwner(userId);
       // Followers: anyone can add/remove themselves as follower of userId
       match /followers/{followerId} {
         allow read: if isSignedIn();
@@ -96,18 +112,26 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Clips (short-form feed videos)
+    // Clips (short-form feed videos) — posting requires a creator account
     match /clips/{clipId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid && isCreator();
       allow update, delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
     }
 
-    // Sets (full live set references)
+    // Sets (full live set references) — posting requires a creator account
     match /sets/{setId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid && isCreator();
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
+        // Any signed-in viewer may bump the view counter by exactly 1 and
+        // touch nothing else — lets LiveSetPlayer count plays on sets it
+        // doesn't own without opening up arbitrary field writes.
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) &&
+         request.resource.data.views == resource.data.views + 1)
+      );
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
     }
   }
 }

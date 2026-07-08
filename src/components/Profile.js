@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdDelete, MdPlayArrow } from 'react-icons/md';
+import { MdDelete, MdPlayArrow, MdVerified } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
 import { useSetPlayer } from './SetPlayerProvider';
+import useViewerRoles from '../utils/useViewerRoles';
 import {
   Avatar,
   Button,
@@ -41,7 +42,11 @@ function Profile({ userId, onSetupSelect }) {
   const [faveProduct, setFaveProduct] = useState(null);
   const [setToDelete, setSetToDelete] = useState(null);
   const [deletingSet, setDeletingSet] = useState(false);
-  const [activeTab, setActiveTab] = useState('sets');
+  const [creatorSaving, setCreatorSaving] = useState(false);
+  const { isAdmin } = useViewerRoles();
+  const [activeTab, setActiveTab] = useState(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'setups' ? 'setups' : 'sets'
+  );
 
   const currentUserId = auth.currentUser?.uid;
   const isOwnProfile = !!currentUserId && currentUserId === userId;
@@ -211,7 +216,24 @@ function Profile({ userId, onSetupSelect }) {
     }
   };
 
+  const handleToggleCreator = async () => {
+    if (!isAdmin || !userId) return;
+    const next = !profile?.creator;
+    setCreatorSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', userId), { creator: next });
+      setProfile((prev) => ({ ...prev, creator: next }));
+      toast.success(next ? 'Verified as creator' : 'Creator status revoked');
+    } catch (err) {
+      console.error('Error updating creator status:', err);
+      toast.error('Could not update creator status.');
+    } finally {
+      setCreatorSaving(false);
+    }
+  };
+
   const displayName = profile?.displayName || userId?.slice(0, 12) || 'User';
+  const isCreatorProfile = profile?.creator === true;
 
   const setupsList = useMemo(() => setups, [setups]);
 
@@ -219,10 +241,15 @@ function Profile({ userId, onSetupSelect }) {
     <div className="profile">
       <div className="profile__inner">
         <aside className="profile__identity">
-          <div className="profile__avatar">
+          <div className={`profile__avatar${isCreatorProfile ? ' profile__avatar--creator' : ''}`}>
             <Avatar name={displayName} size={96} />
           </div>
           <h1 className="profile__name">{displayName}</h1>
+          {isCreatorProfile && (
+            <Chip className="profile__creator-chip">
+              <MdVerified size={12} aria-hidden="true" /> CREATOR
+            </Chip>
+          )}
           {profile?.bio && <p className="profile__bio">{profile.bio}</p>}
           <div className="profile__stats">
             <div className="profile__stat">
@@ -246,6 +273,17 @@ function Profile({ userId, onSetupSelect }) {
               className="profile__follow"
             >
               {isFollowing ? 'Following' : 'Follow'}
+            </Button>
+          )}
+          {isAdmin && !loading && (
+            <Button
+              variant="secondary"
+              size="md"
+              className="profile__verify-creator"
+              onClick={handleToggleCreator}
+              disabled={creatorSaving}
+            >
+              {isCreatorProfile ? 'Revoke creator' : 'Verify as creator'}
             </Button>
           )}
 

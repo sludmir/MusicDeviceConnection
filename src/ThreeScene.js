@@ -4,6 +4,7 @@ import { TOUCH } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
 import { SETTINGS, defaultSettingFor, getSetting, listSettings, hasMultipleSettings } from './data/settings';
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore methods
 import { db } from "./firebaseConfig"; // Import Firestore
@@ -23,6 +24,9 @@ import { buildBuyLink } from './utils/affiliateLink';
 import { midpoint, panOffsetFromMidpointDelta } from './utils/cameraPan';
 import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
 import MobileNavigation from './MobileNavigation';
+import { MdWbSunny, MdNightlight } from 'react-icons/md';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
 import { computeAutoScale } from './dimensionScaler';
 import { createWheelDeviceDetector } from './hooks/useInputDevice';
 
@@ -51,7 +55,7 @@ function disposeObject3DTree(root) {
     });
 }
 
-function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, theme, affiliateAttribution }) {
+function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChange, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, affiliateAttribution }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -63,8 +67,13 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const djTableRef = useRef(null);
     const environmentRootRef = useRef(null);
     const globalLightsRef = useRef(null);
-    const themeRef = useRef(theme || 'light');
     const currentSettingConfigRef = useRef(null);
+    const envMapIntensityRef = useRef(1);
+    // In-scene day/night lighting toggle — independent of the app UI theme.
+    // Ref mirrors the state so buildSetting (not recreated per render) can
+    // read the current mode without stale closure values.
+    const [lightingMode, setLightingMode] = useState('day');
+    const lightingModeRef = useRef('day');
     const ghostSpotsRef = useRef([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const isAdminRef = useRef(false);
@@ -95,6 +104,10 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
     const [basicSetupComplete, setBasicSetupComplete] = useState(false);
     const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
     const [currentSetting, setCurrentSetting] = useState(setting || defaultSettingFor(setupType || 'DJ'));
+    // Scene-switch confirmation: holds the setting key the user asked to
+    // switch to while placed gear would be discarded (ghost-spot layouts are
+    // unique per scene, so devices can't carry over).
+    const [pendingSetting, setPendingSetting] = useState(null);
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
@@ -116,18 +129,13 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         setCameraAngles(initialCameraAngles ?? [null, null, null]);
     }, [initialCameraAngles]);
 
-    // Keep themeRef in sync so buildSetting can read the current theme without
-    // stale closure values (buildSetting is not recreated on every theme change).
+    // Swap scene lighting when the in-scene day/night toggle changes.
     useEffect(() => {
-        themeRef.current = theme || 'light';
-    }, [theme]);
-
-    // Rebuild accent lights and global lighting whenever the app theme changes.
-    useEffect(() => {
+        lightingModeRef.current = lightingMode;
         if (!sceneInitialized || !environmentRootRef.current) return;
-        rebuildSettingLights(theme || 'light');
+        rebuildSettingLights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [theme, sceneInitialized]);
+    }, [lightingMode, sceneInitialized]);
 
     // Live trackpad-vs-mouse detector. Re-classifies every wheel event (with
     // hysteresis) so camera controls self-correct instead of relying on a
@@ -1433,18 +1441,40 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 rendererRef.current = renderer;
 
                 scene.background = new THREE.Color(0xf0f0f0);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
                 renderer.setSize(width, height);
                 renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 renderer.toneMappingExposure = 1.0; // overridden per-scene by applyGlobalLighting
                 mountRef.current.appendChild(renderer.domElement);
+
+                // Image-based environment lighting: gives PBR gear/scene
+                // materials realistic fill and reflections instead of the flat
+                // look of pure ambient light. Strength is tuned per setting via
+                // lighting.envMapIntensity (see setEnvMapIntensity).
+                const pmrem = new THREE.PMREMGenerator(renderer);
+                scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+                pmrem.dispose();
 
                 // Add lights
                 const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
                 scene.add(ambientLight);
 
                 const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-                directionalLight.position.set(5, 5, 5);
+                directionalLight.position.set(5, 8, 5);
+                // Soft key shadow over the booth/table area (origin-centred);
+                // gear casts, env geometry receives.
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.set(2048, 2048);
+                directionalLight.shadow.camera.left = -10;
+                directionalLight.shadow.camera.right = 10;
+                directionalLight.shadow.camera.top = 10;
+                directionalLight.shadow.camera.bottom = -10;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 40;
+                directionalLight.shadow.bias = -0.0002;
+                directionalLight.shadow.normalBias = 0.02;
                 scene.add(directionalLight);
 
                 const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 1);
@@ -1686,8 +1716,18 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             renderer.setSize(width, height);
         };
         window.addEventListener('resize', handleResize);
+        // The mount can resize without a window resize now that the builder
+        // lives in the app shell (e.g. collapsing/expanding the sidebar).
+        // Observe the mount, not the canvas — the canvas only changes size
+        // when handleResize itself calls renderer.setSize.
+        let resizeObserver = null;
+        if (typeof ResizeObserver !== 'undefined' && mountRef.current) {
+            resizeObserver = new ResizeObserver(handleResize);
+            resizeObserver.observe(mountRef.current);
+        }
 
         return () => {
+            if (resizeObserver) resizeObserver.disconnect();
             window.removeEventListener('resize', handleResize);
             renderer.domElement.removeEventListener('wheel', handleWheel, { capture: true });
             el.removeEventListener('pointerdown', onPointerDown, { capture: true });
@@ -1963,6 +2003,9 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                             child.material.side = THREE.DoubleSide;
                             child.castShadow = true;
                             child.receiveShadow = true;
+                            if (child.material.envMapIntensity !== undefined) {
+                                child.material.envMapIntensity = envMapIntensityRef.current;
+                            }
                         }
                     });
                 },
@@ -2392,15 +2435,35 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         djTableRef.current = null;
     }
 
-    // Apply global lights, background colour, and tone mapping exposure for the
-    // active theme ('light' → day block, 'dark' → night block).
-    function applyGlobalLighting(scene, settingConfig, theme) {
+    // Scale the image-based lighting (scene.environment) contribution on every
+    // PBR material under root. three r162 has no scene.environmentIntensity,
+    // so the per-setting knob is applied material-by-material.
+    function setEnvMapIntensity(root, value) {
+        if (!root) return;
+        root.traverse((obj) => {
+            if (!obj.isMesh || !obj.material) return;
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m) => {
+                if (m && m.envMapIntensity !== undefined) m.envMapIntensity = value;
+            });
+        });
+    }
+
+    // Pick the day or night lighting block for the current in-scene toggle
+    // mode, falling back to day so a missing night block never blanks a scene.
+    function activeLightingBlock(settingConfig) {
+        const lighting = settingConfig.lighting || {};
+        return lighting[lightingModeRef.current] || lighting.day || null;
+    }
+
+    // Apply global lights, background colour, and tone mapping exposure from
+    // the setting's lighting block for the active day/night mode.
+    function applyGlobalLighting(scene, settingConfig) {
         const g = globalLightsRef.current;
         if (!g) return;
-        const themeKey = (theme || 'light') === 'dark' ? 'night' : 'day';
-        const cfg = settingConfig[themeKey];
+        const cfg = activeLightingBlock(settingConfig);
         if (!cfg) {
-            console.error(`applyGlobalLighting: setting "${settingConfig.label}" has no "${themeKey}" block`);
+            console.error(`applyGlobalLighting: setting "${settingConfig.label}" has no lighting blocks`);
             return;
         }
         const o = cfg.globalLights || {};
@@ -2412,20 +2475,23 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         else scene.background = new THREE.Color(bg);
         const r = rendererRef.current;
         if (r) r.toneMappingExposure = cfg.toneMappingExposure ?? 1.0;
+        envMapIntensityRef.current = cfg.envMapIntensity ?? 1;
+        // Re-apply to everything already in the scene (placed gear persists
+        // across setting swaps); new env/gear meshes pick it up on load.
+        setEnvMapIntensity(scene, envMapIntensityRef.current);
     }
 
     // Build the lights declared on a setting into the (possibly rotated) envRoot
     // so they ride along with the environment geometry. Each created light is
-    // tagged userData.isSettingLight = true so rebuildSettingLights can remove
-    // only our lights without touching any lights baked into the GLB itself.
-    function addSettingLights(envRoot, settingConfig, theme) {
+    // tagged userData.isSettingLight = true so setting swaps can remove only
+    // our lights without touching any lights baked into the GLB itself.
+    function addSettingLights(envRoot, settingConfig) {
         // Light positions live in the env's local frame, so envRoot's scale moves
         // them with the geometry. PointLight `distance` is a world-space scalar the
         // matrix doesn't touch, so scale it by s; with inverse-square decay, keep
         // illuminance constant by scaling intensity by s^2.
         const s = settingConfig.scale || 1;
-        const themeKey = (theme || 'light') === 'dark' ? 'night' : 'day';
-        const cfg = settingConfig[themeKey];
+        const cfg = activeLightingBlock(settingConfig);
         if (!cfg) return;
         (cfg.lights || []).forEach((l) => {
             let light;
@@ -2442,9 +2508,9 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         });
     }
 
-    // Swap accent lights and global lighting for the new theme without rebuilding
-    // the full environment. Called by the theme useEffect.
-    function rebuildSettingLights(theme) {
+    // Swap accent lights and global lighting for the current day/night mode
+    // without rebuilding the full environment. Called by the toggle useEffect.
+    function rebuildSettingLights() {
         const envRoot = environmentRootRef.current;
         const config = currentSettingConfigRef.current;
         if (!envRoot || !config) return;
@@ -2454,8 +2520,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         const toRemove = envRoot.children.filter(c => c.isLight && c.userData.isSettingLight);
         toRemove.forEach(c => { envRoot.remove(c); c.dispose?.(); });
 
-        addSettingLights(envRoot, config, theme);
-        applyGlobalLighting(sceneRef.current, config, theme);
+        addSettingLights(envRoot, config);
+        applyGlobalLighting(sceneRef.current, config);
 
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -2479,8 +2545,9 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                         obj.receiveShadow = true;
                     }
                 });
+                setEnvMapIntensity(gltf.scene, envMapIntensityRef.current);
                 envRoot.add(gltf.scene);
-                addSettingLights(envRoot, settingConfig, themeRef.current);
+                addSettingLights(envRoot, settingConfig);
                 if (rendererRef.current && sceneRef.current && cameraRef.current) {
                     rendererRef.current.render(sceneRef.current, cameraRef.current);
                 }
@@ -2500,7 +2567,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
         disposeEnvironment();
 
         currentSettingConfigRef.current = settingConfig;
-        applyGlobalLighting(scene, settingConfig, themeRef.current);
+        applyGlobalLighting(scene, settingConfig);
 
         const envRoot = new THREE.Group();
         envRoot.name = 'environmentRoot';
@@ -2535,6 +2602,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
             } finally {
                 scene.add = origAdd;
             }
+            setEnvMapIntensity(envRoot, envMapIntensityRef.current);
+            addSettingLights(envRoot, settingConfig);
         } else if (settingConfig.type === 'glb') {
             loadGlbEnvironment(envRoot, settingConfig);
         }
@@ -3814,9 +3883,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
 
         event.preventDefault();
 
+        // NDC from the canvas rect, not the window — the canvas no longer
+        // spans the full viewport (header above, framed panel on desktop).
+        const rect = rendererRef.current.domElement.getBoundingClientRect();
         const mouse = new THREE.Vector2();
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouse, cameraRef.current);
@@ -4171,6 +4243,58 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
         }
+    };
+
+    // Remove every placed device and cable from the scene. Used when switching
+    // scene variants: ghost-spot layouts are unique per scene, so carried-over
+    // gear would float in mid-air in the new environment.
+    const clearAllDevices = () => {
+        Object.values(devicesRef.current).forEach((ref) => {
+            if (ref?.model) {
+                sceneRef.current.remove(ref.model);
+                ref.model.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry?.dispose();
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material?.dispose();
+                    }
+                });
+            }
+        });
+        devicesRef.current = {};
+
+        cablesRef.current.forEach(cable => {
+            sceneRef.current.remove(cable);
+            cable.geometry?.dispose();
+            cable.material?.dispose();
+        });
+        cablesRef.current = [];
+
+        setShowMiniProfile(false);
+        setMiniProfileDevice(null);
+        setEditConnectionsMode(false);
+        setBasicSetupComplete(false);
+        setPlacedDevicesList([]);
+    };
+
+    // Scene switcher entry point: ask before discarding placed gear; switch
+    // silently when the scene is empty.
+    const requestSettingSwitch = (key) => {
+        if (key === currentSetting) return;
+        if (placedDevicesList.length > 0) {
+            setPendingSetting(key);
+        } else {
+            setCurrentSetting(key);
+            onSettingChange?.(key);
+        }
+    };
+
+    const confirmSettingSwitch = () => {
+        if (!pendingSetting) return;
+        clearAllDevices();
+        setCurrentSetting(pendingSetting);
+        onSettingChange?.(pendingSetting);
+        setPendingSetting(null);
     };
 
     // Hover highlight helpers
@@ -4681,54 +4805,108 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onDevicesChang
                 touchAction: "none",
                 backgroundColor: "#0a0a0a"
             }}>
-                {hasMultipleSettings(currentSetupType) && (
-                    <div
-                        className="setting-switcher"
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '20px',
+                        left: '20px',
+                        zIndex: 250,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    {hasMultipleSettings(currentSetupType) && (
+                        <div
+                            className="setting-switcher"
+                            style={{
+                                display: 'inline-flex',
+                                padding: '4px',
+                                borderRadius: '999px',
+                                background: 'rgba(15, 15, 20, 0.72)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                                gap: '2px',
+                            }}
+                            role="group"
+                            aria-label="Scene setting"
+                        >
+                            {listSettings(currentSetupType).map((s) => {
+                                const active = s.key === currentSetting;
+                                return (
+                                    <button
+                                        key={s.key}
+                                        type="button"
+                                        onClick={() => requestSettingSwitch(s.key)}
+                                        style={{
+                                            appearance: 'none',
+                                            border: 'none',
+                                            padding: '6px 14px',
+                                            borderRadius: '999px',
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            letterSpacing: '0.02em',
+                                            cursor: 'pointer',
+                                            color: active ? '#0a0a0a' : 'rgba(255,255,255,0.78)',
+                                            background: active ? '#fff' : 'transparent',
+                                            transition: 'background 0.15s ease, color 0.15s ease',
+                                        }}
+                                        aria-pressed={active}
+                                    >
+                                        {s.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        className="lighting-toggle"
+                        onClick={() => setLightingMode((m) => (m === 'day' ? 'night' : 'day'))}
+                        aria-label={lightingMode === 'day' ? 'Switch scene to night lighting' : 'Switch scene to day lighting'}
+                        title={lightingMode === 'day' ? 'Night lighting' : 'Day lighting'}
                         style={{
-                            position: 'absolute',
-                            top: '20px',
-                            left: '20px',
-                            zIndex: 250,
-                            display: 'inline-flex',
-                            padding: '4px',
+                            appearance: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '34px',
+                            height: '34px',
+                            padding: 0,
                             borderRadius: '999px',
                             background: 'rgba(15, 15, 20, 0.72)',
                             backdropFilter: 'blur(10px)',
                             border: '1px solid rgba(255,255,255,0.08)',
                             boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-                            gap: '2px',
+                            color: 'rgba(255,255,255,0.85)',
+                            cursor: 'pointer',
                         }}
-                        role="group"
-                        aria-label="Scene setting"
                     >
-                        {listSettings(currentSetupType).map((s) => {
-                            const active = s.key === currentSetting;
-                            return (
-                                <button
-                                    key={s.key}
-                                    type="button"
-                                    onClick={() => setCurrentSetting(s.key)}
-                                    style={{
-                                        appearance: 'none',
-                                        border: 'none',
-                                        padding: '6px 14px',
-                                        borderRadius: '999px',
-                                        fontSize: '12px',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.02em',
-                                        cursor: 'pointer',
-                                        color: active ? '#0a0a0a' : 'rgba(255,255,255,0.78)',
-                                        background: active ? '#fff' : 'transparent',
-                                        transition: 'background 0.15s ease, color 0.15s ease',
-                                    }}
-                                    aria-pressed={active}
-                                >
-                                    {s.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+                        {lightingMode === 'day' ? <MdNightlight size={16} /> : <MdWbSunny size={16} />}
+                    </button>
+                </div>
+                <Modal
+                    open={!!pendingSetting}
+                    onClose={() => setPendingSetting(null)}
+                    title={`Switch to ${getSetting(currentSetupType, pendingSetting)?.label || 'this scene'}?`}
+                    footer={(
+                        <>
+                            <Button variant="ghost" onClick={() => setPendingSetting(null)}>
+                                Cancel
+                            </Button>
+                            <Button variant="danger" onClick={confirmSettingSwitch}>
+                                Clear gear & switch
+                            </Button>
+                        </>
+                    )}
+                >
+                    <p style={{ margin: 0 }}>
+                        Each scene has its own gear layout, so switching clears the gear
+                        placed in this one. Unsaved changes to this scene will be lost —
+                        hit Save Setup first if you want to keep this build.
+                    </p>
+                </Modal>
                 {error && (
                     <div className="error-message fade-in" style={{
                         position: 'absolute',

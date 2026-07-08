@@ -13,10 +13,26 @@
   overflow-x: hidden;
 }
 
+/* Builder: the 3D scene must fill the leftover viewport exactly (no page
+   scroll). The shell is a flex child of the App column, so flex:1 sizes it
+   without hard-coding the header height. */
+.app-shell--builder {
+  flex: 1;
+  min-height: 0;
+}
+.app-shell--builder .app-shell__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Mobile: hide sidebar, show tab bar, leave room at bottom for tabs */
 @media (max-width: 1023px) {
   .app-shell .app-sidebar { display: none; }
   .app-shell__main { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom)); }
+  /* Builder brings its own fixed bottom action bar instead of the tab bar. */
+  .app-shell--builder .app-shell__main { padding-bottom: 0; }
 }
 
 /* Desktop: hide tab bar */

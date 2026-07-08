@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { MdHeadphones, MdPiano, MdArrowForward, MdFileUpload, MdVideocam } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdArrowForward, MdFileUpload, MdVideocam, MdVerified } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
 import { Card, Modal, SectionHeader } from '../ui';
 import { listSettings, hasMultipleSettings, defaultSettingFor } from '../data/settings';
+import useViewerRoles from '../utils/useViewerRoles';
 import './HubLandingPage.css';
 
 const SETUP_TYPES = [
@@ -17,6 +18,7 @@ const SETUP_TYPES = [
 function CreateHub({ onNewSetup }) {
   const [showPostSetModal, setShowPostSetModal] = useState(false);
   const [pendingSettingType, setPendingSettingType] = useState(null);
+  const { isCreator, loading: rolesLoading } = useViewerRoles();
 
   const startNewSetup = (type) => {
     if (hasMultipleSettings(type)) {
@@ -37,9 +39,21 @@ function CreateHub({ onNewSetup }) {
     <div className="hub">
       <div className="hub__inner">
 
-        {/* ---- POST A SET ---- */}
+        {/* ---- POST A SET (verified creators only) ---- */}
         <section className="hub__section">
           <SectionHeader eyebrow="POST" title="Share a set" />
+          {rolesLoading ? null : !isCreator ? (
+            <div className="hub-post-locked">
+              <span className="mono-label hub-post-locked__badge">
+                <MdVerified size={13} aria-hidden="true" /> CREATOR
+              </span>
+              <p className="hub-post-locked__text">
+                Live sets are posted by verified creator accounts to keep the feed
+                high quality. Anyone can build and share setups — creator
+                verification is granted by the LiveSet team.
+              </p>
+            </div>
+          ) : (
           <div className="hub-post-cta">
             <button
               type="button"
@@ -78,6 +92,7 @@ function CreateHub({ onNewSetup }) {
               </div>
             </button>
           </div>
+          )}
         </section>
 
         {/* ---- BUILD A SETUP ---- */}

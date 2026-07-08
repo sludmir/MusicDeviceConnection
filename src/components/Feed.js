@@ -3,12 +3,14 @@ import { collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc, up
 import { db, auth } from '../firebaseConfig';
 import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
+import { createAudioMasterSync } from '../utils/audioVideoSync';
+import useViewerRoles from '../utils/useViewerRoles';
+import { useSetPlayer } from './SetPlayerProvider';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
-import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdClose, MdOndemandVideo, MdGraphicEq, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdOndemandVideo, MdGraphicEq, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './Feed.css';
 
 const PRELOAD_WINDOW = 2;
-const AUDIO_DRIFT_THRESHOLD = 0.3;
 const DEBUG_FEED_AUDIO = process.env.NODE_ENV !== 'production';
 
 function toFiniteNumberOr(value, fallback = 0) {
@@ -34,6 +36,7 @@ function audioReplacesVideoFor(clip, failedAudioClipIds) {
 }
 
 function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
+  const { isCreator } = useViewerRoles();
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastDoc, setLastDoc] = useState(null);
@@ -44,16 +47,16 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
   const [clipToDelete, setClipToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [pausedOverlay, setPausedOverlay] = useState(null);
-  const [fullSetClip, setFullSetClip] = useState(null);
   const [failedExternalAudioClipIds, setFailedExternalAudioClipIds] = useState(() => new Set());
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
   const pauseTimerRef = useRef(null);
-  const fullSetVideoRef = useRef(null);
-  const fullSetAudioRef = useRef(null);
   const hlsCleanupsRef = useRef(new Map()); // clipId -> cleanup fn for attached HLS
   const currentUserId = auth.currentUser?.uid;
+  // Full sets open in the global LiveSetPlayer so the lossless overlay and
+  // minimized pip behave the same as on Hub/Profile.
+  const { playSet, playingSet } = useSetPlayer();
 
   useEffect(() => {
     loadClips();
@@ -111,7 +114,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (fullSetClip || clipToDelete) return;
+      if (playingSet || clipToDelete) return;
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'l') {
@@ -124,7 +127,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goNext, goPrev, fullSetClip, clipToDelete]);
+  }, [goNext, goPrev, playingSet, clipToDelete]);
 
   // ── Clip segment loop ─────────────────────────────────────────────
 
@@ -184,8 +187,12 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     const vid = videoRefs.current[currentIndex];
     const clip = clips[currentIndex];
     if (!vid || !clip) return;
+    // When the lossless track replaces the video audio, the audio-master sync
+    // owns the clip loop (it loops the audio and realigns the video); running
+    // this video-side rAF loop too would fight it.
+    if (audioReplacesVideoFor(clip, failedExternalAudioClipIds)) return;
     return setupClipSegmentLoop(vid, clip);
-  }, [currentIndex, clips, setupClipSegmentLoop]);
+  }, [currentIndex, clips, setupClipSegmentLoop, failedExternalAudioClipIds]);
 
   // ── HLS attachment for near clips ─────────────────────────────────
   // Attaches each near clip's playlist via attachHls (handles HLS via hls.js
@@ -230,14 +237,21 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     };
   }, []);
 
-  // ── Audio sync (drift-tolerant) ───────────────────────────────────
+  // ── Audio sync (audio-master) ─────────────────────────────────────
+  // The uploaded lossless track is the clock and is never seeked during
+  // playback (seeking an <audio> element stalls on iOS); the muted video is
+  // slaved to it via playbackRate nudges, and the clipStart→clipEnd loop is
+  // driven by looping the AUDIO (see utils/audioVideoSync). The video element
+  // stays the UI handle: its play/pause events engage/park the controller, so
+  // tap-to-pause, swipe autoplay and the full-set handoff need no special cases.
 
   useEffect(() => {
     const vid = videoRefs.current[currentIndex];
     const clip = clips[currentIndex];
     const audioEl = feedAudioRef.current;
     const audioTrackURL = getClipAudioTrackURL(clip);
-    if (!audioTrackURL || !audioEl) {
+    const trackReplacesVideo = audioReplacesVideoFor(clip, failedExternalAudioClipIds);
+    if (!audioTrackURL || !audioEl || !vid || !trackReplacesVideo) {
       if (audioEl) {
         logAudioDebug('noExternalTrack-usingVideoAudio', {
           clipId: clip?.id || null,
@@ -247,67 +261,35 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
         audioEl.pause();
         audioEl.removeAttribute('src');
       }
-      return () => {};
+      return undefined;
     }
 
     const start = toFiniteNumberOr(clip.clipStart, 0);
+    const end = toFiniteNumberOr(clip.clipEnd, 0);
     const offset = Number(clip.audioOffsetSeconds) || 0;
-    const targetTime = start + offset;
-    const safePlayAudio = (audioNode, context) => {
-      if (!audioNode) return;
-      audioNode.play().catch((err) => {
-        logAudioDebug('externalAudioPlayRejected', {
-          clipId: clip?.id || null,
-          context,
-          name: err?.name,
-          message: err?.message
-        });
-      });
+    const useLoop = end > start;
+
+    const sync = createAudioMasterSync(vid, audioEl, {
+      offset,
+      audioStart: start + offset,
+      audioLoopStart: useLoop ? () => start + offset : undefined,
+      audioLoopEnd: useLoop ? () => end + offset : undefined,
+    });
+
+    // Engaging before the track's metadata is in would start the audio at 0
+    // instead of clipStart+offset (sync.play only pre-seeks the audio once its
+    // duration is known), so gate on readiness — the loadedmetadata listener
+    // picks it up otherwise.
+    const engageIfReady = () => {
+      if (audioEl.readyState >= 1) sync.play();
     };
-
-    const syncAudio = () => {
-      const a = feedAudioRef.current;
-      if (!a || !vid) return;
-      const expected = vid.currentTime + offset;
-      const drift = Math.abs(a.currentTime - expected);
-      if (drift > AUDIO_DRIFT_THRESHOLD) {
-        a.currentTime = expected;
-      }
-    };
-
-    const onPlay = () => {
-      const a = feedAudioRef.current;
-      if (a && vid) {
-        a.currentTime = vid.currentTime + offset;
-        safePlayAudio(a, 'video-play-event');
-      }
-    };
-
-    const onPause = () => {
-      const a = feedAudioRef.current;
-      if (a) a.pause();
-    };
-
-    const onTimeUpdate = syncAudio;
-
+    const onVidPlay = engageIfReady;
+    // sync.pause() re-pauses the video, which re-fires 'pause' — pause() is
+    // idempotent so the re-entry is harmless.
+    const onVidPause = () => { sync.pause(); };
     const onAudioReady = () => {
-      const a = feedAudioRef.current;
-      if (!a) return;
-      const sameSrc = a.src === audioTrackURL;
-      if (!sameSrc && DEBUG_FEED_AUDIO) {
-        console.debug('[FeedAudio] externalAudioSrcMismatch', {
-          clipId: clip?.id || null,
-          audioElementSrc: a.src,
-          expectedAudioTrackURL: audioTrackURL
-        });
-      }
-      a.currentTime = targetTime;
-      if (vid && !vid.paused) {
-        a.currentTime = vid.currentTime + offset;
-        safePlayAudio(a, 'audio-ready');
-      }
+      if (!vid.paused) sync.play();
     };
-
     const onAudioError = () => {
       logAudioDebug('externalAudioLoadError-fallingBackToVideoAudio', {
         clipId: clip?.id || null,
@@ -320,38 +302,28 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
       });
     };
 
-    const needNewSrc = audioEl.src !== audioTrackURL;
-    if (needNewSrc) {
+    if (audioEl.src !== audioTrackURL) {
       audioEl.src = audioTrackURL;
       audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
-      audioEl.addEventListener('canplay', onAudioReady, { once: true });
       audioEl.addEventListener('error', onAudioError, { once: true });
-    } else {
-      audioEl.currentTime = targetTime;
-      if (vid && !vid.paused) {
-        audioEl.currentTime = vid.currentTime + offset;
-        safePlayAudio(audioEl, 'same-src-resume');
-      }
+    } else if (audioEl.readyState < 1) {
+      audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
+      audioEl.addEventListener('error', onAudioError, { once: true });
     }
 
-    vid.addEventListener('play', onPlay);
-    vid.addEventListener('pause', onPause);
-    vid.addEventListener('timeupdate', onTimeUpdate);
-    if (!vid.paused) {
-      syncAudio();
-      safePlayAudio(audioEl, 'effect-initial-sync');
-    }
+    vid.addEventListener('play', onVidPlay);
+    vid.addEventListener('pause', onVidPause);
+    if (!vid.paused) engageIfReady();
 
     return () => {
-      vid.removeEventListener('play', onPlay);
-      vid.removeEventListener('pause', onPause);
-      vid.removeEventListener('timeupdate', onTimeUpdate);
+      vid.removeEventListener('play', onVidPlay);
+      vid.removeEventListener('pause', onVidPause);
       audioEl.removeEventListener('loadedmetadata', onAudioReady);
-      audioEl.removeEventListener('canplay', onAudioReady);
       audioEl.removeEventListener('error', onAudioError);
+      sync.destroy();
       audioEl.pause();
     };
-  }, [currentIndex, clips, logAudioDebug]);
+  }, [currentIndex, clips, failedExternalAudioClipIds, logAudioDebug]);
 
   // ── Data loading ──────────────────────────────────────────────────
 
@@ -507,76 +479,35 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
     onCopySetup(clip.setupId);
   };
 
-  const handleWatchFullSet = (clip) => {
+  // Full set opens in the global LiveSetPlayer (audio-master sync, minimized
+  // pip survives navigation) — same path as Hub/Profile. The sets doc is the
+  // authoritative source for the video/track URLs and offset; if it can't be
+  // fetched we fall back to the clip's own copies of those fields, and the
+  // player re-signs Bunny URLs by set id either way.
+  const handleWatchFullSet = async (clip) => {
     if (!clip.fullSetId) return;
     const v = videoRefs.current[currentIndex];
-    if (v && !v.paused) v.pause();
-    if (feedAudioRef.current) feedAudioRef.current.pause();
-    setFullSetClip(clip);
+    if (v && !v.paused) v.pause(); // 'pause' event parks the audio-master sync
+    setPausedOverlay(currentIndex);
+    let set = null;
+    try {
+      const snap = await getDoc(doc(db, 'sets', clip.fullSetId));
+      if (snap.exists()) set = { id: snap.id, ...snap.data() };
+    } catch (_) { /* fall through to clip-derived fields */ }
+    if (!set) {
+      set = {
+        id: clip.fullSetId,
+        title: clip.title || 'Full LiveSet',
+        creatorId: clip.creatorId,
+        creatorName: clip.creatorName,
+        videoURL: clip.fullVideoURL || clip.videoURL,
+        audioTrackURL: clip.audioTrackURL,
+        audioOffsetSeconds: clip.audioOffsetSeconds,
+        audioReplacesVideo: clip.audioReplacesVideo,
+      };
+    }
+    playSet(set);
   };
-
-  const closeFullSetModal = () => {
-    if (fullSetVideoRef.current) {
-      fullSetVideoRef.current.pause();
-    }
-    setFullSetClip(null);
-    const v = videoRefs.current[currentIndex];
-    if (v) v.play().catch(() => {});
-  };
-
-  useEffect(() => {
-    const vid = fullSetVideoRef.current;
-    if (!fullSetClip || !vid) return;
-    const url = fullSetClip.fullVideoURL || fullSetClip.videoURL;
-    const detachHls = attachHls(vid, url);
-
-    // Mirror the feed-clip lossless-audio overlay for the full set: keep the
-    // video muted and play the uploaded track in sync. Unlike the clip, the
-    // full set plays from 0, so we add only audioOffsetSeconds (no clipStart).
-    const audioTrackURL = getClipAudioTrackURL(fullSetClip);
-    const audioEl = fullSetAudioRef.current;
-    if (!audioTrackURL || !audioEl || !audioReplacesVideoFor(fullSetClip, failedExternalAudioClipIds)) {
-      return () => { detachHls(); };
-    }
-
-    const offset = Number(fullSetClip.audioOffsetSeconds) || 0;
-    const safePlayAudio = () => { audioEl.play().catch(() => {}); };
-
-    const syncAudio = () => {
-      const expected = vid.currentTime + offset;
-      if (Math.abs(audioEl.currentTime - expected) > AUDIO_DRIFT_THRESHOLD) {
-        audioEl.currentTime = expected;
-      }
-    };
-
-    const onPlay = () => {
-      audioEl.currentTime = vid.currentTime + offset;
-      safePlayAudio();
-    };
-    const onPause = () => { audioEl.pause(); };
-    const onSeeked = () => { audioEl.currentTime = vid.currentTime + offset; };
-    const onTimeUpdate = syncAudio;
-
-    audioEl.src = audioTrackURL;
-    vid.addEventListener('play', onPlay);
-    vid.addEventListener('pause', onPause);
-    vid.addEventListener('seeked', onSeeked);
-    vid.addEventListener('timeupdate', onTimeUpdate);
-    if (!vid.paused) {
-      audioEl.currentTime = vid.currentTime + offset;
-      safePlayAudio();
-    }
-
-    return () => {
-      detachHls();
-      vid.removeEventListener('play', onPlay);
-      vid.removeEventListener('pause', onPause);
-      vid.removeEventListener('seeked', onSeeked);
-      vid.removeEventListener('timeupdate', onTimeUpdate);
-      audioEl.pause();
-      audioEl.removeAttribute('src');
-    };
-  }, [fullSetClip, failedExternalAudioClipIds]);
 
   const handleDeleteClick = (e, clip) => {
     e.stopPropagation();
@@ -656,9 +587,11 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
 
   return (
     <div className="feed-container">
-      <button className="feed-upload-fab" onClick={onUploadClick} aria-label="Upload Set" title="Upload Set">
-        +
-      </button>
+      {isCreator && (
+        <button className="feed-upload-fab" onClick={onUploadClick} aria-label="Upload Set" title="Upload Set">
+          +
+        </button>
+      )}
       <audio ref={feedAudioRef} style={{ display: 'none' }} />
       {clips.length > 0 && (
         <>
@@ -689,10 +622,16 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
           <div className="feed-empty">
             <div className="feed-empty-icon"><MdPlayCircleOutline size={48} /></div>
             <h2>No clips yet</h2>
-            <p>Be the first to upload a live set!</p>
-            <button className="feed-upload-btn" onClick={onUploadClick}>
-              Upload Your First Set
-            </button>
+            {isCreator ? (
+              <>
+                <p>Be the first to upload a live set!</p>
+                <button className="feed-upload-btn" onClick={onUploadClick}>
+                  Upload Your First Set
+                </button>
+              </>
+            ) : (
+              <p>Verified creators post live sets here — check back soon.</p>
+            )}
           </div>
         ) : (
           <div
@@ -880,46 +819,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup, theme = 'light' }) {
           </div>
         )}
       </div>
-
-      {/* Full Set Modal */}
-      {fullSetClip && (
-        <div className="feed-fullset-overlay" onClick={closeFullSetModal}>
-          <div className="feed-fullset-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="feed-fullset-header">
-              <div className="feed-fullset-info">
-                <div
-                  className="feed-creator-info"
-                  onClick={() => { closeFullSetModal(); handleProfileClick(fullSetClip.creatorId); }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="feed-creator-avatar feed-creator-avatar-sm">
-                    {fullSetClip.creatorName?.[0]?.toUpperCase() || 'U'}
-                  </div>
-                  <div>
-                    <div className="feed-creator-name">{fullSetClip.creatorName || 'Unknown'}</div>
-                    <div className="feed-clip-title">{fullSetClip.title || 'Full LiveSet'}</div>
-                  </div>
-                </div>
-              </div>
-              <button type="button" className="feed-fullset-close" onClick={closeFullSetModal} aria-label="Close">
-                <MdClose size={24} />
-              </button>
-            </div>
-            <div className="feed-fullset-video-wrap">
-              <video
-                ref={fullSetVideoRef}
-                className="feed-fullset-video"
-                controls
-                autoPlay
-                playsInline
-                preload="auto"
-                muted={audioReplacesVideoFor(fullSetClip, failedExternalAudioClipIds)}
-              />
-              <audio ref={fullSetAudioRef} style={{ display: 'none' }} />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete clip confirm */}
       {clipToDelete && (

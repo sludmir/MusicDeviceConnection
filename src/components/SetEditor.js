@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { MdArrowBack, MdAdd, MdClose, MdMusicNote, MdVideocam, MdImage, MdAutoFixHigh, MdRefresh, MdPlayArrow, MdPause } from 'react-icons/md';
+import { MdArrowBack, MdAdd, MdClose, MdMusicNote, MdVideocam, MdImage, MdAutoFixHigh, MdRefresh, MdPlayArrow, MdPause, MdHeadphones, MdPiano, MdContentCut } from 'react-icons/md';
+import { IoMusicalNotes } from 'react-icons/io5';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -7,7 +8,8 @@ import { db, auth } from '../firebaseConfig';
 import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
 import { extractPeaks, extractPeaksStreaming, WAVEFORM_DEFAULTS } from '../utils/audioWaveform';
 import { suggestOffsetSeconds } from '../utils/audioAlign';
-import { nudgeOffset, angleTimeAtMaster, formatOffsetMs } from '../utils/syncEditorMath';
+import { nudgeOffset, angleTimeAtMaster, formatOffsetMs, parseClockTime, formatClockTime } from '../utils/syncEditorMath';
+import { CLIP_MIN_SEC, CLIP_MAX_SEC, normalizeClipRange, resizeClipRanges } from '../utils/clipRanges';
 import './SetEditor.css';
 
 const PX_PER_SEC_DEFAULT = 40;
@@ -90,6 +92,22 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // Feed clips (post step): 1–3 ranges on angle 1's timeline.
+  const [numClips, setNumClips] = useState(1);
+  const [clipRanges, setClipRanges] = useState([{ start: 0, end: 30 }]);
+  const [activeClipIndex, setActiveClipIndex] = useState(0);
+  const clipTimelineRef = useRef(null);
+  const clipVideoRef = useRef(null);
+  const clipAudioRef = useRef(null);
+  const clipDragRef = useRef(null);
+  const clipDragEndAtRef = useRef(0);
+
+  // Trim (optional): IN/OUT points in MASTER-timeline seconds, entered as
+  // clock text ("1:23") or grabbed from the playhead. Converted to video time
+  // at post; viewers then see only the IN→OUT window.
+  const [trimInText, setTrimInText] = useState('');
+  const [trimOutText, setTrimOutText] = useState('');
+
   // ── Live playback (master + angle) ────────────────────────────────
   const [playing, setPlaying] = useState(false);
   const [audioFocus, setAudioFocus] = useState('master'); // 'master' | 'angle'
@@ -113,16 +131,25 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const angleWrapRefs = useRef({});   // { [angleId]: HTMLDivElement } — for transform during drag
   const dragRef = useRef({ kind: null }); // 'scrub' | 'offset' | null
   const lastLiveSeekRef = useRef(0);      // throttle for live seeks during drags
-  const rafRef = useRef(0);
 
-  // Schedule peak extraction whenever underlying files change.
+  // Revoke object URLs on unmount ONLY. Running this cleanup on every media
+  // change revokes URLs still held in state (add angle → add audio used to
+  // kill the angle's blob URL, black-screening the preview). Removal/replace
+  // paths revoke their own URLs individually.
+  const mediaUrlsRef = useRef({ angles: [], audio: null, thumbnail: null });
   useEffect(() => {
-    return () => {
-      angles.forEach((a) => a.url && URL.revokeObjectURL(a.url));
-      if (audio?.url) URL.revokeObjectURL(audio.url);
-      if (thumbnail?.url) URL.revokeObjectURL(thumbnail.url);
+    mediaUrlsRef.current = {
+      angles: angles.map((a) => a.url),
+      audio: audio?.url || null,
+      thumbnail: thumbnail?.url || null,
     };
   }, [angles, audio, thumbnail]);
+  useEffect(() => () => {
+    const m = mediaUrlsRef.current;
+    m.angles.forEach((u) => u && URL.revokeObjectURL(u));
+    if (m.audio) URL.revokeObjectURL(m.audio);
+    if (m.thumbnail) URL.revokeObjectURL(m.thumbnail);
+  }, []);
 
   // Load master audio peaks when audio changes.
   useEffect(() => {
@@ -331,20 +358,30 @@ function SetEditor({ onBack, theme = 'dark' }) {
       const totalWidthPx = Math.max(1, Math.round(widthSec * pxPerSec));
       const heightPx = ROW_HEIGHT - 16;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = totalWidthPx * dpr;
+      // Browsers cap canvas backing stores (~32k px per side); past the cap
+      // drawing fails silently and the waveform goes blank at high zoom.
+      // Cap the store and let the horizontal scale absorb the difference.
+      const MAX_CANVAS_PX = 16000;
+      const scaleX = Math.min(dpr, MAX_CANVAS_PX / totalWidthPx);
+      canvas.width = Math.max(1, Math.round(totalWidthPx * scaleX));
       canvas.height = heightPx * dpr;
       canvas.style.width = `${totalWidthPx}px`;
       canvas.style.height = `${heightPx}px`;
       const ctx = canvas.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(scaleX, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, totalWidthPx, heightPx);
       ctx.fillStyle = canvas.dataset.color || (isDark ? 'rgba(0, 162, 255, 0.85)' : 'rgba(0, 102, 255, 0.85)');
+      // Normalize each track to its own loudest peak: camera-mic audio sits
+      // far below a mastered track, and alignment needs shape, not level.
+      let peakMax = 0;
+      for (let i = 0; i < peaks.length; i++) if (peaks[i] > peakMax) peakMax = peaks[i];
+      const gain = peakMax > 0.001 ? 1 / peakMax : 1;
       const half = heightPx / 2;
       const pxPerPeak = pxPerSec / peaksPerSecond;
       const barWidth = Math.max(1, pxPerPeak - 0.5);
       for (let i = 0; i < peaks.length; i++) {
         const x = Math.floor(i * pxPerPeak);
-        const h = Math.max(1, peaks[i] * (heightPx - 4));
+        const h = Math.max(1, Math.min(1, peaks[i] * gain) * (heightPx - 4));
         ctx.fillRect(x, half - h / 2, barWidth, h);
       }
     };
@@ -627,8 +664,153 @@ function SetEditor({ onBack, theme = 'dark' }) {
     if (!allWaveformsReady) { setError('Still analyzing waveforms — give it a moment.'); return; }
     stopPlayback();
     setPlaying(false);
+    setClipRanges((prev) => resizeClipRanges(prev, numClips, angles[0]?.duration || 0));
     setStep('post');
-  }, [angles.length, audio, allWaveformsReady, stopPlayback]);
+  }, [angles, audio, allWaveformsReady, stopPlayback, numClips]);
+
+  // ── Feed-clip picker (post step) ───────────────────────────────────
+  const primaryDuration = angles[0]?.duration || 0;
+  const primaryClipOffset = angleOffsets[angles[0]?.id] || 0;
+
+  const trimInSec = parseClockTime(trimInText);
+  const trimOutSec = parseClockTime(trimOutText);
+  const trimInvalid = trimInSec != null && trimOutSec != null && trimOutSec <= trimInSec;
+
+  // Post-step preview plays the ALIGNED master audio, not the camera mic:
+  // the video is muted and drives the hidden master-audio element
+  // (audio.currentTime = video.currentTime + offset, the app-wide convention).
+  useEffect(() => {
+    if (step !== 'post') return undefined;
+    const v = clipVideoRef.current;
+    const a = clipAudioRef.current;
+    if (!v || !a) return undefined;
+    const offset = primaryClipOffset;
+    const alignAudio = () => {
+      try { a.currentTime = Math.max(0, v.currentTime + offset); } catch (_) {}
+    };
+    const onPlay = () => { alignAudio(); a.play().catch(() => {}); };
+    const onPause = () => { try { a.pause(); } catch (_) {} };
+    const onTimeUpdate = () => {
+      if (v.paused) return;
+      if (Math.abs(a.currentTime - (v.currentTime + offset)) > 0.25) alignAudio();
+    };
+    v.muted = true;
+    v.addEventListener('play', onPlay);
+    v.addEventListener('pause', onPause);
+    v.addEventListener('seeked', alignAudio);
+    v.addEventListener('timeupdate', onTimeUpdate);
+    return () => {
+      v.removeEventListener('play', onPlay);
+      v.removeEventListener('pause', onPause);
+      v.removeEventListener('seeked', alignAudio);
+      v.removeEventListener('timeupdate', onTimeUpdate);
+      try { a.pause(); } catch (_) {}
+    };
+  }, [step, primaryClipOffset]);
+
+  const handleNumClipsChange = useCallback((n) => {
+    setNumClips(n);
+    setClipRanges((prev) => resizeClipRanges(prev, n, primaryDuration));
+    setActiveClipIndex((prev) => Math.min(prev, n - 1));
+  }, [primaryDuration]);
+
+  const seekClipPreview = useCallback((t) => {
+    const v = clipVideoRef.current;
+    if (!v || !Number.isFinite(t)) return;
+    const dur = Number.isFinite(v.duration) ? v.duration : Infinity;
+    v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
+  }, []);
+
+  const clipTimelineSecAt = useCallback((clientX) => {
+    const el = clipTimelineRef.current;
+    if (!el || !primaryDuration) return 0;
+    const rect = el.getBoundingClientRect();
+    const frac = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return frac * primaryDuration;
+  }, [primaryDuration]);
+
+  const moveClipEdge = useCallback((edge, sec) => {
+    setClipRanges((prev) => {
+      const next = prev.slice();
+      const cur = next[activeClipIndex] || { start: 0, end: CLIP_MIN_SEC };
+      const raw = edge === 'start'
+        ? { start: Math.min(sec, cur.end - CLIP_MIN_SEC), end: cur.end }
+        : { start: cur.start, end: Math.max(sec, cur.start + CLIP_MIN_SEC) };
+      next[activeClipIndex] = normalizeClipRange(raw, primaryDuration);
+      return next;
+    });
+    seekClipPreview(sec);
+  }, [activeClipIndex, primaryDuration, seekClipPreview]);
+
+  const handleClipThumbPointerDown = useCallback((edge) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    clipDragRef.current = { edge, pointerId: e.pointerId };
+  }, []);
+
+  const handleClipThumbPointerMove = useCallback((e) => {
+    const d = clipDragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    if (d.edge === 'move') {
+      // Slide the whole window, preserving its length.
+      const dsec = clipTimelineSecAt(e.clientX) - d.grabSec;
+      const len = d.startRange.end - d.startRange.start;
+      const start = clamp(d.startRange.start + dsec, 0, Math.max(0, primaryDuration - len));
+      setClipRanges((prev) => {
+        const next = prev.slice();
+        next[activeClipIndex] = {
+          start: Number(start.toFixed(2)),
+          end: Number((start + len).toFixed(2)),
+        };
+        return next;
+      });
+      seekClipPreview(start);
+      return;
+    }
+    moveClipEdge(d.edge, clipTimelineSecAt(e.clientX));
+  }, [moveClipEdge, clipTimelineSecAt, activeClipIndex, primaryDuration, seekClipPreview]);
+
+  const handleClipRangePointerDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = clipRanges[activeClipIndex];
+    if (!r) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    clipDragRef.current = {
+      edge: 'move',
+      pointerId: e.pointerId,
+      grabSec: clipTimelineSecAt(e.clientX),
+      startRange: { ...r },
+    };
+  }, [clipRanges, activeClipIndex, clipTimelineSecAt]);
+
+  const handleClipThumbPointerUp = useCallback((e) => {
+    const d = clipDragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+    clipDragRef.current = null;
+    clipDragEndAtRef.current = performance.now();
+  }, []);
+
+  // Clicking the bar jumps the nearest edge of the active clip there.
+  const handleClipTimelineClick = useCallback((e) => {
+    if (clipDragRef.current) return;
+    // The click that follows a thumb-drag release must not re-move an edge.
+    if (performance.now() - clipDragEndAtRef.current < 250) return;
+    const sec = clipTimelineSecAt(e.clientX);
+    const cur = clipRanges[activeClipIndex];
+    if (!cur) return;
+    const edge = Math.abs(sec - cur.start) <= Math.abs(sec - cur.end) ? 'start' : 'end';
+    moveClipEdge(edge, sec);
+  }, [clipTimelineSecAt, clipRanges, activeClipIndex, moveClipEdge]);
+
+  const handleSelectClipTab = useCallback((i) => {
+    setActiveClipIndex(i);
+    const r = clipRanges[i];
+    if (r) seekClipPreview(r.start);
+  }, [clipRanges, seekClipPreview]);
 
   const handleBackToEdit = useCallback(() => {
     setError(null);
@@ -639,6 +821,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
     if (!auth.currentUser) { setError('Please sign in to post.'); return; }
     if (angles.length === 0 || !audio) { setError('Missing angle or audio.'); return; }
     if (!selectedSetupId) { setError('Link a saved setup so viewers can copy your gear.'); return; }
+    if (trimInvalid) { setError('Trim OUT must be after trim IN.'); return; }
 
     setUploading(true);
     setUploadProgress(0);
@@ -652,6 +835,19 @@ function SetEditor({ onBack, theme = 'dark' }) {
       const primary = angles[0];
       const primaryOffset = angleOffsets[primary.id] || 0;
       const safeTitle = (title || primary.file?.name || 'Untitled Set').trim().slice(0, 200);
+
+      // Trim points arrive in master time; players work in video time.
+      const trimStartV = trimInSec != null
+        ? Math.max(0, angleTimeAtMaster(trimInSec, primaryOffset))
+        : 0;
+      const trimEndVRaw = trimOutSec != null
+        ? angleTimeAtMaster(trimOutSec, primaryOffset)
+        : null;
+      const trimEndV = trimEndVRaw != null && primary.duration
+        ? Math.min(Math.max(0, trimEndVRaw), primary.duration)
+        : trimEndVRaw;
+      const effectiveDurationSeconds =
+        Math.max(0, (trimEndV ?? primary.duration ?? 0) - trimStartV) || (primary.duration || 0);
 
       // 1. Reserve Bunny video + upload angle 1.
       const bunny = await createBunnyVideo({ title: safeTitle, kind: 'set' });
@@ -692,7 +888,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
         bunnyVideoGuid: bunny.videoGuid,
         bunnyLibraryId: bunny.libraryId,
         status: 'processing',
-        durationSeconds: primary.duration || 0,
+        durationSeconds: effectiveDurationSeconds,
         createdAt: serverTimestamp(),
         views: 0,
         audioTrackURL,
@@ -715,11 +911,15 @@ function SetEditor({ onBack, theme = 'dark' }) {
         setData.customThumbnailURL = customThumbnailURL;
         setData.autoThumbnailURL = bunny.thumbnailUrl;
       }
+      if (trimStartV > 0) setData.trimStartSeconds = Number(trimStartV.toFixed(3));
+      if (trimEndV != null && trimEndV > trimStartV) setData.trimEndSeconds = Number(trimEndV.toFixed(3));
       const setDocRef = await addDoc(collection(db, 'sets'), setData);
 
-      // 5. One default clip into the feed (first 30s of the primary angle).
-      const clipEnd = Math.min(30, Math.max(10, primary.duration || 30));
-      const clipData = {
+      // 5. User-selected clip ranges into the feed.
+      const rangesToPost = clipRanges
+        .slice(0, numClips)
+        .map((r) => normalizeClipRange(r, primary.duration || 0));
+      const baseClipData = {
         creatorId: userId,
         creatorName,
         title: safeTitle,
@@ -734,33 +934,37 @@ function SetEditor({ onBack, theme = 'dark' }) {
         likes: 0,
         likedBy: [],
         views: 0,
-        clipStart: 0,
-        clipEnd,
         audioTrackURL,
         audioOffsetSeconds: primaryOffset,
         audioReplacesVideo: true,
         setupId: selectedSetupId,
         setupName: linkedSetup?.name || '',
         setupType: linkedSetup?.setupType || 'DJ',
-        createdAt: serverTimestamp(),
       };
       if (customThumbnailURL) {
-        clipData.customThumbnailURL = customThumbnailURL;
-        clipData.autoThumbnailURL = bunny.thumbnailUrl;
+        baseClipData.customThumbnailURL = customThumbnailURL;
+        baseClipData.autoThumbnailURL = bunny.thumbnailUrl;
       }
-      await addDoc(collection(db, 'clips'), clipData);
+      for (const r of rangesToPost) {
+        await addDoc(collection(db, 'clips'), {
+          ...baseClipData,
+          clipStart: r.start,
+          clipEnd: r.end,
+          createdAt: serverTimestamp(),
+        });
+      }
 
       setUploadProgress(100);
       setTimeout(() => {
         setUploading(false);
-        navigate('/sets');
+        navigate('/profile');
       }, 250);
     } catch (e) {
       console.error('Error posting set:', e);
       setError(e?.message || String(e) || 'Upload failed');
       setUploading(false);
     }
-  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate]);
+  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate, clipRanges, numClips, trimInSec, trimOutSec, trimInvalid]);
 
   const formatTime = (sec) => {
     if (!Number.isFinite(sec)) return '0:00';
@@ -1056,6 +1260,12 @@ function SetEditor({ onBack, theme = 'dark' }) {
                   preload="auto"
                   playsInline
                   muted
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    const offset = angleOffsets[angle.id] || 0;
+                    const t = angleTimeAtMaster(playheadSec, offset);
+                    v.currentTime = Math.max(0, Math.min(v.duration - 0.01, t));
+                  }}
                   className={`set-editor__preview-video ${angle.id === focusedAngleId ? 'set-editor__preview-video--visible' : ''}`}
                 />
               ))}
@@ -1186,6 +1396,20 @@ function SetEditor({ onBack, theme = 'dark' }) {
                   );
                 })}
 
+                {trimInSec != null && trimInSec <= previewDuration && (
+                  <div
+                    className="set-editor__trim-marker set-editor__trim-marker--in"
+                    style={{ transform: `translateX(${trimInSec * pxPerSec}px)` }}
+                    title={`Trim IN ${formatClockTime(trimInSec)}`}
+                  />
+                )}
+                {trimOutSec != null && trimOutSec <= previewDuration && (
+                  <div
+                    className="set-editor__trim-marker set-editor__trim-marker--out"
+                    style={{ transform: `translateX(${trimOutSec * pxPerSec}px)` }}
+                    title={`Trim OUT ${formatClockTime(trimOutSec)}`}
+                  />
+                )}
                 <div
                   ref={playheadRef}
                   className="set-editor__sync-playhead"
@@ -1193,6 +1417,65 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="set-editor__trim">
+            <span className="set-editor__trim-label">
+              <MdContentCut size={14} /> Trim (optional)
+            </span>
+            <label className="set-editor__trim-field">
+              <span>IN</span>
+              <input
+                type="text"
+                value={trimInText}
+                onChange={(e) => setTrimInText(e.target.value)}
+                placeholder="0:00"
+                className="set-editor__trim-input"
+                aria-label="Trim in point (m:ss)"
+              />
+              <button
+                type="button"
+                className="set-editor__sync-action"
+                onClick={() => setTrimInText(formatClockTime(playheadSec))}
+                title="Set IN to the playhead"
+              >
+                @ playhead
+              </button>
+            </label>
+            <label className="set-editor__trim-field">
+              <span>OUT</span>
+              <input
+                type="text"
+                value={trimOutText}
+                onChange={(e) => setTrimOutText(e.target.value)}
+                placeholder="end"
+                className="set-editor__trim-input"
+                aria-label="Trim out point (m:ss)"
+              />
+              <button
+                type="button"
+                className="set-editor__sync-action"
+                onClick={() => setTrimOutText(formatClockTime(playheadSec))}
+                title="Set OUT to the playhead"
+              >
+                @ playhead
+              </button>
+            </label>
+            {(trimInText || trimOutText) && (
+              <button
+                type="button"
+                className="set-editor__sync-action set-editor__sync-action--ghost"
+                onClick={() => { setTrimInText(''); setTrimOutText(''); }}
+                title="Clear trim"
+              >
+                <MdClose size={14} /> Clear
+              </button>
+            )}
+            {trimInvalid && <span className="set-editor__trim-error">OUT must be after IN</span>}
+            <span className="set-editor__trim-hint">
+              Cuts dead time (camera rolling before the music) — viewers only see IN → OUT.
+              Type a time like 38:20 for points beyond the preview window.
+            </span>
           </div>
 
           <div className="set-editor__sync-help">
@@ -1241,7 +1524,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
                     onClick={() => setSelectedSetupId((prev) => prev === s.id ? '' : s.id)}
                   >
                     <span className="set-editor__setup-option-icon">
-                      {s.setupType === 'DJ' ? '🎧' : s.setupType === 'Producer' ? '🎹' : '🎸'}
+                      {s.setupType === 'DJ' ? <MdHeadphones size={18} /> : s.setupType === 'Producer' ? <MdPiano size={18} /> : <IoMusicalNotes size={18} />}
                     </span>
                     <span className="set-editor__setup-option-name">{s.name || 'Untitled'}</span>
                     <span className="set-editor__setup-option-type">{s.setupType || 'DJ'}</span>
@@ -1251,8 +1534,115 @@ function SetEditor({ onBack, theme = 'dark' }) {
             )}
           </div>
 
+          <div className="set-editor__post-field">
+            <label className="set-editor__post-label">Feed clips</label>
+            <p className="set-editor__post-hint">
+              Pick 1–3 segments ({CLIP_MIN_SEC}s–{CLIP_MAX_SEC}s each) for the feed. The full set lives on your profile.
+            </p>
+            <div className="set-editor__clip-count" role="group" aria-label="Number of clips">
+              <span className="set-editor__clip-count-label">Clips:</span>
+              {[1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`set-editor__clip-count-btn ${numClips === n ? 'active' : ''}`}
+                  onClick={() => handleNumClipsChange(n)}
+                >
+                  {n}
+                </button>
+              ))}
+              {numClips > 1 && Array.from({ length: numClips }, (_, i) => (
+                <button
+                  key={`tab-${i}`}
+                  type="button"
+                  className={`set-editor__clip-tab ${activeClipIndex === i ? 'active' : ''}`}
+                  onClick={() => handleSelectClipTab(i)}
+                >
+                  Clip {i + 1}
+                </button>
+              ))}
+            </div>
+            <video
+              ref={clipVideoRef}
+              src={angles[0]?.url}
+              controls
+              muted
+              preload="metadata"
+              playsInline
+              className="set-editor__clip-video"
+            />
+            {/* Hidden master track — the muted video above drives it, so clip
+                previews are heard with the aligned lossless audio. */}
+            {audio?.url && <audio ref={clipAudioRef} src={audio.url} preload="auto" style={{ display: 'none' }} />}
+            <div
+              ref={clipTimelineRef}
+              className="set-editor__clip-timeline"
+              onClick={handleClipTimelineClick}
+              role="group"
+              aria-label={`Clip ${activeClipIndex + 1} range`}
+            >
+              <div className="set-editor__clip-track" />
+              {(() => {
+                const r = clipRanges[activeClipIndex] || { start: 0, end: CLIP_MIN_SEC };
+                const pct = (t) => (primaryDuration ? (t / primaryDuration) * 100 : 0);
+                return (
+                  <>
+                    <div
+                      className="set-editor__clip-range"
+                      style={{ left: `${pct(r.start)}%`, width: `${Math.max(0, pct(r.end) - pct(r.start))}%` }}
+                      onPointerDown={handleClipRangePointerDown}
+                      onPointerMove={handleClipThumbPointerMove}
+                      onPointerUp={handleClipThumbPointerUp}
+                      onPointerCancel={handleClipThumbPointerUp}
+                      role="slider"
+                      aria-label="Move clip window"
+                      aria-valuenow={Math.round(r.start)}
+                    />
+                    <div
+                      className="set-editor__clip-thumb"
+                      style={{ left: `${pct(r.start)}%` }}
+                      onPointerDown={handleClipThumbPointerDown('start')}
+                      onPointerMove={handleClipThumbPointerMove}
+                      onPointerUp={handleClipThumbPointerUp}
+                      onPointerCancel={handleClipThumbPointerUp}
+                      role="slider"
+                      aria-label="Clip start"
+                      aria-valuenow={Math.round(r.start)}
+                    />
+                    <div
+                      className="set-editor__clip-thumb"
+                      style={{ left: `${pct(r.end)}%` }}
+                      onPointerDown={handleClipThumbPointerDown('end')}
+                      onPointerMove={handleClipThumbPointerMove}
+                      onPointerUp={handleClipThumbPointerUp}
+                      onPointerCancel={handleClipThumbPointerUp}
+                      role="slider"
+                      aria-label="Clip end"
+                      aria-valuenow={Math.round(r.end)}
+                    />
+                  </>
+                );
+              })()}
+            </div>
+            <div className="set-editor__clip-labels">
+              {(() => {
+                const r = clipRanges[activeClipIndex] || { start: 0, end: CLIP_MIN_SEC };
+                return (
+                  <>
+                    <span>{formatTime(r.start)}</span>
+                    <span>{(r.end - r.start).toFixed(1)}s selected</span>
+                    <span>{formatTime(r.end)}</span>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
           <div className="set-editor__post-summary">
-            Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video) with master audio replacing the video audio. A 30-second clip from the start lands in the feed automatically.
+            Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video) with master audio replacing the video audio, plus <strong>{numClips}</strong> clip{numClips === 1 ? '' : 's'} to the feed.
+            {(trimInSec != null || trimOutSec != null) && (
+              <> Trimmed to <strong>{trimInSec != null ? formatClockTime(trimInSec) : 'start'} → {trimOutSec != null ? formatClockTime(trimOutSec) : 'end'}</strong>.</>
+            )}
           </div>
 
           {uploading ? (

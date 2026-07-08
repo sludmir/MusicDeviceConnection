@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import './App.css';
 import './components/BuilderControls.css';
-import { MdDarkMode, MdLightMode, MdNotificationsNone, MdPerson, MdHeadphones, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline, MdAdd } from 'react-icons/md';
-import { FiSearch, FiChevronDown } from 'react-icons/fi';
+import { MdDarkMode, MdLightMode, MdSettings, MdTune, MdInventory2, MdLogout, MdPlayCircleOutline, MdAdd, MdHome } from 'react-icons/md';
+import { FiChevronDown } from 'react-icons/fi';
 import { signInWithGoogle, logout } from "./Auth";
 import { auth } from "./firebaseConfig";
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -15,11 +15,11 @@ import { SetPlayerProvider } from './components/SetPlayerProvider';
 import ProductImporter from './ProductImporter';
 import SceneVariantSwitcherImport from './components/SceneVariantSwitcher';
 import ProductDashboardImport from './ProductDashboard';
-import MySetsImport from './MySets';
 import SettingsImport from './Settings';
 import PreferencesImport from './Preferences';
 import HubLandingPageImport from './components/HubLandingPage';
 import CreateHubImport from './components/CreateHub';
+import LandingPage from './components/LandingPage';
 import LegalPage from './components/LegalPage';
 import SaveSetupButtonImport from './components/SaveSetupButton';
 import ConnectionGuideButtonImport from './components/ConnectionGuideButton';
@@ -31,6 +31,8 @@ import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
 import SetEditorImport from './components/SetEditor';
 import useIsMobile from './utils/useIsMobile';
+import useViewerRoles from './utils/useViewerRoles';
+import { trackPageView } from './utils/analytics';
 
 const ThreeScene = lazy(() =>
   import('./ThreeScene').then((m) => {
@@ -43,7 +45,6 @@ const SceneVariantSwitcher = unwrap(SceneVariantSwitcherImport);
 const SaveSetupButton = unwrap(SaveSetupButtonImport);
 const ConnectionGuideButton = unwrap(ConnectionGuideButtonImport);
 const ProductDashboard = unwrap(ProductDashboardImport);
-const MySets = unwrap(MySetsImport);
 const Settings = unwrap(SettingsImport);
 const Preferences = unwrap(PreferencesImport);
 const HubLandingPage = unwrap(HubLandingPageImport);
@@ -63,7 +64,6 @@ const APP_COMPONENTS = [
   ['SceneVariantSwitcher', SceneVariantSwitcher],
   ['SaveSetupButton', SaveSetupButton],
   ['ProductDashboard', ProductDashboard],
-  ['MySets', MySets],
   ['Settings', Settings],
   ['Preferences', Preferences],
   ['HubLandingPage', HubLandingPage],
@@ -143,9 +143,10 @@ function App() {
           const userRef = doc(db, 'users', user.uid);
           const userSnap = await getDoc(userRef);
           if (!userSnap.exists()) {
+            // No email here: users/* is readable by all signed-in users, and
+            // auth already knows the email — keep PII out of the shared doc.
             await setDoc(userRef, {
               displayName: user.email?.split('@')[0] || 'User',
-              email: user.email,
               followers: [],
               following: [],
               createdAt: serverTimestamp()
@@ -179,6 +180,12 @@ function App() {
   const handleDevicesChange = useCallback((devices) => {
     setActualDevices(devices);
   }, []);
+
+  // Signed-out views (landing / legal) render outside the router, so the
+  // in-router AnalyticsTracker never sees them — log them here instead.
+  useEffect(() => {
+    if (!isLoading && !user) trackPageView(window.location.pathname);
+  }, [isLoading, user]);
 
 
   if (isLoading) {
@@ -245,11 +252,7 @@ function App() {
         {window.location.pathname === '/legal' ? (
           <div style={{ flex: 1, overflowY: 'auto' }}><LegalPage /></div>
         ) : (
-          <footer style={{ marginTop: 'auto', padding: '16px', textAlign: 'center' }}>
-            <a href="/legal" style={{ color: 'inherit', opacity: 0.6, fontSize: '13px' }}>
-              Affiliate disclosure &amp; privacy
-            </a>
-          </footer>
+          <LandingPage onSignIn={signInWithGoogle} />
         )}
       </div>
     );
@@ -257,6 +260,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <AnalyticsTracker />
       <SetPlayerProvider theme={theme}>
       <AppRoutes
         user={user}
@@ -454,41 +458,6 @@ function AppRoutes({
             {isProfileDropdownOpen && (
               <div className="profile-dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, minWidth: '200px', zIndex: 1000, marginTop: '4px' }}>
                 <div style={{ padding: '8px 0' }}>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/search')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <FiSearch size={18} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Search users</div>
-                      <div className="profile-dropdown-item-sub">Find people to follow</div>
-                    </div>
-                  </div>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/notifications')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <MdNotificationsNone size={20} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Notifications</div>
-                      <div className="profile-dropdown-item-sub">Recent activity</div>
-                    </div>
-                  </div>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/feed')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <MdPlayCircleOutline size={20} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Feed</div>
-                      <div className="profile-dropdown-item-sub">Discover live sets</div>
-                    </div>
-                  </div>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/profile')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <MdPerson size={20} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>My Profile</div>
-                      <div className="profile-dropdown-item-sub">View your profile & setups</div>
-                    </div>
-                  </div>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/sets')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <MdHeadphones size={20} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>My Sets</div>
-                      <div className="profile-dropdown-item-sub">View saved setups</div>
-                    </div>
-                  </div>
                   <div className="profile-dropdown-item" onClick={goAndClose('/settings')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdSettings size={20} style={{ flexShrink: 0 }} />
                     <div>
@@ -496,18 +465,18 @@ function AppRoutes({
                       <div className="profile-dropdown-item-sub">Manage profile</div>
                     </div>
                   </div>
-                  <div className="profile-dropdown-item" onClick={goAndClose('/preferences')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <MdTune size={20} style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Preferences</div>
-                      <div className="profile-dropdown-item-sub">Budget & options</div>
-                    </div>
-                  </div>
                   <div className="profile-dropdown-item" onClick={goAndClose('/admin/products')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <MdInventory2 size={20} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: '500' }}>Product Management</div>
                       <div className="profile-dropdown-item-sub">Manage products & prices</div>
+                    </div>
+                  </div>
+                  <div className="profile-dropdown-item" onClick={goAndClose('/preferences')} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <MdTune size={20} style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500' }}>Preferences</div>
+                      <div className="profile-dropdown-item-sub">Budget & options</div>
                     </div>
                   </div>
                   <div className="profile-dropdown-divider" />
@@ -532,7 +501,6 @@ function AppRoutes({
               <HubLandingPage
                 onSetupSelect={handleSetupSelectFromLanding}
                 onNewSetup={handleNewSetupFromLanding}
-                onFeedClick={() => navigate('/feed')}
                 onSearchClick={() => navigate('/search')}
                 onAddProducts={() => navigate('/admin/products-import')}
                 theme={theme}
@@ -559,12 +527,8 @@ function AppRoutes({
                 theme={theme}
               />
             } />
-            <Route path="/sets" element={
-              <MySets
-                onSelectSetup={handleSetupSelectFromLanding}
-                onNewSetup={handleNewSetupFromLanding}
-              />
-            } />
+            {/* Legacy My Sets page — setups now live under Profile → SETUPS */}
+            <Route path="/sets" element={<Navigate to="/profile?tab=setups" replace />} />
             <Route path="/profile" element={
               <Profile
                 userId={auth.currentUser?.uid}
@@ -595,66 +559,88 @@ function AppRoutes({
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/admin/products" element={<ProductDashboard onClose={() => navigate('/hub')} />} />
             <Route path="/admin/products-import" element={<ProductImporter onBack={() => navigate('/hub')} />} />
-            <Route path="/upload" element={<Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />} />
-            <Route path="/set-editor" element={<SetEditor onBack={() => navigate('/hub')} theme={theme} />} />
-            <Route path="*" element={<Navigate to="/hub" replace />} />
-          </Route>
-          <Route path="/builder" element={
-            selectedSetup ? (
-              <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
-                <div className="setup-container" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <div className="main-content" style={{ flex: 1, position: 'relative', marginBottom: '80px' }}>
-                    <div className="builder-controls">
-                      <button
-                        type="button"
-                        className="builder-feed-btn"
-                        onClick={() => navigate('/feed')}
-                        title="Open the LiveSet feed"
-                      >
-                        <MdPlayCircleOutline size={18} />
-                        <span className="builder-ctl-label">Feed</span>
-                      </button>
-                      {isMobile ? (
-                        <button
-                          type="button"
-                          className="builder-add-btn press"
-                          onClick={() => window.dispatchEvent(new CustomEvent('liveset:add-device'))}
-                          title="Add a device"
-                        >
-                          <MdAdd size={20} />
-                          <span className="builder-ctl-label">Add device</span>
-                        </button>
-                      ) : (
-                        <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
-                      )}
-                      <SaveSetupButton
-                        currentDevices={actualDevices}
+            <Route path="/upload" element={
+              <RequireCreator>
+                <Upload onBack={() => navigate('/feed')} onSuccess={() => navigate('/feed')} />
+              </RequireCreator>
+            } />
+            <Route path="/set-editor" element={
+              <RequireCreator>
+                <SetEditor onBack={() => navigate('/hub')} theme={theme} />
+              </RequireCreator>
+            } />
+            <Route path="/builder" element={
+              selectedSetup ? (
+                <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c0c12', color: 'rgba(255,255,255,0.6)' }}>Loading scene…</div>}>
+                  <div className="builder-page">
+                    <div className="builder-stage">
+                      <div className="builder-controls">
+                        {isMobile ? (
+                          // Mobile bottom bar: unchanged — the sidebar is desktop-only,
+                          // so Home/Feed stay reachable from here.
+                          <>
+                            <button
+                              type="button"
+                              className="builder-feed-btn builder-home-btn"
+                              onClick={handleLogoClick}
+                              title="Back to home"
+                            >
+                              <MdHome size={18} />
+                              <span className="builder-ctl-label">Home</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="builder-feed-btn"
+                              onClick={() => navigate('/feed')}
+                              title="Open the LiveSet feed"
+                            >
+                              <MdPlayCircleOutline size={18} />
+                              <span className="builder-ctl-label">Feed</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="builder-add-btn press"
+                              onClick={() => window.dispatchEvent(new CustomEvent('liveset:add-device'))}
+                              title="Add a device"
+                            >
+                              <MdAdd size={20} />
+                              <span className="builder-ctl-label">Add device</span>
+                            </button>
+                          </>
+                        ) : (
+                          // Desktop: the sidebar owns navigation, so the floating
+                          // cluster is builder actions only.
+                          <ConnectionGuideButton currentDevices={actualDevices} setupType={selectedSetup} />
+                        )}
+                        <SaveSetupButton
+                          currentDevices={actualDevices}
+                          setupType={selectedSetup}
+                          setting={selectedSetting}
+                          cameraAngles={currentCameraAngles}
+                          setupId={loadedSetupId}
+                          setupName={loadedSetupName}
+                        />
+                      </div>
+                      <ThreeScene
+                        devices={setupDevices[selectedSetup]}
+                        isInitialized={isFirebaseConnected}
                         setupType={selectedSetup}
                         setting={selectedSetting}
-                        cameraAngles={currentCameraAngles}
-                        setupId={loadedSetupId}
-                        setupName={loadedSetupName}
+                        onSettingChange={setSelectedSetting}
+                        onDevicesChange={handleDevicesChange}
+                        initialCameraAngles={initialCameraAngles}
+                        onCameraAnglesChange={setCurrentCameraAngles}
+                        affiliateAttribution={affiliateAttribution}
                       />
                     </div>
-                    <ThreeScene
-                      devices={setupDevices[selectedSetup]}
-                      isInitialized={isFirebaseConnected}
-                      setupType={selectedSetup}
-                      setting={selectedSetting}
-                      onSettingChange={setSelectedSetting}
-                      onDevicesChange={handleDevicesChange}
-                      theme={theme}
-                      initialCameraAngles={initialCameraAngles}
-                      onCameraAnglesChange={setCurrentCameraAngles}
-                      affiliateAttribution={affiliateAttribution}
-                    />
                   </div>
-                </div>
-              </Suspense>
-            ) : (
-              <Navigate to="/hub" replace />
-            )
-          } />
+                </Suspense>
+              ) : (
+                <Navigate to="/hub" replace />
+              )
+            } />
+            <Route path="*" element={<Navigate to="/hub" replace />} />
+          </Route>
         </Routes>
       </div>
 
@@ -672,6 +658,23 @@ function AppRoutes({
 function ProfileRoute({ onBack, onSetupSelect }) {
   const { id } = useParams();
   return <Profile userId={id} onBack={onBack} onSetupSelect={onSetupSelect} />;
+}
+
+function AnalyticsTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+  return null;
+}
+
+// Live-set posting routes are for verified creators only (mirrors the
+// isCreator() gate in firestore.rules).
+function RequireCreator({ children }) {
+  const { isCreator, loading } = useViewerRoles();
+  if (loading) return null;
+  if (!isCreator) return <Navigate to="/hub" replace />;
+  return children;
 }
 
 export default App;

@@ -58,6 +58,29 @@
   line-height: 1.5;
 }
 
+/* Verified-creator gold treatment: filled gold chip (dark text — gold is
+   pale) + a soft gold ring around the avatar. */
+.profile__creator-chip.ui-chip {
+  gap: var(--space-1);
+  margin: var(--space-1) 0;
+  background: var(--primary);
+  border-color: var(--accent-strong);
+  color: var(--primary-contrast);
+  box-shadow: 0 0 14px var(--primary-border);
+}
+
+.profile__avatar--creator .ui-avatar {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--primary),
+    0 0 18px var(--primary-border);
+}
+
+.profile__verify-creator {
+  margin-top: var(--space-2);
+}
+
 .profile__stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -1,17 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { IoArrowBack } from 'react-icons/io5';
+import { IoArrowBack, IoMusicalNotes } from 'react-icons/io5';
+import { MdHeadphones, MdPiano } from 'react-icons/md';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '../firebaseConfig';
 import { createBunnyVideo, uploadToBunny } from '../utils/bunnyStream';
+import { CLIP_MIN_SEC, CLIP_MAX_SEC, normalizeClipRange, resizeClipRanges } from '../utils/clipRanges';
 import './PostSetModal.css';
 
 const PIXELS_PER_SECOND = 80;
 const WAVEFORM_HEIGHT = 80;
 const SET_MIN_SEC = 5 * 60;   // 5 min – full set minimum
 const SET_MAX_SEC = 90 * 60;  // 1 hr 30 min – full set maximum
-const CLIP_MIN_SEC = 10;      // 10 sec – clip minimum
-const CLIP_MAX_SEC = 60;      // 1 min – clip maximum
 const MAX_AUDIO_SIZE_MB = 200;
 const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
 const MAX_VIDEO_SIZE_MB = 10000; // Bunny Stream upload (10GB)
@@ -31,35 +31,6 @@ function formatFileSize(bytes) {
 
 function getValidDuration(value) {
   return Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-function normalizeClipRange(range, durationSec) {
-  const dur = getValidDuration(durationSec);
-  if (!dur) {
-    return { start: 0, end: CLIP_MIN_SEC };
-  }
-
-  const maxStart = Math.max(0, dur - CLIP_MIN_SEC);
-  const rawStart = Number(range?.start);
-  const rawEnd = Number(range?.end);
-  const fallbackEnd = Math.min(dur, Math.max(CLIP_MIN_SEC, dur));
-
-  let start = Number.isFinite(rawStart) ? rawStart : 0;
-  let end = Number.isFinite(rawEnd) ? rawEnd : fallbackEnd;
-
-  start = Math.max(0, Math.min(maxStart, start));
-  end = Math.max(start + CLIP_MIN_SEC, end);
-  end = Math.min(dur, start + CLIP_MAX_SEC, end);
-
-  if (end - start < CLIP_MIN_SEC) {
-    start = Math.max(0, Math.min(maxStart, end - CLIP_MIN_SEC));
-    end = Math.min(dur, start + CLIP_MIN_SEC);
-  }
-
-  return {
-    start: Number(start.toFixed(2)),
-    end: Number(end.toFixed(2)),
-  };
 }
 
 function PostSetModal({ onClose, theme = 'light', onSuccess }) {
@@ -541,37 +512,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
 
   const handleNumClipsChange = (n) => {
     setNumClips(n);
-    setClipRanges((prev) => {
-      const next = prev.slice(0, n);
-      const dur = getBestKnownVideoDuration();
-      if (!dur) {
-        while (next.length < n) {
-          const last = next[next.length - 1];
-          const start = Number.isFinite(last?.end) ? last.end + 30 : 0;
-          next.push({
-            start: Number(start.toFixed(2)),
-            end: Number((start + CLIP_MIN_SEC).toFixed(2)),
-          });
-        }
-        return next;
-      }
-
-      for (let i = 0; i < next.length; i++) {
-        next[i] = normalizeClipRange(next[i], dur);
-      }
-
-      if (next.length === 0) {
-        next.push(normalizeClipRange({ start: 0, end: CLIP_MIN_SEC }, dur));
-      }
-
-      while (next.length < n) {
-        const last = next[next.length - 1];
-        const maxStart = Math.max(0, dur - CLIP_MIN_SEC);
-        const start = last ? Math.min(last.end + 30, maxStart) : 0;
-        next.push(normalizeClipRange({ start, end: start + CLIP_MIN_SEC }, dur));
-      }
-      return next;
-    });
+    setClipRanges((prev) => resizeClipRanges(prev, n, getBestKnownVideoDuration()));
     setActiveClipIndex((prev) => Math.min(prev, n - 1));
   };
 
@@ -1040,7 +981,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                         onClick={() => setSelectedSetupId(prev => prev === setup.id ? '' : setup.id)}
                       >
                         <span className="post-set-setup-option-icon">
-                          {setup.setupType === 'DJ' ? '🎧' : setup.setupType === 'Producer' ? '🎹' : '🎸'}
+                          {setup.setupType === 'DJ' ? <MdHeadphones size={18} /> : setup.setupType === 'Producer' ? <MdPiano size={18} /> : <IoMusicalNotes size={18} />}
                         </span>
                         <span className="post-set-setup-option-name">{setup.name || 'Untitled'}</span>
                         <span className="post-set-setup-option-type">{setup.setupType || 'DJ'}</span>

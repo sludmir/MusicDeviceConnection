@@ -232,7 +232,8 @@ export class ProductManager {
         modelPath: modelURL,
         imageUrl: imageURL,
         ownerId: currentUser.uid, // Track who created this product
-        createdBy: currentUser.email || currentUser.uid, // Also store email for display
+        // Display name, not email — products are public-read
+        createdBy: currentUser.displayName || currentUser.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };

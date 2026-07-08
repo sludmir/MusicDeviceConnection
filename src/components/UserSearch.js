@@ -88,7 +88,6 @@ function UserSearch({ onProfileClick }) {
                   <Avatar name={user.displayName || user.id} size={48} />
                   <div className="search-result__meta">
                     <span className="search-result__name">{user.displayName || user.id.slice(0, 12)}</span>
-                    {user.email && <span className="search-result__email mono-label">{user.email}</span>}
                   </div>
                 </button>
               </li>

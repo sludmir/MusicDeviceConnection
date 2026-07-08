@@ -125,7 +125,7 @@
   margin-top: var(--space-2);
 }
 
-/* ---- Featured: hero + tile row ---- */
+/* ---- Featured: cinematic hero + tile grid ---- */
 
 .hub-featured {
   display: flex;
@@ -133,14 +133,19 @@
   gap: var(--space-5);
 }
 
+/* Media fills the card; meta sits on a bottom scrim. Reads as one confident
+   billboard with a single set and stays the focal point above the grid when
+   there are many. */
 .hub-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: var(--space-5);
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  padding: 0;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-5);
+  overflow: hidden;
   cursor: pointer;
   text-align: left;
   transition: border-color var(--dur-micro);
@@ -148,50 +153,49 @@
 
 .hub-hero:hover { border-color: var(--border-strong); }
 
-.hub-hero__thumb {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.hub-hero__thumb video {
+.hub-hero__video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform var(--dur-screen) var(--ease-screen);
 }
 
-.hub-hero__overlay {
+.hub-hero:hover .hub-hero__video { transform: scale(1.025); }
+
+.hub-hero__scrim {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(180deg, rgba(10,9,8,0) 50%, rgba(10,9,8,0.5) 100%);
+  background: linear-gradient(180deg, rgba(10,9,8,0) 30%, rgba(10,9,8,0.35) 62%, rgba(10,9,8,0.86) 100%);
 }
 
 .hub-hero__play {
-  width: 56px;
-  height: 56px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: rgba(245, 239, 227, 0.95);
+  background: rgba(245, 239, 227, 0.94);
   color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   transition: transform var(--dur-micro);
 }
 
-.hub-hero:hover .hub-hero__play { transform: scale(1.06); }
+.hub-hero:hover .hub-hero__play { transform: translate(-50%, -50%) scale(1.07); }
 
 .hub-hero__duration {
   position: absolute;
-  bottom: var(--space-3);
-  right: var(--space-3);
-  background: rgba(10,9,8,0.85);
+  top: var(--space-4);
+  right: var(--space-4);
+  background: rgba(10,9,8,0.75);
+  backdrop-filter: blur(6px);
   color: var(--text);
   padding: 3px var(--space-2);
   border-radius: var(--radius-xs);
@@ -199,29 +203,62 @@
 }
 
 .hub-hero__meta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--space-7) var(--space-5) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  justify-content: center;
+  gap: var(--space-2);
   min-width: 0;
 }
 
-.hub-hero__creator { color: var(--text-dim); }
+.hub-hero__creator { color: var(--text-muted); }
+
+.hub-hero__views {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
 
 .hub-hero__title {
   margin: 0;
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-display);
   font-weight: 600;
   line-height: var(--lh-heading);
   color: var(--text);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
-.hub-hero__chip { display: flex; }
+.hub-hero__chip { display: flex; margin-top: var(--space-1); }
 
 @media (max-width: 760px) {
-  .hub-hero { grid-template-columns: 1fr; padding: var(--space-4); gap: var(--space-4); }
+  .hub-hero { aspect-ratio: 16 / 9; }
   .hub-hero__title { font-size: var(--fs-xl); }
-  .hub-hero__play { width: 44px; height: 44px; }
+  .hub-hero__play { width: 48px; height: 48px; }
+  .hub-hero__meta { padding: var(--space-6) var(--space-4) var(--space-4); }
+  .hub-hero__duration { top: var(--space-3); right: var(--space-3); }
+}
+
+/* ---- Featured empty state ---- */
+
+.hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.hub-empty__text {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
 }
 
 /* ---- Hub set player overlay ---- */
@@ -299,7 +336,31 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
-  margin-top: var(--space-4);
+}
+
+/* Non-creator note shown in place of the post CTAs on /create */
+.hub-post-locked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--primary-softer);
+  border: 1px dashed var(--primary-border);
+  border-radius: var(--radius-md);
+}
+
+.hub-post-locked__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+}
+
+.hub-post-locked__text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .hub-post-card {
@@ -414,22 +475,29 @@
   background: rgba(217, 194, 160, 0.04);
 }
 
-/* ---- Recent posts row ---- */
+/* ---- Featured tiles: grid on desktop, swipe row on mobile ---- */
 
-.hub-sets-row {
-  display: flex;
+.hub-sets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: var(--space-4);
-  overflow-x: auto;
-  padding-bottom: var(--space-3);
-  scroll-snap-type: x proximity;
 }
 
-.hub-sets-row::-webkit-scrollbar { height: 6px; }
-.hub-sets-row::-webkit-scrollbar-track { background: transparent; }
-.hub-sets-row::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+@media (max-width: 760px) {
+  .hub-sets-grid {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-2);
+    scroll-snap-type: x proximity;
+  }
+  .hub-sets-grid::-webkit-scrollbar { display: none; }
+  .hub-sets-grid { scrollbar-width: none; }
+  .hub-sets-grid .hub-set-tile { flex: 0 0 260px; }
+}
 
 .hub-set-tile {
-  flex: 0 0 320px;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -439,6 +507,7 @@
   text-align: left;
   cursor: pointer;
   scroll-snap-align: start;
+  min-width: 0;
 }
 
 .hub-set-tile__thumb {
@@ -453,6 +522,26 @@
 
 .hub-set-tile:hover .hub-set-tile__thumb {
   border-color: var(--border-strong);
+}
+
+/* Play affordance fades in on hover so the grid reads calm at rest */
+.hub-set-tile__play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(10,9,8,0) 55%, rgba(10,9,8,0.45) 100%);
+  opacity: 0;
+  transition: opacity var(--dur-micro);
+}
+
+.hub-set-tile:hover .hub-set-tile__play,
+.hub-set-tile:focus-visible .hub-set-tile__play { opacity: 1; }
+
+@media (hover: none) {
+  .hub-set-tile__play { opacity: 1; }
 }
 
 .hub-set-tile__thumb video {
@@ -482,6 +571,17 @@
 
 .hub-set-tile__creator {
   color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.hub-set-tile__views {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .hub-set-tile__title {

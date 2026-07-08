@@ -5,7 +5,7 @@ import { getStorageModelURL } from '../firebaseUtils';
 import './FaveProductViewer.css';
 
 const VIEWER_HEIGHT = 280;
-const SPIN_SPEED = 0.35; // radians per second
+const SPIN_SPEED = 0.175; // radians per second
 
 async function resolveModelURL(product) {
   if (!product) return null;
@@ -40,11 +40,14 @@ function FaveProductViewer({ product }) {
     const height = VIEWER_HEIGHT;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0c0c12);
+    // Warm-dark surface to match --surface-1 token (FaveProductViewer.css wrap),
+    // so the canvas and its frame read as one warm panel, not a blue box.
+    scene.background = new THREE.Color(0x141210);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 0, 3.2);
+    // Elevated 3/4 diagonal hero angle, looking down toward the product.
+    camera.position.set(1.8, 1.5, 2.4);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
