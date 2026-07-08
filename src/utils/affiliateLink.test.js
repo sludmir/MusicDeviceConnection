@@ -1,4 +1,4 @@
-import { buildBuyLink, buildSubtag } from './affiliateLink';
+import { buildBuyLink, buildSubtag, buyButtonLabel, detectRetailer } from './affiliateLink';
 
 describe('buildSubtag', () => {
   test('joins creatorId and setupId with a hyphen', () => {
@@ -10,10 +10,30 @@ describe('buildSubtag', () => {
     expect(buildSubtag({ creatorId: null, setupId: 'set456' })).toBe('');
   });
 
-  test('strips unsafe characters and truncates to 90 chars', () => {
-    const sub = buildSubtag({ creatorId: 'a$b c!', setupId: 'x'.repeat(200) });
+  test('strips unsafe characters and truncates to maxLen', () => {
+    const sub = buildSubtag({ creatorId: 'a$b c!', setupId: 'x'.repeat(200) }, 50);
     expect(sub).toMatch(/^[A-Za-z0-9-]+$/);
-    expect(sub.length).toBeLessThanOrEqual(90);
+    expect(sub.length).toBeLessThanOrEqual(50);
+  });
+});
+
+describe('detectRetailer', () => {
+  test('detects supported retailer hostnames', () => {
+    expect(detectRetailer('www.zzounds.com')?.id).toBe('cj');
+    expect(detectRetailer('www.guitarcenter.com')?.id).toBe('cj');
+    expect(detectRetailer('www.reverb.com')?.id).toBe('awin');
+    expect(detectRetailer('www.thomann.de')?.id).toBe('thomann');
+    expect(detectRetailer('www.amazon.com')?.id).toBe('amazon');
+  });
+});
+
+describe('buyButtonLabel', () => {
+  test('uses retailer label when available', () => {
+    expect(buyButtonLabel({ retailerLabel: 'zZounds', isAmazon: false })).toBe('Buy on zZounds ↗');
+  });
+
+  test('falls back to Amazon label', () => {
+    expect(buyButtonLabel({ isAmazon: true, retailerLabel: null })).toBe('Buy on Amazon ↗');
   });
 });
 
@@ -31,6 +51,8 @@ describe('buildBuyLink', () => {
     expect(url.searchParams.get('tag')).toBe('liveset-20');
     expect(link.urlKind).toBe('search-fallback');
     expect(link.isAmazon).toBe(true);
+    expect(link.retailer).toBe('amazon');
+    expect(link.retailerLabel).toBe('Amazon');
   });
 
   test('adds tag and ascsubtag to an Amazon product URL', () => {
@@ -43,14 +65,50 @@ describe('buildBuyLink', () => {
     expect(url.searchParams.get('ascsubtag')).toBe('creator1-setup9');
     expect(url.searchParams.get('th')).toBe('1');
     expect(link.urlKind).toBe('product-link');
+    expect(link.retailer).toBe('amazon');
   });
 
-  test('returns non-Amazon affiliateUrl untouched', () => {
-    const raw = 'https://www.thomann.de/intl/pioneer_cdj_3000.htm?partner=xyz';
-    const link = buildBuyLink({ name: 'CDJ-3000', affiliateUrl: raw }, { creatorId: 'c', setupId: 's' });
-    expect(link.url).toBe(raw);
+  test('adds sid to CJ retailer URLs', () => {
+    const link = buildBuyLink(
+      { name: 'CDJ-3000', affiliateUrl: 'https://www.zzounds.com/item--PIONEERCDJ3000' },
+      { creatorId: 'creator1', setupId: 'setup9' }
+    );
+    const url = new URL(link.url);
+    expect(url.searchParams.get('sid')).toBe('creator1-setup9');
+    expect(link.retailer).toBe('cj');
+    expect(link.retailerLabel).toBe('zZounds');
     expect(link.isAmazon).toBe(false);
-    expect(link.urlKind).toBe('product-link');
+  });
+
+  test('adds clickref to Reverb URLs', () => {
+    const link = buildBuyLink(
+      { name: 'Prophet-6', affiliateUrl: 'https://reverb.com/item/12345-sequential-prophet-6' },
+      { creatorId: 'creator1', setupId: 'setup9' }
+    );
+    const url = new URL(link.url);
+    expect(url.searchParams.get('clickref')).toBe('creator1-setup9');
+    expect(link.retailer).toBe('awin');
+    expect(link.retailerLabel).toBe('Reverb');
+  });
+
+  test('adds subid to Thomann URLs', () => {
+    const link = buildBuyLink(
+      { name: 'CDJ-3000', affiliateUrl: 'https://www.thomann.de/intl/pioneer_cdj_3000.htm?partner=xyz' },
+      { creatorId: 'c', setupId: 's' }
+    );
+    const url = new URL(link.url);
+    expect(url.searchParams.get('partner')).toBe('xyz');
+    expect(url.searchParams.get('subid')).toBe('c-s');
+    expect(link.retailer).toBe('thomann');
+    expect(link.retailerLabel).toBe('Thomann');
+  });
+
+  test('omits subid when there is no attribution', () => {
+    const link = buildBuyLink(
+      { name: 'CDJ-3000', affiliateUrl: 'https://www.zzounds.com/item--PIONEERCDJ3000' },
+      null
+    );
+    expect(new URL(link.url).searchParams.get('sid')).toBeNull();
   });
 
   test('omits ascsubtag when there is no attribution', () => {

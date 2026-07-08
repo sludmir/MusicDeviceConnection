@@ -20,7 +20,7 @@ import GhostSpotContextMenu from './components/GhostSpotContextMenu';
 import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
 import CameraAngleControls from './components/CameraAngleControls';
 import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
-import { buildBuyLink } from './utils/affiliateLink';
+import { buildBuyLink, buyButtonLabel } from './utils/affiliateLink';
 import { midpoint, panOffsetFromMidpointDelta } from './utils/cameraPan';
 import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
 import MobileNavigation from './MobileNavigation';
@@ -4794,6 +4794,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
             clickerUid: auth?.currentUser?.uid || null,
             source,
             urlKind: link.urlKind,
+            retailer: link.retailer,
         }));
     };
 
@@ -4989,7 +4990,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                                                             color: '#111', fontSize: '14px', fontWeight: 700, cursor: 'pointer'
                                                         }}
                                                     >
-                                                        {link.isAmazon ? 'Buy on Amazon ↗' : 'Buy ↗'}
+                                                        {buyButtonLabel(link)}
                                                     </button>
                                                     <div style={{ marginTop: '6px', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
                                                         Affiliate link — purchases support LiveSet{affiliateAttribution?.creatorId ? ' and this creator' : ''}.

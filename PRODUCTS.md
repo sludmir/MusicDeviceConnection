@@ -2,7 +2,7 @@
 
 Auto-generated from the Firestore `products` collection. **Do not edit by hand** — run `npm run dump-products` to regenerate.
 
-Last generated: 2026-05-22
+Last generated: 2026-07-08
 Total products: 20
 
 Products compatible with multiple setup types appear in each relevant section.

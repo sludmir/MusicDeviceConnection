@@ -8,6 +8,7 @@ describe('buildClickPayload', () => {
       clickerUid: 'u1',
       source: 'mini-profile',
       urlKind: 'product-link',
+      retailer: 'cj',
     });
     expect(payload).toEqual({
       productId: 'p1',
@@ -17,6 +18,7 @@ describe('buildClickPayload', () => {
       clickerUid: 'u1',
       source: 'mini-profile',
       urlKind: 'product-link',
+      retailer: 'cj',
     });
   });
 

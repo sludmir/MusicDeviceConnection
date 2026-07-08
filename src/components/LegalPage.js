@@ -6,29 +6,51 @@ export default function LegalPage() {
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 24px', color: 'inherit' }}>
       <h1>LiveSet — Disclosures, Privacy &amp; Terms</h1>
-      <p style={{ opacity: 0.7 }}>Effective July 3, 2026. We'll update this page when our practices change; the date above always reflects the current version.</p>
+      <p style={{ opacity: 0.7 }}>Effective July 8, 2026. We'll update this page when our practices change; the date above always reflects the current version.</p>
 
       <section style={sectionStyle}>
         <h2>About LiveSet</h2>
         <p>
-          LiveSet (liveset.io) is a platform where DJs, producers, and musicians build
-          interactive 3D versions of their gear setups, share video performances, and let
-          viewers explore — and shop — the exact equipment used. Contact for anything on
-          this page: sebasludmir@gmail.com.
+          LiveSet (liveset.io) is operated by LiveSet, LLC. It is a platform where DJs,
+          producers, and musicians build interactive 3D versions of their gear setups, share
+          video performances, and let viewers explore — and shop — the exact equipment used.
+          Contact for anything on this page: sebasludmir@gmail.com.
         </p>
       </section>
 
       <section style={sectionStyle}>
         <h2>Affiliate Disclosure</h2>
         <p>
-          Product links on LiveSet may be affiliate links, placed through affiliate
-          networks and programs (which may include Amazon Associates, Skimlinks, CJ
-          Affiliate, and individual retailer programs). If you buy through them, LiveSet —
-          and in some cases the creator whose setup you were viewing — receives a
-          commission at no extra cost to you. When you follow an affiliate link, the
-          network or retailer may set cookies in your browser to attribute the purchase;
-          their own privacy policies govern what happens on their sites. Prices shown on
-          LiveSet are informational and may differ from the retailer's current price.
+          Some links on LiveSet — including <strong>Buy</strong> buttons on gear in 3D setups
+          — are affiliate links. If you click through and make a qualifying purchase, LiveSet
+          may earn a commission from the retailer at <strong>no extra cost to you</strong>.
+          You pay the retailer's standard price; we do not offer cashback, rebates, discounts,
+          or other purchase incentives tied to these links.
+        </p>
+        <p>
+          LiveSet participates in affiliate programs with music retailers and networks,
+          including zZounds, CJ Affiliate (for participating retailers such as Guitar Center
+          and Musician's Friend), Awin (for Reverb), and Amazon Associates. We may add or
+          change retailer partners over time. Affiliate links leave LiveSet and open the
+          retailer's website; that site may set cookies or similar identifiers to attribute
+          the sale. The retailer's privacy policy and terms govern your purchase there.
+        </p>
+        <p>
+          <strong>Amazon Associates.</strong> As an Amazon Associate, LiveSet earns from
+          qualifying purchases. Amazon links are used when a product has no direct retailer
+          link or as a catalog fallback.
+        </p>
+        <p>
+          <strong>Creator earnings.</strong> LiveSet holds the affiliate accounts with
+          retailers. When you view someone else's setup and use a Buy link, we may share a
+          portion of the commission with the creator whose setup you were viewing. Creators
+          do not operate separate affiliate accounts on LiveSet. Creator payouts are based
+          on sales attributed through retailer reporting and our internal click records;
+          we do not see what you purchased, only whether a sale was attributed to a link.
+        </p>
+        <p>
+          Prices or product names shown in LiveSet are informational and may differ from
+          the retailer's current listing, availability, or price.
         </p>
       </section>
 
@@ -54,10 +76,10 @@ export default function LegalPage() {
         </p>
         <p>
           <strong>Affiliate clicks.</strong> When you click a Buy link we log the product,
-          the setup you were viewing, and your account ID so we can credit creators for
-          purchases their setups inspire. Creators see aggregated statistics (clicks and
-          commissions attributed to their setups) — never your identity. We do not see
-          what you buy at the retailer.
+          the setup you were viewing, the retailer, and your account ID so we can credit
+          creators for purchases their setups inspire. Creators see aggregated statistics
+          (clicks and commissions attributed to their setups) — never your identity. We do
+          not see what you buy at the retailer.
         </p>
         <p>
           <strong>Service providers.</strong> LiveSet runs on Google Firebase

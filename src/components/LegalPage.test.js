@@ -5,7 +5,9 @@ describe('LegalPage', () => {
   test('shows the affiliate disclosure', () => {
     render(<LegalPage />);
     expect(screen.getByRole('heading', { name: /affiliate disclosure/i })).toBeInTheDocument();
-    expect(screen.getByText(/amazon associates/i)).toBeInTheDocument();
+    expect(screen.getByText(/As an Amazon Associate, LiveSet earns from qualifying purchases/i)).toBeInTheDocument();
+    expect(screen.getByText(/zZounds/i)).toBeInTheDocument();
+    expect(screen.getByText(/no extra cost to you/i)).toBeInTheDocument();
   });
 
   test('shows privacy policy and contact email', () => {
