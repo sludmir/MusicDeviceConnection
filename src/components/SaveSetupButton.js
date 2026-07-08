@@ -48,6 +48,7 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
         name: device.name,
         type: device.type,
         category: device.category,
+        brand: device.brand || null,
         position: device.position ? {
           x: device.position.x,
           y: device.position.y,
@@ -59,9 +60,13 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
           z: device.rotation.z
         } : null,
         modelPath: device.modelPath,
+        imageUrl: device.imageUrl || null,
+        price: device.price ?? null,
+        affiliateUrl: device.affiliateUrl || null,
         connections: device.connections || [],
         spotType: device.spotType ?? null,
         placementIndex: device.placementIndex != null ? device.placementIndex : null,
+        uniqueId: device.uniqueId ?? null,
         inputs: device.inputs || [],
         outputs: device.outputs || []
       }));
@@ -114,6 +119,7 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
         name: device.name,
         type: device.type,
         category: device.category,
+        brand: device.brand || null,
         position: device.position ? {
           x: device.position.x,
           y: device.position.y,
@@ -125,9 +131,13 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
           z: device.rotation.z
         } : null,
         modelPath: device.modelPath,
+        imageUrl: device.imageUrl || null,
+        price: device.price ?? null,
+        affiliateUrl: device.affiliateUrl || null,
         connections: device.connections || [],
         spotType: device.spotType ?? null,
         placementIndex: device.placementIndex != null ? device.placementIndex : null,
+        uniqueId: device.uniqueId ?? null,
         inputs: device.inputs || [],
         outputs: device.outputs || [],
       }));

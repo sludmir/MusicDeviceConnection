@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdDelete, MdPlayArrow, MdVerified } from 'react-icons/md';
+import { MdDelete, MdPlayArrow, MdVerified, MdLink } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
 import { useSetPlayer } from './SetPlayerProvider';
 import useViewerRoles from '../utils/useViewerRoles';
@@ -42,6 +42,9 @@ function Profile({ userId, onSetupSelect }) {
   const [faveProduct, setFaveProduct] = useState(null);
   const [setToDelete, setSetToDelete] = useState(null);
   const [deletingSet, setDeletingSet] = useState(false);
+  const [setToRelink, setSetToRelink] = useState(null);
+  const [relinkSetupId, setRelinkSetupId] = useState('');
+  const [relinkingSet, setRelinkingSet] = useState(false);
   const [creatorSaving, setCreatorSaving] = useState(false);
   const { isAdmin } = useViewerRoles();
   const [activeTab, setActiveTab] = useState(() =>
@@ -191,6 +194,50 @@ function Profile({ userId, onSetupSelect }) {
     } finally {
       setDeletingSet(false);
       setSetToDelete(null);
+    }
+  };
+
+  const handleOpenRelink = (set, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSetToRelink(set);
+    setRelinkSetupId(set.setupId || '');
+  };
+
+  const handleConfirmRelink = async () => {
+    if (!setToRelink || !isOwnProfile || setToRelink.creatorId !== currentUserId) {
+      setSetToRelink(null);
+      return;
+    }
+    if (!relinkSetupId) {
+      toast.error('Please select a setup to link.');
+      return;
+    }
+    const linkedSetup = setups.find((s) => s.id === relinkSetupId);
+    if (!linkedSetup) {
+      toast.error('Selected setup was not found.');
+      return;
+    }
+
+    setRelinkingSet(true);
+    try {
+      const payload = {
+        setupId: relinkSetupId,
+        setupName: linkedSetup.name || '',
+        setupType: linkedSetup.setupType || 'DJ',
+      };
+      await updateDoc(doc(db, 'sets', setToRelink.id), payload);
+      const clipsSnap = await getDocs(query(collection(db, 'clips'), where('fullSetId', '==', setToRelink.id)));
+      await Promise.all(clipsSnap.docs.map((clipDoc) => updateDoc(doc(db, 'clips', clipDoc.id), payload)));
+      setSets((prev) => prev.map((s) => (s.id === setToRelink.id ? { ...s, ...payload } : s)));
+      toast.success('Linked setup updated.');
+      setSetToRelink(null);
+      setRelinkSetupId('');
+    } catch (err) {
+      console.error('Error updating linked setup:', err);
+      toast.error('Failed to update linked setup.');
+    } finally {
+      setRelinkingSet(false);
     }
   };
 
@@ -355,19 +402,46 @@ function Profile({ userId, onSetupSelect }) {
                         <div className="profile-set__play"><MdPlayArrow size={24} /></div>
                       </div>
                       {isOwnProfile && (
-                        <button
-                          type="button"
-                          className="profile-set__delete"
-                          onClick={(e) => { e.stopPropagation(); setSetToDelete(set); }}
-                          aria-label="Remove this set"
-                        >
-                          <MdDelete size={16} />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="profile-set__relink"
+                            onClick={(e) => handleOpenRelink(set, e)}
+                            aria-label="Change linked setup"
+                            title="Change linked setup"
+                          >
+                            <MdLink size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="profile-set__delete"
+                            onClick={(e) => { e.stopPropagation(); setSetToDelete(set); }}
+                            aria-label="Remove this set"
+                          >
+                            <MdDelete size={16} />
+                          </button>
+                        </>
                       )}
                     </div>
                     <div className="profile-set__meta">
                       <div className="profile-set__title">{set.title || 'Untitled set'}</div>
+                      {set.setupName ? (
+                        <div className="profile-set__setup mono-label">{set.setupName}</div>
+                      ) : (
+                        isOwnProfile && (
+                          <div className="profile-set__setup profile-set__setup--missing mono-label">No setup linked</div>
+                        )
+                      )}
                       <div className="profile-set__date mono-label">{formatDate(set.createdAt)}</div>
+                      {isOwnProfile && (
+                        <button
+                          type="button"
+                          className="profile-set__change-setup"
+                          onClick={(e) => handleOpenRelink(set, e)}
+                        >
+                          Change linked setup
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -424,6 +498,53 @@ function Profile({ userId, onSetupSelect }) {
           This set will be removed from your profile and its clips will be removed from the feed.
           The video file will not be deleted from storage.
         </p>
+      </Modal>
+
+      <Modal
+        open={!!setToRelink}
+        onClose={() => !relinkingSet && setSetToRelink(null)}
+        title="Change linked setup"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSetToRelink(null)} disabled={relinkingSet}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleConfirmRelink}
+              loading={relinkingSet}
+              disabled={!relinkSetupId || relinkingSet}
+            >
+              Save
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: '0 0 var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>
+          Choose which saved setup is linked to <strong>{setToRelink?.title || 'this set'}</strong>.
+          Feed clips from this set will use the same setup.
+        </p>
+        {setups.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>
+            No saved setups yet. Build and save a setup first.
+          </p>
+        ) : (
+          <div className="profile-set-relink-list">
+            {setups.map((setup) => (
+              <button
+                key={setup.id}
+                type="button"
+                className={`profile-set-relink-option ${relinkSetupId === setup.id ? 'active' : ''}`}
+                onClick={() => setRelinkSetupId(setup.id)}
+              >
+                <span className="profile-set-relink-option-name">{setup.name || 'Untitled setup'}</span>
+                <span className="profile-set-relink-option-meta mono-label">
+                  {(setup.setupType || 'DJ').toUpperCase()} · {(setup.devices || []).length} devices
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );

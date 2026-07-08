@@ -496,6 +496,30 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
+/* ========== Buffering overlay ========== */
+.feed-buffering-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.feed-buffering-logo {
+  height: 56px;
+  width: auto;
+  opacity: 0.9;
+  animation: feedBufferPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes feedBufferPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 /* ========== Emoji action icon ========== */
 .feed-action-emoji {
   font-size: 1.4rem;
@@ -509,6 +533,93 @@
   font-size: 0.75rem;
   color: var(--feed-accent);
   opacity: 0.85;
+}
+
+/* ========== Full Set Modal ========== */
+.feed-fullset-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+  animation: feedFadeIn 0.2s ease-out;
+}
+
+@keyframes feedFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.feed-fullset-modal {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.feed-fullset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.feed-fullset-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-fullset-close {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.feed-fullset-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.feed-fullset-video-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.feed-fullset-video {
+  width: 100%;
+  max-height: calc(90vh - 72px);
+  display: block;
+  outline: none;
+}
+
+.feed-creator-avatar-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
 }
 
 /* ============================================================

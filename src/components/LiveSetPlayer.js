@@ -18,6 +18,12 @@ function formatTime(seconds) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+function normalizeAudioTrackURL(url) {
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -29,6 +35,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const [muted, setMuted] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const [minimized, setMinimized] = useState(false);
   // One view per mount (SetPlayerProvider remounts this via `key={set.id}`),
   // counted on the first real play — never on autoplay, since nothing here
@@ -45,18 +52,27 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     if (!set?.id) { setSigned(null); return; }
     let cancelled = false;
     getSignedBunnyUrls('set', set.id)
-      .then((urls) => { if (!cancelled) setSigned(urls); })
+      .then((urls) => {
+        if (cancelled) return;
+        // Mirror Feed: signing only replaces Bunny URLs; keep the Firestore
+        // audioTrackURL (Firebase Storage) when the function omits it.
+        setSigned({
+          videoURL: urls.videoURL || set.videoURL,
+          audioTrackURL: normalizeAudioTrackURL(urls.audioTrackURL)
+            || normalizeAudioTrackURL(set.audioTrackURL),
+        });
+      })
       .catch(() => {
         if (!cancelled) setSigned({
           videoURL: set.videoURL,
-          audioTrackURL: set.audioTrackURL,
+          audioTrackURL: normalizeAudioTrackURL(set.audioTrackURL),
         });
       });
     return () => { cancelled = true; };
   }, [set?.id, set?.videoURL, set?.audioTrackURL]);
 
   const videoURL = signed?.videoURL;
-  const audioTrackURL = signed?.audioTrackURL;
+  const audioTrackURL = normalizeAudioTrackURL(signed?.audioTrackURL ?? set?.audioTrackURL);
   const audioOffsetSeconds = Number(set?.audioOffsetSeconds) || 0;
   const audioReplacesVideo = audioTrackURL
     ? (set?.audioReplacesVideo !== false)
@@ -67,6 +83,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const rawTrimEnd = Number(set?.trimEndSeconds);
   const trimEnd = Number.isFinite(rawTrimEnd) && rawTrimEnd > trimStart ? rawTrimEnd : null;
   const title = set?.title || 'Live set';
+  const setupLabel = (set?.setupName || '').trim() || 'Setup';
 
   const isDark = theme === 'dark';
 
@@ -76,6 +93,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     setDuration(0);
     setLoaded(false);
     setPlaying(false);
+    setBuffering(true);
   }, [videoURL]);
 
   useEffect(() => {
@@ -83,6 +101,22 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     if (!v || !videoURL) return;
     return attachHls(v, videoURL);
   }, [videoURL]);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (!audioTrackURL) {
+      a.pause();
+      a.removeAttribute('src');
+      return;
+    }
+    if (a.src !== audioTrackURL) a.src = audioTrackURL;
+  }, [audioTrackURL]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && audioReplacesVideo) v.muted = true;
+  }, [audioReplacesVideo, videoURL]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -163,6 +197,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     const atTrimEnd = trimEnd != null && v.currentTime >= trimEnd - 0.05;
     if (sync && audioReplacesVideo) {
       if (v.paused) {
+        setBuffering(true);
         if (atTrimEnd) sync.seek(trimStart);
         sync.play();
       } else {
@@ -171,10 +206,11 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
       return;
     }
     if (v.paused) {
+      setBuffering(true);
       if (atTrimEnd || v.currentTime < trimStart) {
         try { v.currentTime = trimStart; } catch (_) {}
       }
-      v.play().catch(() => {});
+      v.play().catch(() => setBuffering(false));
     } else {
       v.pause();
     }
@@ -295,8 +331,20 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             preload="metadata"
             muted={audioReplacesVideo || muted}
             playsInline
+            onWaiting={() => setBuffering(true)}
+            onPlaying={() => setBuffering(false)}
+            onPause={() => setBuffering(false)}
+            onError={() => setBuffering(false)}
           />
-          {!loaded && <div className="live-set-player-loading">Loading…</div>}
+          {(!loaded || buffering) && (
+            <div className="live-set-player-buffering" aria-hidden="true">
+              <img
+                src={isDark ? '/liveset-logo-dark.png' : '/liveset-logo.png'}
+                alt=""
+                className="live-set-player-buffering-logo"
+              />
+            </div>
+          )}
           <div className={`live-set-player-play-overlay ${!playing ? 'visible' : ''}`}>
             {!playing ? <MdPlayArrow size={48} /> : null}
           </div>
@@ -352,11 +400,11 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
               type="button"
               className="live-set-player-btn live-set-player-setup-btn"
               onClick={handleViewSetup}
-              aria-label="View setup"
-              title="Open this set's setup in the builder"
+              aria-label={`Open setup: ${setupLabel}`}
+              title={`Open setup: ${setupLabel}`}
             >
               <MdGraphicEq size={20} />
-              <span className="live-set-player-setup-label">View setup</span>
+              <span className="live-set-player-setup-label">{setupLabel}</span>
             </button>
           )}
           <span className="live-set-player-time">
@@ -365,7 +413,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
         </div>
       </div>
 
-      {audioTrackURL && <audio ref={audioRef} src={audioTrackURL} style={{ display: 'none' }} />}
+      <audio ref={audioRef} style={{ display: 'none' }} />
     </div>
   );
 }

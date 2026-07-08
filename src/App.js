@@ -10,6 +10,7 @@ import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "fireb
 import { db } from "./firebaseConfig";
 import { initializeDatabase } from './firebaseUtils';
 import { defaultSettingFor } from './data/settings';
+import { hydrateSetupDevices } from './utils/hydrateSetupDevices';
 import AppShell from './AppShell';
 import { SetPlayerProvider } from './components/SetPlayerProvider';
 import ProductImporter from './ProductImporter';
@@ -351,12 +352,13 @@ function AppRoutes({
     navigate('/hub');
   };
 
-  const handleSetupSelectFromLanding = (setup) => {
+  const handleSetupSelectFromLanding = async (setup) => {
     const type = setup.setupType || 'DJ';
+    const hydratedDevices = await hydrateSetupDevices(setup.devices || []);
     setSelectedSetup(type);
     setSelectedSetting(setup.setting || defaultSettingFor(type));
-    setActualDevices(setup.devices || []);
-    setSetupDevices(prev => ({ ...prev, [type]: setup.devices || [] }));
+    setActualDevices(hydratedDevices);
+    setSetupDevices(prev => ({ ...prev, [type]: hydratedDevices }));
     setLoadedSetupId(setup.id ?? null);
     setLoadedSetupName(setup.name ?? null);
     const viewerUid = auth.currentUser?.uid;

@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, orderBy, doc, deleteDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdClose, MdVideocam, MdSearch, MdVisibility } from 'react-icons/md';
+import { MdHeadphones, MdPiano, MdMoreVert, MdArrowForward, MdDelete, MdAdd, MdPlayArrow, MdFileUpload, MdVideocam, MdSearch } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import PostSetModal from './PostSetModal';
 import { useSetPlayer } from './SetPlayerProvider';
 import { Button, Card, Chip, Modal, SectionHeader, useToast } from '../ui';
-import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import useIsMobile from '../utils/useIsMobile';
-import useViewerRoles from '../utils/useViewerRoles';
-import { formatCompactNumber } from '../utils/formatCount';
 import { listSettings, hasMultipleSettings, defaultSettingFor } from '../data/settings';
 import './HubLandingPage.css';
+
 
 const SETUP_TYPES = [
   { type: 'DJ', icon: MdHeadphones, blurb: 'CDJs, mixers & turntables' },
@@ -38,16 +37,11 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function formatViewsLabel(views) {
-  const n = Number(views) || 0;
-  return `${formatCompactNumber(n)} ${n === 1 ? 'view' : 'views'}`;
-}
-
-function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
+function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick, theme = 'light' }) {
   const toast = useToast();
-  const isMobile = useIsMobile();
-  const { isCreator } = useViewerRoles();
+  const navigate = useNavigate();
   const { playSet } = useSetPlayer();
+  const isMobile = useIsMobile();
   const [savedSetups, setSavedSetups] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [featuredClips, setFeaturedClips] = useState([]);
@@ -56,27 +50,10 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
   const [showPostSetModal, setShowPostSetModal] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [pendingSettingType, setPendingSettingType] = useState(null);
-  const [playingClip, setPlayingClip] = useState(null);
-  const playerVideoRef = useRef(null);
 
-  // The bespoke inline player handles only the mobile featured CLIPS (clips
-  // docs with a pre-signed videoURL). Featured SETS go through LiveSetPlayer,
-  // which signs the set and overlays its uploaded lossless audio track.
-  useEffect(() => {
-    if (!playingClip || !playerVideoRef.current) return undefined;
-    const url = playingClip.videoURL;
-    if (!url) return undefined;
-    const cleanup = attachHls(playerVideoRef.current, url);
-    playerVideoRef.current.play().catch(() => {});
-    return cleanup;
-  }, [playingClip]);
-
-  useEffect(() => {
-    if (!playingClip) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setPlayingClip(null); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [playingClip]);
+  const openSet = (set) => {
+    if (set?.videoURL) playSet(set);
+  };
 
   const startNewSetup = (type) => {
     setShowTypePicker(false);
@@ -112,23 +89,13 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
         const setups = [];
         setupsSnap.forEach((d) => setups.push({ id: d.id, ...d.data() }));
 
-        // "From the community" ranks by view count (most-watched first). New
-        // sets start at 0 views (see PostSetModal) and climb as LiveSetPlayer
-        // counts real plays — falls back to createdAt for sets predating the
-        // views field / anything still tied at 0.
         let recent = [];
         try {
-          const setsQ = query(collection(db, 'sets'), orderBy('views', 'desc'), limit(8));
+          const setsQ = query(collection(db, 'sets'), orderBy('createdAt', 'desc'), limit(8));
           const setsSnap = await getDocs(setsQ);
           setsSnap.forEach((d) => recent.push({ id: d.id, ...d.data() }));
         } catch {
-          try {
-            const fallbackQ = query(collection(db, 'sets'), orderBy('createdAt', 'desc'), limit(8));
-            const fallbackSnap = await getDocs(fallbackQ);
-            fallbackSnap.forEach((d) => recent.push({ id: d.id, ...d.data() }));
-          } catch {
-            recent = [];
-          }
+          recent = [];
         }
 
         // Featured clips: most-recent feed clips tied to a full set, with their
@@ -200,55 +167,55 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
           <SectionHeader
             eyebrow="FEATURED"
             title="From the community"
-            action={isMobile && onSearchClick && (
-              <button
-                type="button"
-                className="hub-icon-btn press"
-                onClick={onSearchClick}
-                aria-label="Search users"
-              >
-                <MdSearch size={22} />
-              </button>
-            )}
+            action={isMobile
+              ? (onSearchClick && (
+                  <button
+                    type="button"
+                    className="hub-icon-btn press"
+                    onClick={onSearchClick}
+                    aria-label="Search users"
+                  >
+                    <MdSearch size={22} />
+                  </button>
+                ))
+              : (onFeedClick && (
+                  <button type="button" className="hub-link" onClick={onFeedClick}>
+                    Open feed <MdArrowForward size={14} />
+                  </button>
+                ))
+            }
           />
 
           {loading ? (
             <Card padding="lg"><div className="hub-loading">Loading…</div></Card>
           ) : featured.length === 0 ? (
             <Card padding="lg">
-              <div className="hub-empty">
-                <p className="hub-empty__text">No live sets posted yet — be the first.</p>
-                {!isMobile && isCreator && (
-                  <Button onClick={() => setShowPostSetModal(true)}>Post a set</Button>
-                )}
-              </div>
+              <div className="hub-loading">No live sets posted yet. Be the first.</div>
             </Card>
           ) : (
             <div className="hub-featured">
-              {/* Hero: newest set, cinematic — media fills the card, meta on a scrim */}
+              {/* Hero */}
               <button
                 type="button"
                 className="hub-hero"
-                onClick={() => playSet(hero)}
+                onClick={() => openSet(hero)}
                 aria-label={`Watch ${hero.title || 'set'}`}
               >
-                {hero.videoURL ? (
-                  <video className="hub-hero__video" src={hero.videoURL} muted preload="metadata" playsInline />
-                ) : null}
-                <div className="hub-hero__scrim" aria-hidden="true" />
-                <div className="hub-hero__play"><MdPlayArrow size={30} /></div>
-                {hero.durationSeconds ? (
-                  <span className="hub-hero__duration mono-label">
-                    {formatDuration(hero.durationSeconds)}
-                  </span>
-                ) : null}
-                <div className="hub-hero__meta">
-                  <span className="mono-label hub-hero__creator">
-                    {hero.creatorName || 'Unknown'}
-                    <span className="hub-hero__views">
-                      <MdVisibility size={13} /> {formatViewsLabel(hero.views)}
+                <div className="hub-hero__thumb">
+                  {hero.videoURL ? (
+                    <video src={hero.videoURL} muted preload="metadata" />
+                  ) : null}
+                  <div className="hub-hero__overlay">
+                    <div className="hub-hero__play"><MdPlayArrow size={28} /></div>
+                  </div>
+                  {hero.durationSeconds ? (
+                    <span className="hub-hero__duration mono-label">
+                      {formatDuration(hero.durationSeconds)}
                     </span>
-                  </span>
+                  ) : null}
+                </div>
+                <div className="hub-hero__meta">
+                  <span className="mono-label hub-hero__creator">{hero.creatorName || 'Unknown'}</span>
                   <h2 className="hub-hero__title">{hero.title || 'Untitled set'}</h2>
                   {hero.setupType && (
                     <div className="hub-hero__chip"><Chip>{hero.setupType.toUpperCase()}</Chip></div>
@@ -256,22 +223,21 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
                 </div>
               </button>
 
-              {/* Rest of the featured sets: grid on desktop, swipe row on mobile */}
+              {/* Smaller tiles row */}
               {otherFeatured.length > 0 && (
-                <div className="hub-sets-grid">
+                <div className="hub-sets-row">
                   {otherFeatured.map((set) => (
                     <button
                       key={set.id}
                       type="button"
                       className="hub-set-tile"
-                      onClick={() => playSet(set)}
+                      onClick={() => openSet(set)}
                       aria-label={`Open ${set.title || 'set'}`}
                     >
                       <div className="hub-set-tile__thumb">
                         {set.videoURL ? (
-                          <video src={set.videoURL} muted preload="metadata" playsInline />
+                          <video src={set.videoURL} muted preload="metadata" />
                         ) : null}
-                        <div className="hub-set-tile__play" aria-hidden="true"><MdPlayArrow size={20} /></div>
                         {set.durationSeconds ? (
                           <span className="hub-set-tile__duration mono-label">
                             {formatDuration(set.durationSeconds)}
@@ -279,12 +245,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
                         ) : null}
                       </div>
                       <div className="hub-set-tile__meta">
-                        <div className="hub-set-tile__creator mono-label">
-                          {set.creatorName || 'Unknown'}
-                          <span className="hub-set-tile__views">
-                            <MdVisibility size={12} /> {formatViewsLabel(set.views)}
-                          </span>
-                        </div>
+                        <div className="hub-set-tile__creator mono-label">{set.creatorName || 'Unknown'}</div>
                         <div className="hub-set-tile__title">{set.title || 'Untitled set'}</div>
                       </div>
                     </button>
@@ -293,12 +254,8 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
               )}
             </div>
           )}
-        </section>
 
-        {/* ---- POST (desktop only, verified creators — mobile posts from the Create tab) ---- */}
-        {!isMobile && isCreator && (
-        <section className="hub__section">
-          <SectionHeader eyebrow="POST" title="Share a set" />
+          {!isMobile && (
           <div className="hub-post-cta">
             <button
               type="button"
@@ -326,7 +283,10 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
                 <MdVideocam size={26} />
               </div>
               <div className="hub-post-card__body">
-                <div className="hub-post-card__title">Multi-angle edit</div>
+                <div className="hub-post-card__title">
+                  Multi-angle edit
+                  <span className="hub-post-card__badge">New</span>
+                </div>
                 <div className="hub-post-card__subtitle">Up to 3 cameras + lossless master audio.</div>
               </div>
               <div className="hub-post-card__arrow" aria-hidden="true">
@@ -334,8 +294,8 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
               </div>
             </button>
           </div>
+          )}
         </section>
-        )}
 
         {/* ---- FEATURED CLIPS (mobile only) ---- */}
         {isMobile && featuredClips.length > 0 && (
@@ -347,7 +307,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
                   key={clip.id}
                   type="button"
                   className="hub-clip-tile press-card"
-                  onClick={() => setPlayingClip(clip)}
+                  onClick={() => (onFeedClick ? onFeedClick() : navigate('/feed'))}
                   aria-label="Play clip"
                 >
                   <div className="hub-clip-tile__thumb">
@@ -367,12 +327,11 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
         <section className="hub__section">
           <SectionHeader
             eyebrow="YOUR SETUPS"
-            title="Jump back in"
             action={savedSetups.length > 0 && (
               <button
                 type="button"
                 className="hub-link"
-                onClick={() => window.location.assign('/profile?tab=setups')}
+                onClick={() => window.location.assign('/sets')}
               >
                 View all <MdArrowForward size={14} />
               </button>
@@ -450,38 +409,6 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onSearchClick }) {
         )}
 
       </div>
-
-      {playingClip && (
-        <div
-          className="hub-player-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label={playingClip.title || 'Clip player'}
-          onClick={(e) => { if (e.target === e.currentTarget) setPlayingClip(null); }}
-        >
-          <div className="hub-player">
-            <button
-              type="button"
-              className="hub-player__close"
-              aria-label="Close player"
-              onClick={() => setPlayingClip(null)}
-            >
-              <MdClose size={22} />
-            </button>
-            <video
-              ref={playerVideoRef}
-              className="hub-player__video"
-              controls
-              playsInline
-              autoPlay
-            />
-            <div className="hub-player__meta">
-              <div className="mono-label hub-player__creator">{playingClip.creatorName || 'Unknown'}</div>
-              <div className="hub-player__title">{playingClip.title || 'Untitled set'}</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showPostSetModal && (
         <PostSetModal

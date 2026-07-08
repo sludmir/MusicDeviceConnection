@@ -146,6 +146,29 @@
   font-size: 14px;
 }
 
+.live-set-player-buffering {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.live-set-player-buffering-logo {
+  height: 48px;
+  width: auto;
+  opacity: 0.9;
+  animation: liveSetPlayerBufferPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes liveSetPlayerBufferPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 .live-set-player-play-overlay {
   position: absolute;
   inset: 0;
@@ -247,9 +270,10 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* "View setup" button: icon + label when expanded, icon-only when minimized */
+/* Setup button: icon + setup name when expanded, icon-only when minimized */
 .live-set-player-setup-btn {
   width: auto;
+  max-width: min(220px, 42vw);
   gap: 8px;
   padding: 0 14px;
 }
@@ -258,10 +282,13 @@
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .live-set-player--mini .live-set-player-setup-btn {
   width: 40px;
+  max-width: 40px;
   padding: 0;
 }
 
@@ -274,6 +301,7 @@
   color: rgba(255, 255, 255, 0.85);
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 @media (max-width: 420px) {

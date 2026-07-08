@@ -58,7 +58,11 @@ export default function ConnectionGuideButton({ currentDevices, setupType }) {
             </div>
 
             <div className="connection-guide-canvas">
-              <SetupDiagram diagram={diagram} onDeviceClick={setSelected} />
+              <SetupDiagram
+                diagram={diagram}
+                fallbackDevices={currentDevices}
+                onDeviceClick={setSelected}
+              />
             </div>
 
             {selected && (

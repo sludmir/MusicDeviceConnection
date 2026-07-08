@@ -1,14 +1,27 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { SCENE_UNIT_MM } from '../dimensionScaler';
+import { inferConnections } from '../utils/inferConnections';
 import './SetupDiagram.css';
 
 const BOUNDS_MARGIN = 0.35; // scene units of padding around the device cluster
 const LABEL_WIDTH = 140;
 const LABEL_HEIGHT = 34;
 
-export default function SetupDiagram({ diagram, onDeviceClick }) {
+export default function SetupDiagram({ diagram, fallbackDevices, onDeviceClick }) {
   const containerRef = useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+
+  const enriched = useMemo(() => {
+    if (!diagram) return null;
+    if (Array.isArray(diagram.connections) && diagram.connections.length > 0) return diagram;
+    if (Array.isArray(fallbackDevices) && fallbackDevices.length > 0) {
+      return {
+        ...diagram,
+        connections: inferConnections(fallbackDevices, diagram.setupType || 'DJ'),
+      };
+    }
+    return { ...diagram, connections: [] };
+  }, [diagram, fallbackDevices]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -20,7 +33,7 @@ export default function SetupDiagram({ diagram, onDeviceClick }) {
     return () => ro.disconnect();
   }, []);
 
-  if (!diagram || !Array.isArray(diagram.devices) || diagram.devices.length === 0) {
+  if (!enriched || !Array.isArray(enriched.devices) || enriched.devices.length === 0) {
     return (
       <div className="setup-diagram-empty" ref={containerRef}>
         <p>No devices placed in this setup yet.</p>
@@ -28,7 +41,7 @@ export default function SetupDiagram({ diagram, onDeviceClick }) {
     );
   }
 
-  const { bounds } = diagram;
+  const { bounds } = enriched;
   const boundW = Math.max(0.1, (bounds.maxX - bounds.minX) + BOUNDS_MARGIN * 2);
   const boundH = Math.max(0.1, (bounds.maxZ - bounds.minZ) + BOUNDS_MARGIN * 2);
 
@@ -46,9 +59,35 @@ export default function SetupDiagram({ diagram, onDeviceClick }) {
     y: offsetY + (worldZ - bounds.minZ + BOUNDS_MARGIN) * scale,
   });
 
+  const deviceById = new Map(enriched.devices.map((d) => [d.uniqueId, d]));
+
   return (
     <div className="setup-diagram" ref={containerRef}>
-      {scale > 0 && diagram.devices.map((d) => {
+      {scale > 0 && (
+        <svg className="setup-diagram-cables" aria-hidden="true">
+          {(enriched.connections || []).map((conn, idx) => {
+            const from = deviceById.get(conn.fromUniqueId);
+            const to = deviceById.get(conn.toUniqueId);
+            if (!from || !to) return null;
+            const p1 = project(from.x, from.z);
+            const p2 = project(to.x, to.z);
+            return (
+              <line
+                key={`${conn.fromUniqueId}-${conn.toUniqueId}-${idx}`}
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke={conn.cableColor || '#ef4444'}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                opacity={0.9}
+              />
+            );
+          })}
+        </svg>
+      )}
+      {scale > 0 && enriched.devices.map((d) => {
         const center = project(d.x, d.z);
         const w = (d.widthMm / SCENE_UNIT_MM) * scale;
         const h = (d.depthMm / SCENE_UNIT_MM) * scale;

@@ -1,5 +1,6 @@
 import { lookupDimensions, SCENE_UNIT_MM } from '../dimensionScaler';
 import { inferConnections } from './inferConnections';
+import { stableDeviceUniqueId } from './hydrateSetupDevices';
 
 // v1: positions + dimensions only.
 // v2: adds connections[] with cable type + port labels for the schematic view.
@@ -41,8 +42,12 @@ function radToDeg(r) {
 export function buildMobileDiagram(devices, setupType) {
   const safeType = setupType || 'DJ';
   const list = Array.isArray(devices) ? devices : [];
+  const normalizedList = list.map((device, index) => ({
+    ...device,
+    uniqueId: stableDeviceUniqueId(device, index),
+  }));
 
-  if (list.length === 0) {
+  if (normalizedList.length === 0) {
     return {
       version: DIAGRAM_VERSION,
       setupType: safeType,
@@ -52,12 +57,12 @@ export function buildMobileDiagram(devices, setupType) {
     };
   }
 
-  const mapped = list.map((d, i) => {
+  const mapped = normalizedList.map((d) => {
     const pos = d?.position || { x: 0, y: 0, z: 0 };
     const rot = d?.rotation || { x: 0, y: 0, z: 0 };
     const dims = resolveDims(d);
     return {
-      uniqueId: d.uniqueId || `${d.id || 'dev'}-${i}`,
+      uniqueId: d.uniqueId,
       productId: d.id || null,
       name: d.name || 'Unknown device',
       brand: d.brand || '',
@@ -98,7 +103,7 @@ export function buildMobileDiagram(devices, setupType) {
   // Infer cable connections from the original device list (which still has
   // inputs/outputs metadata). Embed them so the mobile schematic doesn't have
   // to re-derive them at load time.
-  const connections = inferConnections(list, safeType);
+  const connections = inferConnections(normalizedList, safeType);
 
   return {
     version: DIAGRAM_VERSION,

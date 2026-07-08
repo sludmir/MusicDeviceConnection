@@ -33,6 +33,15 @@
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+.setup-diagram-cables {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .setup-diagram-device {
   position: absolute;
   padding: 0;
@@ -44,6 +53,7 @@
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   transform-origin: center center;
+  z-index: 2;
 }
 
 .setup-diagram-device:hover {
@@ -87,4 +97,5 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  z-index: 2;
 }
