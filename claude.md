@@ -64,7 +64,7 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 
 ## Design System & Mobile (`src/ui/`)
 
-- **`ui/tokens.css`** — `:root` design tokens: colors (warm-dark; `--bg #0A0908`, accent `--accent/--primary #D9C2A0` gold, `--primary-contrast` dark text for filled gold), type scale, spacing (4px base), radius, motion. **Use tokens, not hex.**
+- **`ui/tokens.css`** — `:root` design tokens: colors (warm-dark base; `--bg #0A0908`, accent `--accent/--primary #D9C2A0` gold, `--primary-contrast` dark text for filled gold), type scale, spacing (4px base), radius, motion, **plus a `[data-theme="light"]` override block** (warm "bone" palette, darker gold accents) — the header theme toggle sets `data-theme` on `<html>` (App.js, localStorage `livet-set-theme`). **Use tokens, not hex.** Exceptions that stay literal/theme-independent: chrome overlaying video or the 3D canvas (feed, LiveSetPlayer, play chips, scrims, builder overlays) and App.css's legacy header vars (`--app-bg`, `--header-bg`, `--hdr-border*`, …).
 - **`ui/mobile.css`** — global touch layer: `--tap-min:44px`, safe-area vars (`--safe-top/-bottom`), `--tabbar-h`, `.press`/`.press-card` (tap feedback), `.sr-only`, tap-highlight reset. Imported in `index.css`.
 - **`ui/` components**: Button, IconButton, Input/Textarea/Select, Card, Modal, Sheet, Tabs, Chip, Avatar, SectionHeader, Toast (`useToast`).
 - **Breakpoint:** mobile = `max-width: 1023px`. JS branch via `utils/useIsMobile.js` (matchMedia, matches the CSS). **Mobile-only changes must be gated** by this/media queries — desktop stays put.

@@ -226,7 +226,7 @@
   height: 44px;
   border-radius: 50%;
   background: rgba(245, 239, 227, 0.95);
-  color: var(--bg);
+  color: #0A0908; /* fixed: chip overlays video, stays bone in both themes */
   display: flex;
   align-items: center;
   justify-content: center;

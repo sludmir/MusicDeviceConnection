@@ -1,13 +1,13 @@
 .app-sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: #0F0D0B;
-  border-right: 1px solid #2A2622;
+  background: var(--surface-1); /* closest token; legacy literal #0F0D0B is slightly darker than --surface-1 #141210 */
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: var(--space-4) 0;
   transition: width var(--dur-std);
-  color: #F5EFE3;
+  color: var(--text);
 }
 
 .app-sidebar--collapsed { width: 64px; }
@@ -15,11 +15,11 @@
 .app-sidebar__brand {
   padding: 0 var(--space-5) var(--space-6);
   margin-bottom: var(--space-3);
-  border-bottom: 1px solid #2A2622;
+  border-bottom: 1px solid var(--border);
   padding-bottom: var(--space-5);
   font-weight: 600;
   letter-spacing: 0.5px;
-  color: #F5EFE3;
+  color: var(--text);
 }
 
 .app-sidebar__brand-text {
@@ -48,7 +48,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
-  color: #C5BCAE;
+  color: var(--text-muted); /* closest token; legacy literal #C5BCAE is lighter than --text-muted #A89F90 */
   text-decoration: none;
   font-size: var(--fs-body);
   font-weight: 500;
@@ -58,13 +58,13 @@
 }
 
 .app-sidebar__link:hover {
-  background: #1C1916;
-  color: #F5EFE3;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .app-sidebar__link--active {
-  background: rgba(217, 194, 160, 0.12);
-  color: #F5EFE3;
+  background: var(--primary-soft); /* closest token; legacy literal rgba(217,194,160,0.12) vs --primary-soft rgba(217,194,160,0.14) */
+  color: var(--text);
   border-left: 0;
 }
 .app-sidebar__link--active::before {

@@ -182,6 +182,16 @@ function App() {
     setActualDevices(devices);
   }, []);
 
+  // Cross-type scene switch from the in-scene switcher: the target scene must
+  // start with just its ghost spots, so drop any devices held for that type
+  // (e.g. from a setup of that type loaded earlier this session).
+  const handleBuilderTypeSwitch = useCallback((type, settingKey) => {
+    setSetupDevices(prev => ({ ...prev, [type]: [] }));
+    setActualDevices([]);
+    setSelectedSetup(type);
+    setSelectedSetting(settingKey || defaultSettingFor(type));
+  }, []);
+
   // Signed-out views (landing / legal) render outside the router, so the
   // in-router AnalyticsTracker never sees them — log them here instead.
   useEffect(() => {
@@ -279,6 +289,7 @@ function App() {
         showFeedPostSetModal={showFeedPostSetModal}
         setShowFeedPostSetModal={setShowFeedPostSetModal}
         handleDevicesChange={handleDevicesChange}
+        handleBuilderTypeSwitch={handleBuilderTypeSwitch}
         loadedSetupId={loadedSetupId}
         setLoadedSetupId={setLoadedSetupId}
         loadedSetupName={loadedSetupName}
@@ -311,6 +322,7 @@ function AppRoutes({
   showFeedPostSetModal,
   setShowFeedPostSetModal,
   handleDevicesChange,
+  handleBuilderTypeSwitch,
   loadedSetupId,
   setLoadedSetupId,
   loadedSetupName,
@@ -629,6 +641,7 @@ function AppRoutes({
                         setupType={selectedSetup}
                         setting={selectedSetting}
                         onSettingChange={setSelectedSetting}
+                        onSetupTypeChange={handleBuilderTypeSwitch}
                         onDevicesChange={handleDevicesChange}
                         initialCameraAngles={initialCameraAngles}
                         onCameraAnglesChange={setCurrentCameraAngles}

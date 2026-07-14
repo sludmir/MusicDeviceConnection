@@ -67,6 +67,39 @@
   --dur-std: 200ms;
   --dur-screen: 320ms;
   --ease-screen: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+/* Light theme (warm "bone") — overrides the dark defaults above wherever
+   document.documentElement carries data-theme="light" (see App.js). Harmonizes
+   with the legacy App.css light theme (--app-bg #eae8e3, header #ebe9e4,
+   text #1a1a1a). Everything built on these tokens (Sidebar, Hub, Profile,
+   Notifications, UserSearch, Settings, ui/ components…) should follow. */
+[data-theme="light"] {
+  --bg: #EAE8E3;
+  --surface-1: #F2F0EA;
+  --surface-2: #FAF8F4;
+  --border: rgba(31, 27, 22, 0.12);
+  --border-strong: rgba(31, 27, 22, 0.22);
+  --text: #201C17;
+  --text-muted: #6E6557;
+  --text-dim: #98907F;
+  --accent: #8A6F47;          /* pale gold #D9C2A0 fails contrast as text/icon on light bg — darken it */
+  --accent-strong: #6F5836;
+  --danger: #B23A24;
+  --success: #5F7A3D;
+
+  --primary: #C9A77C;         /* filled gold buttons keep dark text */
+  --primary-hover: #BD9666;
+  --primary-contrast: #201C17;
+  --primary-soft: rgba(138, 111, 71, 0.14);
+  --primary-softer: rgba(138, 111, 71, 0.08);
+  --primary-border: rgba(138, 111, 71, 0.40);
+
+  --elev-1: 0 1px 0 rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
 }
 
 /* Utility class for mono uppercase labels */

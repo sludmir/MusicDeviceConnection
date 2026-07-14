@@ -1,8 +1,8 @@
 .upload-container {
   width: 100%;
   min-height: 100vh;
-  background: linear-gradient(160deg, #0c0c12 0%, #0f0f18 35%, #08080e 100%);
-  color: #fff;
+  background: var(--bg);
+  color: var(--text);
   padding: 20px;
 }
 
@@ -15,17 +15,17 @@
 
 .upload-back-btn {
   padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text);
   cursor: pointer;
   font-family: inherit;
   font-size: 14px;
 }
 
 .upload-back-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border);
 }
 
 .upload-header h1 {
@@ -40,8 +40,8 @@
 }
 
 .upload-step {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 32px;
 }
@@ -53,7 +53,7 @@
 }
 
 .upload-dropzone {
-  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border: 2px dashed var(--border-strong);
   border-radius: 12px;
   padding: 60px 20px;
   text-align: center;
@@ -62,8 +62,8 @@
 }
 
 .upload-dropzone:hover {
-  border-color: rgba(0, 162, 255, 0.5);
-  background: rgba(0, 162, 255, 0.05);
+  border-color: var(--primary-border);
+  background: var(--primary-softer);
 }
 
 .upload-label {
@@ -103,7 +103,7 @@
   margin: 0 auto;
   border-radius: 12px;
   overflow: hidden;
-  background: #000;
+  background: #000; /* video element sits behind this before it loads — stays literal */
 }
 
 .upload-preview-video {
@@ -115,7 +115,7 @@
 
 .upload-timeline-hint {
   margin: 0 0 16px 0;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -139,7 +139,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 8px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--border-strong);
   border-radius: 4px;
 }
 
@@ -148,7 +148,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 8px;
-  background: linear-gradient(90deg, rgba(0, 162, 255, 0.6), rgba(80, 120, 255, 0.6));
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
   border-radius: 4px;
   pointer-events: none;
 }
@@ -160,7 +160,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--text);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   cursor: grab;
   z-index: 2;
@@ -171,19 +171,19 @@
 }
 
 .clip-timeline-thumb-end {
-  background: rgba(0, 162, 255, 0.95);
+  background: var(--primary);
 }
 
 .clip-timeline-labels {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
 }
 
 .clip-timeline-dur {
   font-weight: 600;
-  color: rgba(0, 162, 255, 0.9);
+  color: var(--accent);
 }
 
 .clip-selector {
@@ -208,18 +208,18 @@
 
 .clip-input-group input {
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text);
   font-family: inherit;
   font-size: 14px;
 }
 
 .clip-duration {
   padding: 10px 16px;
-  background: rgba(0, 162, 255, 0.1);
-  border: 1px solid rgba(0, 162, 255, 0.3);
+  background: var(--primary-softer);
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
   font-weight: 500;
 }
@@ -227,10 +227,10 @@
 .upload-next-btn,
 .upload-submit-btn {
   padding: 12px 24px;
-  background: linear-gradient(135deg, rgba(0, 162, 255, 0.9) 0%, rgba(80, 120, 255, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
-  color: #fff;
+  color: var(--primary-contrast);
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
@@ -264,10 +264,10 @@
 .upload-form-group input,
 .upload-form-group textarea {
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text);
   font-family: inherit;
   font-size: 14px;
   resize: vertical;
@@ -275,12 +275,12 @@
 
 .upload-form-group input::placeholder,
 .upload-form-group textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-dim);
 }
 
 .upload-preview-info {
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-1);
   border-radius: 8px;
   font-size: 14px;
   opacity: 0.8;
@@ -295,14 +295,14 @@
 .upload-progress-bar {
   width: 100%;
   height: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-2);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .upload-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(0, 162, 255, 0.9), rgba(80, 120, 255, 0.85));
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
   transition: width 0.3s ease;
 }
 

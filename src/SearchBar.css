@@ -17,9 +17,9 @@
 .search-bar-container input {
   padding: 10px;
   font-size: 16px;
-  background-color: #333;
-  color: white;
-  border: 1px solid #444;
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   margin-bottom: 5px;
 }
 
@@ -27,7 +27,7 @@
   padding: 10px;
   font-size: 16px;
   cursor: pointer;
-  background-color: #ff0000;
+  background-color: var(--danger);
   color: white;
   border: none;
   margin-bottom: 5px;
@@ -38,8 +38,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  background-color: #000;
-  border: 1px solid #444;
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-strong);
   border-top: none;
   list-style-type: none;
   margin: 0;
@@ -52,11 +52,11 @@
 .suggestions-list li {
   padding: 10px;
   cursor: pointer;
-  color: white;
+  color: var(--text);
 }
 
 .suggestions-list li:hover {
-  background-color: #333;
+  background-color: var(--surface-2);
 }
 
 .search-container {
@@ -65,20 +65,20 @@
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 1000;
-    background: white;
+    background: var(--surface-2);
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    color: black;
+    color: var(--text);
 }
 
 .search-input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 16px;
-    color: black;
+    color: var(--text);
 }
 
 .suggestions-list {
@@ -92,17 +92,17 @@
 .suggestion-item {
     padding: 8px 12px;
     cursor: pointer;
-    color: black;
+    color: var(--text);
     transition: background-color 0.2s;
 }
 
 .suggestion-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 /* Add styles for the title */
 .popup-title {
-    color: black;
+    color: var(--text);
     font-size: 18px;
     margin-bottom: 15px;
     text-align: center;
@@ -117,5 +117,5 @@
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: black;
+    color: var(--text);
 }

@@ -64,10 +64,10 @@
 .post-set-error {
   margin: 12px 24px;
   padding: 12px 16px;
-  background: rgba(220, 53, 69, 0.15);
-  border: 1px solid rgba(220, 53, 69, 0.4);
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
   border-radius: 10px;
-  color: #b91c3c;
+  color: var(--danger);
   font-size: 14px;
 }
 
@@ -240,10 +240,10 @@
   bottom: 0;
   width: 3px;
   transform: translateX(-50%);
-  background: rgba(220, 53, 69, 0.95);
+  background: var(--danger);
   pointer-events: none;
   z-index: 2;
-  box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
 .post-set-waveform-scroll {
@@ -598,8 +598,8 @@
 }
 
 .post-set-thumbnail-btn--danger:hover {
-  border-color: #ff6060;
-  color: #ff6060;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .post-set-title-row {

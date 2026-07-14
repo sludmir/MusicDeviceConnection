@@ -1,15 +1,15 @@
 .setup-landing-page {
   display: flex;
   height: 100vh;
-  background-color: #0a0a0a;
-  color: white;
+  background-color: var(--bg);
+  color: var(--text);
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .setup-sidebar {
   width: 260px;
-  background-color: #1a1a1a;
-  border-right: 1px solid #333;
+  background-color: var(--surface-1);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -17,16 +17,16 @@
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border);
 }
 
 .new-setup-btn {
   width: 100%;
   padding: 12px 16px;
   background-color: transparent;
-  border: 1px solid #444;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  color: white;
+  color: var(--text);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -38,8 +38,8 @@
 }
 
 .new-setup-btn:hover {
-  background-color: #2a2a2a;
-  border-color: #555;
+  background-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 .new-setup-btn span {
@@ -57,13 +57,13 @@
 .empty-state {
   padding: 24px 16px;
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .empty-state .hint {
   font-size: 12px;
-  color: #666;
+  color: var(--text-dim);
   margin-top: 8px;
 }
 
@@ -82,8 +82,8 @@
 }
 
 .setup-item:hover {
-  background-color: #2a2a2a;
-  border-color: #444;
+  background-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 .setup-item-header {
@@ -96,7 +96,7 @@
 .setup-name {
   font-size: 14px;
   font-weight: 500;
-  color: white;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -105,8 +105,8 @@
 
 .setup-type {
   font-size: 11px;
-  color: #888;
-  background-color: #2a2a2a;
+  color: var(--text-muted);
+  background-color: var(--border);
   padding: 2px 6px;
   border-radius: 4px;
   margin-left: 8px;
@@ -114,7 +114,7 @@
 
 .setup-item-meta {
   font-size: 12px;
-  color: #666;
+  color: var(--text-dim);
 }
 
 .setup-main-content {
@@ -156,7 +156,7 @@
   max-width: 800px;
   text-align: center;
   pointer-events: auto;
-  background: linear-gradient(to bottom, rgba(10, 10, 10, 0.95) 0%, rgba(10, 10, 10, 0.85) 50%, transparent 100%);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 95%, transparent) 0%, color-mix(in srgb, var(--bg) 85%, transparent) 50%, transparent 100%);
   padding: 40px 40px 60px;
   backdrop-filter: blur(8px);
 }
@@ -165,7 +165,7 @@
   font-size: 36px;
   font-weight: 600;
   margin-bottom: 32px;
-  color: white;
+  color: var(--text);
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -177,22 +177,22 @@
   position: relative;
   display: flex;
   align-items: center;
-  background-color: #1a1a1a;
-  border: 1px solid #444;
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   padding: 4px;
   transition: border-color 0.2s ease;
 }
 
 .search-input-wrapper:focus-within {
-  border-color: #00a2ff;
+  border-color: var(--primary);
 }
 
 .search-input {
   flex: 1;
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text);
   font-size: 16px;
   padding: 16px 20px;
   outline: none;
@@ -200,11 +200,11 @@
 }
 
 .search-input::placeholder {
-  color: #666;
+  color: var(--text-dim);
 }
 
 .search-submit-btn {
-  background-color: #00a2ff;
+  background-color: var(--primary);
   border: none;
   border-radius: 8px;
   width: 44px;
@@ -213,13 +213,13 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
+  color: var(--primary-contrast);
   transition: background-color 0.2s ease;
   margin-right: 4px;
 }
 
 .search-submit-btn:hover {
-  background-color: #0088cc;
+  background-color: var(--primary-hover);
 }
 
 .quick-suggestions {
@@ -228,7 +228,7 @@
 
 .suggestions-label {
   font-size: 14px;
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
@@ -241,10 +241,10 @@
 
 .suggestion-chip {
   padding: 8px 16px;
-  background-color: #1a1a1a;
-  border: 1px solid #444;
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-strong);
   border-radius: 20px;
-  color: white;
+  color: var(--text);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -252,9 +252,9 @@
 }
 
 .suggestion-chip:hover {
-  background-color: #2a2a2a;
-  border-color: #00a2ff;
-  color: #00a2ff;
+  background-color: var(--border);
+  border-color: var(--primary);
+  color: var(--accent);
 }
 
 .setup-selection-overlay {
@@ -272,14 +272,14 @@
 }
 
 .setup-selection-content {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-1);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-radius: 24px;
   padding: 40px;
   max-width: 600px;
   width: 90%;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
   text-align: center;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
@@ -288,7 +288,7 @@
   margin: 0 0 28px;
   font-size: 24px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text);
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -316,11 +316,11 @@
   padding: 20px 28px;
   font-size: 17px;
   font-weight: 600;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  background: var(--surface-1);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 16px;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
@@ -329,10 +329,10 @@
 }
 
 .setup-option:hover {
-  background: rgba(0, 162, 255, 0.2);
-  border-color: rgba(0, 162, 255, 0.45);
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(0, 162, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--primary) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .setup-option:active {
@@ -341,7 +341,7 @@
 }
 
 .setup-option:focus-visible {
-  outline: 2px solid rgba(0, 162, 255, 0.7);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -354,17 +354,17 @@
   .setup-landing-page {
     flex-direction: column;
   }
-  
+
   .setup-sidebar {
     width: 100%;
     height: auto;
     max-height: 200px;
   }
-  
+
   .setup-main-content {
     padding: 20px;
   }
-  
+
   .landing-title {
     font-size: 24px;
   }

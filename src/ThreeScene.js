@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
-import { SETTINGS, defaultSettingFor, getSetting, listSettings, hasMultipleSettings } from './data/settings';
+import { SETTINGS, defaultSettingFor, getSetting, listSettings } from './data/settings';
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore methods
 import { db } from "./firebaseConfig"; // Import Firestore
 import { auth } from "./firebaseConfig"; // Add auth import at the top
@@ -55,7 +55,7 @@ function disposeObject3DTree(root) {
     });
 }
 
-function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChange, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, affiliateAttribution }) {
+function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChange, onSetupTypeChange, onDevicesChange, onCategoryToggle, initialCameraAngles, onCameraAnglesChange, affiliateAttribution }) {
     const mountRef = useRef(null);
     const sceneRef = useRef(null);
     const cameraRef = useRef(null);
@@ -104,10 +104,14 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
     const [basicSetupComplete, setBasicSetupComplete] = useState(false);
     const [currentSetupType, setCurrentSetupType] = useState(setupType || 'DJ'); // Initialize with prop value
     const [currentSetting, setCurrentSetting] = useState(setting || defaultSettingFor(setupType || 'DJ'));
-    // Scene-switch confirmation: holds the setting key the user asked to
+    // Scene-switch confirmation: holds the { type, key } the user asked to
     // switch to while placed gear would be discarded (ghost-spot layouts are
-    // unique per scene, so devices can't carry over).
-    const [pendingSetting, setPendingSetting] = useState(null);
+    // unique per scene, so devices can't carry over). type may differ from
+    // currentSetupType when switching to a scene of a different setup type.
+    const [pendingSwitch, setPendingSwitch] = useState(null);
+    // "More scenes" dropdown: lets the switcher offer scenes from every setup
+    // type, not just the current one (the pill row only lists same-type scenes).
+    const [showSceneMenu, setShowSceneMenu] = useState(false);
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
@@ -4277,24 +4281,38 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         setPlacedDevicesList([]);
     };
 
-    // Scene switcher entry point: ask before discarding placed gear; switch
-    // silently when the scene is empty.
-    const requestSettingSwitch = (key) => {
-        if (key === currentSetting) return;
-        if (placedDevicesList.length > 0) {
-            setPendingSetting(key);
-        } else {
+    // Perform the actual switch. Same-type switches keep internal state in
+    // sync directly; cross-type switches go through App state so the devices
+    // prop, ghost-spot layout, and brain logic all follow the new type (the
+    // [setupType, setting] prop effect then updates internal state).
+    const performSwitch = (type, key) => {
+        if (type === currentSetupType) {
             setCurrentSetting(key);
             onSettingChange?.(key);
+        } else if (onSetupTypeChange) {
+            onSetupTypeChange(type, key);
+        } else {
+            setCurrentSetupType(type);
+            setCurrentSetting(key);
+        }
+    };
+
+    // Scene switcher entry point: ask before discarding placed gear; switch
+    // silently when the scene is empty.
+    const requestSettingSwitch = (type, key) => {
+        if (type === currentSetupType && key === currentSetting) return;
+        if (placedDevicesList.length > 0) {
+            setPendingSwitch({ type, key });
+        } else {
+            performSwitch(type, key);
         }
     };
 
     const confirmSettingSwitch = () => {
-        if (!pendingSetting) return;
+        if (!pendingSwitch) return;
         clearAllDevices();
-        setCurrentSetting(pendingSetting);
-        onSettingChange?.(pendingSetting);
-        setPendingSetting(null);
+        performSwitch(pendingSwitch.type, pendingSwitch.key);
+        setPendingSwitch(null);
     };
 
     // Hover highlight helpers
@@ -4360,6 +4378,19 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
             window.removeEventListener('click', onDown);
         };
     }, [menuDevice]);
+
+    // Dismiss the "more scenes" dropdown on Escape or outside click
+    useEffect(() => {
+        if (!showSceneMenu) return;
+        const onKey = (e) => { if (e.key === 'Escape') setShowSceneMenu(false); };
+        const onDown = () => setShowSceneMenu(false);
+        window.addEventListener('keydown', onKey);
+        window.addEventListener('click', onDown);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('click', onDown);
+        };
+    }, [showSceneMenu]);
 
     // Update currentSetupType when setupType prop changes. Reset the setting
     // to that type's default unless a setting prop is supplied explicitly.
@@ -4817,50 +4848,75 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                         gap: '8px',
                     }}
                 >
-                    {hasMultipleSettings(currentSetupType) && (
-                        <div
-                            className="setting-switcher"
+                    <div
+                        className="setting-switcher"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '4px',
+                            borderRadius: '999px',
+                            background: 'rgba(15, 15, 20, 0.72)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                            gap: '2px',
+                        }}
+                        role="group"
+                        aria-label="Scene setting"
+                    >
+                        {listSettings(currentSetupType).map((s) => {
+                            const active = s.key === currentSetting;
+                            return (
+                                <button
+                                    key={s.key}
+                                    type="button"
+                                    onClick={() => requestSettingSwitch(currentSetupType, s.key)}
+                                    style={{
+                                        appearance: 'none',
+                                        border: 'none',
+                                        padding: '6px 14px',
+                                        borderRadius: '999px',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        letterSpacing: '0.02em',
+                                        cursor: 'pointer',
+                                        color: active ? '#0a0a0a' : 'rgba(255,255,255,0.78)',
+                                        background: active ? '#fff' : 'transparent',
+                                        transition: 'background 0.15s ease, color 0.15s ease',
+                                    }}
+                                    aria-pressed={active}
+                                >
+                                    {s.label}
+                                </button>
+                            );
+                        })}
+                        <button
+                            type="button"
+                            className="scene-menu-toggle"
+                            onClick={(e) => { e.stopPropagation(); setShowSceneMenu((v) => !v); }}
+                            aria-label="Scenes in other setup types"
+                            title="More scenes"
                             style={{
-                                display: 'inline-flex',
-                                padding: '4px',
+                                appearance: 'none',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                padding: '6px 10px 6px 8px',
                                 borderRadius: '999px',
-                                background: 'rgba(15, 15, 20, 0.72)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-                                gap: '2px',
+                                borderTopLeftRadius: 0,
+                                borderBottomLeftRadius: 0,
+                                borderLeft: '1px solid rgba(255,255,255,0.12)',
+                                marginLeft: '2px',
+                                color: 'rgba(255,255,255,0.78)',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
                             }}
-                            role="group"
-                            aria-label="Scene setting"
                         >
-                            {listSettings(currentSetupType).map((s) => {
-                                const active = s.key === currentSetting;
-                                return (
-                                    <button
-                                        key={s.key}
-                                        type="button"
-                                        onClick={() => requestSettingSwitch(s.key)}
-                                        style={{
-                                            appearance: 'none',
-                                            border: 'none',
-                                            padding: '6px 14px',
-                                            borderRadius: '999px',
-                                            fontSize: '12px',
-                                            fontWeight: 600,
-                                            letterSpacing: '0.02em',
-                                            cursor: 'pointer',
-                                            color: active ? '#0a0a0a' : 'rgba(255,255,255,0.78)',
-                                            background: active ? '#fff' : 'transparent',
-                                            transition: 'background 0.15s ease, color 0.15s ease',
-                                        }}
-                                        aria-pressed={active}
-                                    >
-                                        {s.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                            ▾
+                        </button>
+                    </div>
                     <button
                         type="button"
                         className="lighting-toggle"
@@ -4886,14 +4942,72 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                     >
                         {lightingMode === 'day' ? <MdNightlight size={16} /> : <MdWbSunny size={16} />}
                     </button>
+                    {showSceneMenu && (
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                position: 'absolute',
+                                top: 'calc(100% + 8px)',
+                                left: 0,
+                                zIndex: 260,
+                                minWidth: '200px',
+                                maxHeight: '60vh',
+                                overflowY: 'auto',
+                                background: 'rgba(15, 15, 20, 0.92)',
+                                backdropFilter: 'blur(12px)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '12px',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                                padding: '8px',
+                            }}
+                        >
+                            {Object.keys(SETTINGS).filter((type) => type !== currentSetupType).map((type) => (
+                                <div key={type}>
+                                    <div
+                                        style={{
+                                            fontSize: '10px',
+                                            letterSpacing: '0.08em',
+                                            textTransform: 'uppercase',
+                                            color: 'rgba(255,255,255,0.45)',
+                                            padding: '6px 10px 2px',
+                                        }}
+                                    >
+                                        {type}
+                                    </div>
+                                    {listSettings(type).map((s) => (
+                                        <button
+                                            key={`${type}-${s.key}`}
+                                            type="button"
+                                            onClick={() => { setShowSceneMenu(false); requestSettingSwitch(type, s.key); }}
+                                            style={{
+                                                appearance: 'none',
+                                                border: 'none',
+                                                background: 'transparent',
+                                                padding: '7px 10px',
+                                                borderRadius: '8px',
+                                                fontSize: '13px',
+                                                cursor: 'pointer',
+                                                display: 'block',
+                                                width: '100%',
+                                                textAlign: 'left',
+                                                color: 'rgba(255,255,255,0.78)',
+                                            }}
+                                        >
+                                            {s.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <Modal
-                    open={!!pendingSetting}
-                    onClose={() => setPendingSetting(null)}
-                    title={`Switch to ${getSetting(currentSetupType, pendingSetting)?.label || 'this scene'}?`}
+                    open={!!pendingSwitch}
+                    onClose={() => setPendingSwitch(null)}
+                    title={`Switch to ${getSetting(pendingSwitch?.type, pendingSwitch?.key)?.label || 'this scene'}?`}
                     footer={(
                         <>
-                            <Button variant="ghost" onClick={() => setPendingSetting(null)}>
+                            <Button variant="ghost" onClick={() => setPendingSwitch(null)}>
                                 Cancel
                             </Button>
                             <Button variant="danger" onClick={confirmSettingSwitch}>
@@ -4907,6 +5021,11 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                         placed in this one. Unsaved changes to this scene will be lost —
                         hit Save Setup first if you want to keep this build.
                     </p>
+                    {pendingSwitch && pendingSwitch.type !== currentSetupType && (
+                        <p style={{ margin: 0, marginTop: 8 }}>
+                            This also switches your builder from a {currentSetupType} setup to a {pendingSwitch.type} setup.
+                        </p>
+                    )}
                 </Modal>
                 {error && (
                     <div className="error-message fade-in" style={{

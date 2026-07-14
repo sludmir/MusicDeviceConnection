@@ -1,15 +1,15 @@
 .app-shell {
   display: flex;
   min-height: calc(100vh - 64px); /* leaves room for App-header above */
-  background: #0A0908;
-  color: #F5EFE3;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .app-shell__main {
   flex: 1;
   min-width: 0;
   padding-bottom: 0;
-  background: #0A0908;
+  background: var(--bg);
   overflow-x: hidden;
 }
 
