@@ -10,6 +10,7 @@ import { extractPeaks, extractPeaksStreaming, WAVEFORM_DEFAULTS } from '../utils
 import { suggestOffsetSeconds } from '../utils/audioAlign';
 import { nudgeOffset, angleTimeAtMaster, formatOffsetMs, parseClockTime, formatClockTime } from '../utils/syncEditorMath';
 import { CLIP_MIN_SEC, CLIP_MAX_SEC, normalizeClipRange, resizeClipRanges } from '../utils/clipRanges';
+import { normalizeCuts, angleIndexAt, addCut, moveCut, removeCut, setSegmentAngle, cutsToSegments } from '../utils/multicam';
 import './SetEditor.css';
 
 const PX_PER_SEC_DEFAULT = 40;
@@ -124,6 +125,13 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const [playheadSec, setPlayheadSec] = useState(0);
   const [pxPerSec, setPxPerSec] = useState(PX_PER_SEC_DEFAULT);
   const [autoAligning, setAutoAligning] = useState({}); // { [angleId]: true }
+
+  // ── Multicam cuts ────────────────────────────────────────────────
+  // cuts: [{ timeSec, angleIndex }] in MASTER-timeline seconds (see utils/multicam.js).
+  const [cuts, setCuts] = useState([{ timeSec: 0, angleIndex: 0 }]);
+  const [focusedCutIndex, setFocusedCutIndex] = useState(null); // segment/cut index, null = none
+  const cutDragRef = useRef(null); // { pointerId, cutIndex, markerEl }
+  const playheadSecRef = useRef(0); // live mirror of playheadSec, read by the keydown live-cut listener
 
   const syncScrollRef = useRef(null);
   const playheadRef = useRef(null);
@@ -251,6 +259,52 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setFocusedAngleId(angles[0].id);
     }
   }, [angles, focusedAngleId]);
+
+  // Re-normalize cuts whenever the angle count changes — removing an angle can
+  // leave a cut's angleIndex out of range; dropping below 2 angles means
+  // cutting no longer makes sense, so reset to the single-angle default.
+  useEffect(() => {
+    setCuts((prev) => (
+      angles.length < 2
+        ? [{ timeSec: 0, angleIndex: 0 }]
+        : normalizeCuts(prev, { maxAngleIndex: angles.length - 1 })
+    ));
+  }, [angles.length]);
+
+  // Keep focusedCutIndex valid as cuts change (e.g. setSegmentAngle can merge
+  // segments together, shrinking the list out from under a selected index).
+  useEffect(() => {
+    if (focusedCutIndex != null && focusedCutIndex >= cuts.length) {
+      setFocusedCutIndex(null);
+    }
+  }, [cuts, focusedCutIndex]);
+
+  // Mirror playheadSec into a ref so the keydown live-cut listener (added once
+  // per step/angle-count/playing combo, not on every scrub) can read the
+  // latest value without going stale.
+  useEffect(() => {
+    playheadSecRef.current = playheadSec;
+  }, [playheadSec]);
+
+  // Live cutting: while editing with ≥2 angles, keys 1/2/3 insert a cut at the
+  // current master time targeting that angle. Master time is the playing
+  // master-audio element's currentTime (exact), or the parked playhead when
+  // paused. Ignored while typing in a field or with a modifier held.
+  useEffect(() => {
+    if (step !== 'edit' || angles.length < 2) return undefined;
+    const onKeyDown = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+      const idx = Number(e.key) - 1;
+      if (!Number.isInteger(idx) || idx < 0 || idx >= angles.length) return;
+      const master = masterAudioPlayerRef.current;
+      const tSec = playing && master ? master.currentTime : playheadSecRef.current;
+      setCuts((prev) => addCut(prev, tSec, idx));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [step, angles.length, playing]);
 
   // ── Derived ────────────────────────────────────────────────────────
   const master = waveforms.master;
@@ -511,6 +565,42 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setAngleOffsets((prev) => ({ ...prev, [d.angleId]: d.currentOffsetSec }));
     }
     dragRef.current = { kind: null };
+  }, []);
+
+  // ── Cut marker drag (cuts row) ──────────────────────────────────────
+  // Cuts index 0 is fixed (never draggable); the plan calls for a direct
+  // setCuts(moveCut(...)) on every pointermove — segments are cheap to
+  // re-render, unlike the offset drag's transform-then-commit dance.
+  const handleCutMarkerPointerDown = useCallback((e, cutIndex) => {
+    if (e.button !== 0) return;
+    if (!syncScrollRef.current) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    cutDragRef.current = { pointerId: e.pointerId, cutIndex, markerEl: e.currentTarget };
+    setFocusedCutIndex(cutIndex);
+  }, []);
+
+  const handleCutMarkerPointerMove = useCallback((e) => {
+    const d = cutDragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    if (!syncScrollRef.current) return;
+    const rect = syncScrollRef.current.getBoundingClientRect();
+    const scrollLeft = syncScrollRef.current.scrollLeft;
+    const tSec = clamp((e.clientX - rect.left + scrollLeft) / pxPerSec, 0, previewDuration);
+    setCuts((prev) => moveCut(prev, d.cutIndex, tSec));
+    // Throttled live preview seek, same cadence as the offset drag — only
+    // while paused, so we never touch playback while master audio is running.
+    const now = performance.now();
+    if (now - lastLiveSeekRef.current > 80) {
+      lastLiveSeekRef.current = now;
+      if (!playing) setPlayheadSec(tSec);
+    }
+  }, [pxPerSec, previewDuration, playing]);
+
+  const handleCutMarkerPointerUp = useCallback((e) => {
+    const d = cutDragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    try { d.markerEl.releasePointerCapture(d.pointerId); } catch (_) {}
+    cutDragRef.current = null;
   }, []);
 
   // ── Auto-align ─────────────────────────────────────────────────────
@@ -831,7 +921,8 @@ function SetEditor({ onBack, theme = 'dark' }) {
     const storage = getStorage();
 
     try {
-      // For MVP, upload angle 1 as the primary video. Multi-angle stitching ships later.
+      // Angle 1 stays the "primary" video for every back-compat field (videoURL,
+      // trim, clips); all angles upload below and are cut between via `cuts`.
       const primary = angles[0];
       const primaryOffset = angleOffsets[primary.id] || 0;
       const safeTitle = (title || primary.file?.name || 'Untitled Set').trim().slice(0, 200);
@@ -849,13 +940,25 @@ function SetEditor({ onBack, theme = 'dark' }) {
       const effectiveDurationSeconds =
         Math.max(0, (trimEndV ?? primary.duration ?? 0) - trimStartV) || (primary.duration || 0);
 
-      // 1. Reserve Bunny video + upload angle 1.
-      const bunny = await createBunnyVideo({ title: safeTitle, kind: 'set' });
-      await uploadToBunny(
-        primary.file,
-        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
-        (fraction) => setUploadProgress(Math.min(95, Math.round(fraction * 95)))
-      );
+      // 1. Reserve Bunny video + upload EVERY angle (progress split evenly across
+      // angles, 0–90%; storage/thumbnail steps below take it to 100).
+      const uploaded = []; // { bunny, angle }, index-aligned with `angles`
+      for (let i = 0; i < angles.length; i++) {
+        const angle = angles[i];
+        const angleBunny = await createBunnyVideo({
+          title: `${safeTitle}${angles.length > 1 ? ` — Angle ${i + 1}` : ''}`,
+          kind: 'set',
+        });
+        await uploadToBunny(
+          angle.file,
+          { uploadUrl: angleBunny.uploadUrl, uploadHeaders: angleBunny.uploadHeaders },
+          (fraction) => setUploadProgress(Math.round(((i + fraction) / angles.length) * 90))
+        );
+        uploaded.push({ bunny: angleBunny, angle });
+      }
+      // `bunny` = angle 1's Bunny record — every back-compat field below
+      // (videoURL, bunnyVideoGuid, clip fields, …) reads from it exactly as before.
+      const bunny = uploaded[0].bunny;
 
       // 2. Master audio → Firebase Storage.
       const audioName = (audio.file.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -894,15 +997,17 @@ function SetEditor({ onBack, theme = 'dark' }) {
         audioTrackURL,
         audioOffsetSeconds: primaryOffset,
         audioReplacesVideo: true,
-        angles: [{
-          label: 'Angle 1',
-          bunnyVideoGuid: bunny.videoGuid,
-          bunnyLibraryId: bunny.libraryId,
-          hlsUrl: bunny.hlsUrl,
-          offsetSeconds: primaryOffset,
-          durationSeconds: primary.duration || 0,
-        }],
-        cuts: [{ timeSec: 0, angleIndex: 0 }],
+        angles: uploaded.map(({ bunny: b, angle }, i) => ({
+          label: `Angle ${i + 1}`,
+          bunnyVideoGuid: b.videoGuid,
+          bunnyLibraryId: b.libraryId,
+          hlsUrl: b.hlsUrl,
+          offsetSeconds: angleOffsets[angle.id] || 0,
+          durationSeconds: angle.duration || 0,
+        })),
+        angleGuids: uploaded.map(({ bunny: b }) => b.videoGuid),
+        angleStatus: Object.fromEntries(uploaded.map(({ bunny: b }) => [b.videoGuid, 'processing'])),
+        cuts: normalizeCuts(cuts, { maxAngleIndex: angles.length - 1 }),
         setupId: selectedSetupId,
         setupName: linkedSetup?.name || '',
         setupType: linkedSetup?.setupType || 'DJ',
@@ -964,7 +1069,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setError(e?.message || String(e) || 'Upload failed');
       setUploading(false);
     }
-  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate, clipRanges, numClips, trimInSec, trimOutSec, trimInvalid]);
+  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate, clipRanges, numClips, trimInSec, trimOutSec, trimInvalid, cuts]);
 
   const formatTime = (sec) => {
     if (!Number.isFinite(sec)) return '0:00';
@@ -977,6 +1082,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
 
   const zoomOut = () => setPxPerSec((v) => Math.max(PX_PER_SEC_MIN, Math.round(v / 1.5)));
   const zoomIn = () => setPxPerSec((v) => Math.min(PX_PER_SEC_MAX, Math.round(v * 1.5)));
+
+  // While playing with ≥2 angles, the sync preview follows the cut list
+  // (angleIndexAt) instead of the manually-focused tab.
+  const previewCuttingLive = playing && angles.length >= 2;
+  const previewCutAngleId = previewCuttingLive ? angles[angleIndexAt(cuts, playheadSec)]?.id : null;
 
   return (
     <div className={`set-editor set-editor--${isDark ? 'dark' : 'light'}`}>
@@ -1206,6 +1316,16 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 aria-label="Step forward one frame"
                 title="Forward one frame (~33ms)"
               >›</button>
+              <button
+                type="button"
+                className="set-editor__zoom-btn"
+                onClick={() => setCuts((prev) => addCut(prev, playheadSec, angleIndexAt(prev, playheadSec)))}
+                disabled={angles.length < 2}
+                aria-label="Cut at playhead"
+                title={angles.length < 2 ? 'Add a second angle to enable cuts' : 'Cut at playhead (splits, keeps the same angle)'}
+              >
+                <MdContentCut size={14} />
+              </button>
               <button type="button" className="set-editor__zoom-btn" onClick={zoomOut} aria-label="Zoom out">−</button>
               <span className="set-editor__zoom-readout">{pxPerSec} px/s</span>
               <button type="button" className="set-editor__zoom-btn" onClick={zoomIn} aria-label="Zoom in">+</button>
@@ -1213,7 +1333,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
           </div>
 
           {/* Preview: focused angle visible; all media elements live here so
-              playback/seek refs never re-mount. */}
+              playback/seek refs never re-mount. While playing with ≥2 angles the
+              preview follows the cut list instead of the manually-focused tab
+              (that tab still governs while paused, for sync work). */}
           <div className="set-editor__sync-preview">
             <div className="set-editor__preview-bar">
               <div className="set-editor__preview-tabs" role="tablist" aria-label="Preview angle">
@@ -1247,28 +1369,59 @@ function SetEditor({ onBack, theme = 'dark' }) {
                   {focusedAngleId != null ? formatOffsetMs(angleOffsets[focusedAngleId] || 0) : '—'}
                 </span>
               </div>
+              {angles.length >= 2 && focusedCutIndex != null && (
+                <div className="set-editor__cut-chips" role="group" aria-label="Cut segment angle">
+                  {angles.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`set-editor__cut-chip ${cuts[focusedCutIndex]?.angleIndex === i ? 'active' : ''}`}
+                      onClick={() => setCuts((prev) => setSegmentAngle(prev, focusedCutIndex, i))}
+                    >
+                      Angle {i + 1}
+                    </button>
+                  ))}
+                  {focusedCutIndex >= 1 && (
+                    <button
+                      type="button"
+                      className="set-editor__cut-chip set-editor__cut-chip--delete"
+                      onClick={() => {
+                        setCuts((prev) => removeCut(prev, focusedCutIndex));
+                        setFocusedCutIndex(null);
+                      }}
+                      aria-label="Delete this cut"
+                      title="Delete this cut (merges into the previous segment)"
+                    >
+                      <MdClose size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="set-editor__preview-stage">
               {audio?.url && (
                 <audio ref={masterAudioPlayerRef} src={audio.url} preload="auto" />
               )}
-              {angles.map((angle) => (
-                <video
-                  key={angle.id}
-                  ref={(el) => { if (el) anglePlayerRefs.current[angle.id] = el; else delete anglePlayerRefs.current[angle.id]; }}
-                  src={angle.url}
-                  preload="auto"
-                  playsInline
-                  muted
-                  onLoadedMetadata={(e) => {
-                    const v = e.currentTarget;
-                    const offset = angleOffsets[angle.id] || 0;
-                    const t = angleTimeAtMaster(playheadSec, offset);
-                    v.currentTime = Math.max(0, Math.min(v.duration - 0.01, t));
-                  }}
-                  className={`set-editor__preview-video ${angle.id === focusedAngleId ? 'set-editor__preview-video--visible' : ''}`}
-                />
-              ))}
+              {angles.map((angle) => {
+                const isVisible = previewCuttingLive ? angle.id === previewCutAngleId : angle.id === focusedAngleId;
+                return (
+                  <video
+                    key={angle.id}
+                    ref={(el) => { if (el) anglePlayerRefs.current[angle.id] = el; else delete anglePlayerRefs.current[angle.id]; }}
+                    src={angle.url}
+                    preload="auto"
+                    playsInline
+                    muted
+                    onLoadedMetadata={(e) => {
+                      const v = e.currentTarget;
+                      const offset = angleOffsets[angle.id] || 0;
+                      const t = angleTimeAtMaster(playheadSec, offset);
+                      v.currentTime = Math.max(0, Math.min(v.duration - 0.01, t));
+                    }}
+                    className={`set-editor__preview-video ${isVisible ? 'set-editor__preview-video--visible' : ''}`}
+                  />
+                );
+              })}
               {focusedAngleId == null && (
                 <div className="set-editor__preview-empty">Click an angle row to preview it here.</div>
               )}
@@ -1323,6 +1476,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
                   </div>
                 );
               })}
+              {angles.length >= 2 && (
+                <div className="set-editor__cuts-label">Cuts</div>
+              )}
             </div>
 
             <div className="set-editor__sync-scroll" ref={syncScrollRef}>
@@ -1395,6 +1551,39 @@ function SetEditor({ onBack, theme = 'dark' }) {
                     </div>
                   );
                 })}
+
+                {angles.length >= 2 && (
+                  <div className="set-editor__cuts-row">
+                    {cutsToSegments(cuts, previewDuration).map((seg, segIdx) => (
+                      <div
+                        key={`seg-${segIdx}`}
+                        className={`set-editor__cut-segment set-editor__cut-segment--a${seg.angleIndex} ${focusedCutIndex === segIdx ? 'set-editor__cut-segment--focused' : ''}`}
+                        style={{ left: `${seg.start * pxPerSec}px`, width: `${Math.max(0, (seg.end - seg.start) * pxPerSec)}px` }}
+                        onClick={() => setFocusedCutIndex(segIdx)}
+                        title={`${formatTime(seg.start)} – ${formatTime(seg.end)} · Angle ${seg.angleIndex + 1}`}
+                      >
+                        <span className="set-editor__cut-segment-label">A{seg.angleIndex + 1}</span>
+                      </div>
+                    ))}
+                    {cuts.map((cut, cutIdx) => (
+                      cutIdx === 0 ? null : (
+                        <div
+                          key={`marker-${cutIdx}`}
+                          className="set-editor__cut-marker"
+                          style={{ left: `${cut.timeSec * pxPerSec}px` }}
+                          onPointerDown={(e) => handleCutMarkerPointerDown(e, cutIdx)}
+                          onPointerMove={handleCutMarkerPointerMove}
+                          onPointerUp={handleCutMarkerPointerUp}
+                          onPointerCancel={handleCutMarkerPointerUp}
+                          role="slider"
+                          aria-label={`Cut ${cutIdx} at ${formatTime(cut.timeSec)}`}
+                          aria-valuenow={Math.round(cut.timeSec)}
+                          title={`Cut at ${formatTime(cut.timeSec)} — drag to move`}
+                        />
+                      )
+                    ))}
+                  </div>
+                )}
 
                 {trimInSec != null && trimInSec <= previewDuration && (
                   <div
@@ -1483,6 +1672,12 @@ function SetEditor({ onBack, theme = 'dark' }) {
             playhead on it (‹ › steps one frame), and nudge the angle (±0.01s) until the preview frame shows
             the action. Drag the ruler to scrub, drag an angle row to slide it, and use <em>Master / Angle</em>
             to A/B what you hear.
+            {angles.length >= 2 && (
+              <> {' '}Once synced, cut between angles on the <strong>cuts row</strong> below the waveforms:
+              drag a marker to move a cut, click a segment to pick its angle or delete it, use the scissors
+              (<MdContentCut size={11} />) to cut at the playhead, or press <strong>1</strong>/<strong>2</strong>/
+              <strong>3</strong> while playing to live-cut to that angle.</>
+            )}
           </div>
 
         </section>
@@ -1640,6 +1835,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
 
           <div className="set-editor__post-summary">
             Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video) with master audio replacing the video audio, plus <strong>{numClips}</strong> clip{numClips === 1 ? '' : 's'} to the feed.
+            {angles.length >= 2 && (
+              <> Viewers will see <strong>{cuts.length - 1}</strong> cut{cuts.length - 1 === 1 ? '' : 's'} switching between angles.</>
+            )}
             {(trimInSec != null || trimOutSec != null) && (
               <> Trimmed to <strong>{trimInSec != null ? formatClockTime(trimInSec) : 'start'} → {trimOutSec != null ? formatClockTime(trimOutSec) : 'end'}</strong>.</>
             )}
