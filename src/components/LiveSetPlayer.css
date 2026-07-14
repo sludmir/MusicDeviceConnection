@@ -135,6 +135,21 @@
   object-fit: contain;
 }
 
+/* Multicam: one muted <video> per angle, stacked in the same wrap (which is
+   already position:relative above); only the active angle is visible so
+   switching angles never remounts a video or interrupts hls.js buffering. */
+.live-set-player-video--stacked {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s linear;
+}
+
+.live-set-player-video--stacked.is-active {
+  opacity: 1;
+}
+
 .live-set-player-loading {
   position: absolute;
   inset: 0;

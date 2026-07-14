@@ -1,4 +1,4 @@
-import { createAudioMasterSync } from './audioVideoSync';
+import { createAudioMasterSync, createMulticamAudioMasterSync } from './audioVideoSync';
 
 // Minimal HTMLMediaElement stand-ins. We only fake the properties/methods
 // audioVideoSync.js actually touches, and drive `currentTime` ourselves
@@ -127,5 +127,143 @@ describe('createAudioMasterSync loop window (feed clips)', () => {
     expect(audio.currentTime).toBe(3);
     expect(video.currentTime).toBe(2);
     expect(video.playbackRate).toBe(1);
+  });
+});
+
+describe('createMulticamAudioMasterSync', () => {
+  // Three cuts over two angles: angle 0 for [0,10), angle 1 for [10,20),
+  // back to angle 0 for [20, end) — lets us exercise both "swap forward" and
+  // "park at a future re-activation" in the same fixture.
+  function makeCuts() {
+    return [
+      { timeSec: 0, angleIndex: 0 },
+      { timeSec: 10, angleIndex: 1 },
+      { timeSec: 20, angleIndex: 0 },
+    ];
+  }
+
+  function makeEntries() {
+    const video0 = makeVideo({ currentTime: 0, buffered: [[0, 100]] });
+    const video1 = makeVideo({ currentTime: 0, buffered: [[0, 100]] });
+    return {
+      video0,
+      video1,
+      entries: [
+        { video: video0, offset: 0 },
+        { video: video1, offset: 0 },
+      ],
+    };
+  }
+
+  // Same warm-up shape as the single-video controller: audio needs to pass
+  // audioStart + 0.2, then accrue WARMUP_PROGRESS (1.2s) of real progress
+  // before the initially-active video is brought in.
+  function warmUpMulti(sync, audio) {
+    sync.play();
+    audio.currentTime = 0.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 1.6;
+    jest.advanceTimersByTime(100);
+  }
+
+  test('activates angle 0 after warmup; angle 1 stays paused and parks at its next activation cut', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const onActiveAngleChange = jest.fn();
+    const sync = createMulticamAudioMasterSync(entries, audio, {
+      cuts: makeCuts(),
+      onActiveAngleChange,
+    });
+
+    warmUpMulti(sync, audio);
+
+    expect(onActiveAngleChange).toHaveBeenCalledTimes(1);
+    expect(onActiveAngleChange).toHaveBeenCalledWith(0);
+    expect(video0.play).toHaveBeenCalled();
+    expect(video0.currentTime).toBeCloseTo(1.6); // aligned to the audio clock
+    expect(video1.pause).toHaveBeenCalled();
+    expect(video1.currentTime).toBe(10); // parked at cuts[1].timeSec - offset1
+    expect(sync.getActiveIndex()).toBe(0);
+  });
+
+  test('crossing a cut boundary swaps the active video', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const onActiveAngleChange = jest.fn();
+    const sync = createMulticamAudioMasterSync(entries, audio, {
+      cuts: makeCuts(),
+      onActiveAngleChange,
+    });
+    warmUpMulti(sync, audio);
+
+    // Audio clock crosses the 10s cut; the cut ticker (CUT_TICK_MS=50) picks
+    // it up on its next tick.
+    audio.currentTime = 10;
+    jest.advanceTimersByTime(50);
+
+    expect(video1.play).toHaveBeenCalled();
+    expect(video0.pause).toHaveBeenCalled();
+    expect(onActiveAngleChange).toHaveBeenLastCalledWith(1);
+    expect(sync.getActiveIndex()).toBe(1);
+    // The old (now-inactive) video is re-parked at its next activation cut (20s).
+    expect(video0.currentTime).toBe(20);
+  });
+
+  test('seek() into a later segment recomputes the active angle and repositions both videos', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const onActiveAngleChange = jest.fn();
+    const sync = createMulticamAudioMasterSync(entries, audio, {
+      cuts: makeCuts(),
+      onActiveAngleChange,
+    });
+    warmUpMulti(sync, audio); // active = 0
+
+    sync.seek(15); // lands inside [10,20) -> angle 1
+
+    expect(audio.currentTime).toBe(15);
+    expect(sync.getActiveIndex()).toBe(1);
+    expect(video1.currentTime).toBe(15); // active video: exact target
+    expect(video0.currentTime).toBe(20); // inactive video: parked at its next activation (20s)
+    expect(video1.play).toHaveBeenCalled(); // still playing -> new active video starts
+    expect(onActiveAngleChange).toHaveBeenLastCalledWith(1);
+  });
+
+  test('drift correction applies only to the active video', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(entries, audio, { cuts: makeCuts() });
+    warmUpMulti(sync, audio); // active = 0; video1 parked at 10, untouched since
+
+    video0.currentTime = 1.9; // target is 1.6 -> 0.3s drift (> DEADBAND, < SEEK_VIDEO)
+    jest.advanceTimersByTime(250); // one FOLLOW_MS tick
+
+    expect(video0.playbackRate).not.toBe(1); // active video gets the rate nudge
+    expect(video1.playbackRate).toBe(1); // inactive video is left alone
+    expect(video1.currentTime).toBe(10); // untouched by the follow loop
+  });
+
+  test('destroy() clears timers so no further callbacks or swaps fire', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const onActiveAngleChange = jest.fn();
+    const sync = createMulticamAudioMasterSync(entries, audio, {
+      cuts: makeCuts(),
+      onActiveAngleChange,
+    });
+    warmUpMulti(sync, audio);
+    expect(onActiveAngleChange).toHaveBeenCalledTimes(1);
+    const playCallsBefore = video1.play.mock.calls.length;
+
+    sync.destroy();
+
+    // This would cross the 10s cut and trigger a swap if any timer survived.
+    audio.currentTime = 10;
+    jest.advanceTimersByTime(300);
+
+    expect(onActiveAngleChange).toHaveBeenCalledTimes(1); // no new calls
+    expect(video1.play.mock.calls.length).toBe(playCallsBefore);
+    expect(video0.playbackRate).toBe(1);
+    expect(video1.playbackRate).toBe(1);
   });
 });

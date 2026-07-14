@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff, MdFullscreen, MdFullscreenExit, MdGraphicEq, MdVisibility } from 'react-icons/md';
 import { db } from '../firebaseConfig';
 import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
-import { createAudioMasterSync } from '../utils/audioVideoSync';
+import { createAudioMasterSync, createMulticamAudioMasterSync } from '../utils/audioVideoSync';
+import { normalizeCuts } from '../utils/multicam';
 import { formatCompactNumber } from '../utils/formatCount';
 import './LiveSetPlayer.css';
 
@@ -29,6 +30,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const audioRef = useRef(null);
   const timelineRef = useRef(null);
   const syncRef = useRef(null);
+  const multiVideoRefs = useRef([]);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -37,6 +39,11 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   const [loaded, setLoaded] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  // Multicam: which stacked angle is currently visible/slaved (driven by the
+  // controller's onActiveAngleChange), and a fallback flag flipped by any
+  // stacked-video/HLS error that drops the player back to the single-video path.
+  const [activeAngle, setActiveAngle] = useState(0);
+  const [multicamFailed, setMulticamFailed] = useState(false);
   // One view per mount (SetPlayerProvider remounts this via `key={set.id}`),
   // counted on the first real play — never on autoplay, since nothing here
   // autoplays without a user tap.
@@ -56,19 +63,33 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
         if (cancelled) return;
         // Mirror Feed: signing only replaces Bunny URLs; keep the Firestore
         // audioTrackURL (Firebase Storage) when the function omits it.
+        // angles/angleStatus pass through the callable's response; fall back
+        // to the (unsigned) Firestore fields only if the deployed function
+        // hasn't been updated yet to return them.
         setSigned({
           videoURL: urls.videoURL || set.videoURL,
           audioTrackURL: normalizeAudioTrackURL(urls.audioTrackURL)
             || normalizeAudioTrackURL(set.audioTrackURL),
+          angles: Array.isArray(urls.angles)
+            ? urls.angles
+            : (Array.isArray(set.angles) ? set.angles : undefined),
+          angleStatus: urls.angleStatus || set.angleStatus || undefined,
         });
       })
       .catch(() => {
         if (!cancelled) setSigned({
           videoURL: set.videoURL,
           audioTrackURL: normalizeAudioTrackURL(set.audioTrackURL),
+          angles: Array.isArray(set.angles) ? set.angles : undefined,
+          angleStatus: set.angleStatus || undefined,
         });
       });
     return () => { cancelled = true; };
+    // set.angles/set.angleStatus deliberately omitted: they're only read as a
+    // fallback inside the closure (same pattern as set.videoURL above), and
+    // including array/object props here would re-trigger the fetch on every
+    // parent re-render that hands down a new (but content-equal) reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set?.id, set?.videoURL, set?.audioTrackURL]);
 
   const videoURL = signed?.videoURL;
@@ -87,6 +108,30 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   const isDark = theme === 'dark';
 
+  // Multicam eligibility: signed per-angle URLs, every angle's Bunny encode
+  // marked 'ready', and the lossless track actually engaged (audio-master is
+  // required for the cut controller). Any stacked-video/HLS error flips
+  // multicamFailed and drops back to the single-video path below.
+  const angleList = Array.isArray(signed?.angles) && signed.angles.length >= 2 ? signed.angles : null;
+  const angleStatus = signed?.angleStatus || set?.angleStatus || {};
+  const anglesReady = !!angleList && angleList.every((a) => angleStatus[a.bunnyVideoGuid] === 'ready');
+  const cuts = useMemo(
+    () => normalizeCuts(set?.cuts, { maxAngleIndex: (angleList?.length || 1) - 1 }),
+    [set?.cuts, angleList]
+  );
+  const multicam = !!(angleList && anglesReady && audioTrackURL && audioReplacesVideo) && !multicamFailed;
+
+  // Master-time window (multicam only): the audio clock is the UI clock, so
+  // the displayed/seekable range is expressed in master seconds, not video
+  // seconds. effDuration comes straight from the (already-trimmed) set
+  // duration rather than any one video's metadata.
+  const offset0 = Number(angleList?.[0]?.offsetSeconds ?? audioOffsetSeconds) || 0;
+  const masterIn = trimStart + offset0;
+  const multicamEffDuration = Math.max(0, Number(set?.durationSeconds) || 0);
+  const effDuration = multicam ? multicamEffDuration : Math.max(0, (trimEnd ?? duration) - trimStart);
+  const masterOut = masterIn + effDuration;
+  const displayOrigin = multicam ? masterIn : trimStart;
+
   useEffect(() => {
     if (!videoURL) return;
     setCurrentTime(0);
@@ -94,13 +139,18 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     setLoaded(false);
     setPlaying(false);
     setBuffering(true);
+    setMulticamFailed(false);
+    setActiveAngle(0);
   }, [videoURL]);
 
+  // Single-video HLS attach — skipped in multicam mode (the stacked-video
+  // effect below owns attachHls there); gated on `multicam` too so it
+  // (re)attaches the moment multicam falls back (see multicamFailed).
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !videoURL) return;
+    if (!v || !videoURL || multicam) return;
     return attachHls(v, videoURL);
-  }, [videoURL]);
+  }, [videoURL, multicam]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -115,12 +165,15 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   useEffect(() => {
     const v = videoRef.current;
-    if (v && audioReplacesVideo) v.muted = true;
-  }, [audioReplacesVideo, videoURL]);
+    if (v && audioReplacesVideo && !multicam) v.muted = true;
+  }, [audioReplacesVideo, videoURL, multicam]);
 
+  // Single-video event bindings (timeupdate/loadedmetadata/play/pause + view
+  // counting) — skipped in multicam mode, where the audio element and the
+  // active stacked video own these instead (effects further below).
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v || multicam) return;
     const onTimeUpdate = () => {
       setCurrentTime(v.currentTime);
       if (trimEnd && v.currentTime >= trimEnd) {
@@ -162,24 +215,122 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
       v.removeEventListener('pause', onPause);
       v.removeEventListener('ended', onEnded);
     };
-  }, [videoURL, set?.id, trimStart, trimEnd]);
+  }, [videoURL, set?.id, trimStart, trimEnd, multicam]);
 
   // Audio-master sync (see utils/audioVideoSync): the lossless track is the
   // clock and is never seeked during playback; the muted video is slaved to it
   // via tiny playbackRate nudges. Seeking an <audio> element stalls on iOS, so
   // the old "chase the video by re-seeking the audio" approach stuttered there.
-  // Only engaged when the uploaded track replaces the video's own audio.
+  // Only engaged when the uploaded track replaces the video's own audio, and
+  // never in multicam mode (the multicam controller effect below owns syncRef then).
   useEffect(() => {
     const v = videoRef.current;
     const a = audioRef.current;
-    if (!audioReplacesVideo || !audioTrackURL || !a || !v || !videoURL) return undefined;
+    if (multicam || !audioReplacesVideo || !audioTrackURL || !a || !v || !videoURL) return undefined;
     const sync = createAudioMasterSync(v, a, {
       offset: audioOffsetSeconds,
       audioStart: trimStart + audioOffsetSeconds,
     });
     syncRef.current = sync;
     return () => { sync.destroy(); syncRef.current = null; };
-  }, [videoURL, audioTrackURL, audioOffsetSeconds, audioReplacesVideo, trimStart]);
+  }, [videoURL, audioTrackURL, audioOffsetSeconds, audioReplacesVideo, trimStart, multicam]);
+
+  // ---- Multicam mode: stacked muted videos slaved to the audio clock ----
+
+  // Attach HLS to every stacked angle video (mirrors the single-video attach
+  // above, one per angle). Any attach/error flips multicamFailed so the
+  // component falls back to the single-video path.
+  useEffect(() => {
+    if (!multicam || !angleList) return undefined;
+    const cleanups = angleList.map((a, i) => {
+      const el = multiVideoRefs.current[i];
+      if (!el || !a?.hlsUrl) return null;
+      try {
+        return attachHls(el, a.hlsUrl);
+      } catch (_) {
+        setMulticamFailed(true);
+        return null;
+      }
+    });
+    return () => { cleanups.forEach((fn) => { if (fn) fn(); }); };
+  }, [multicam, angleList]);
+
+  // The multicam controller: one audio clock, N muted videos, cuts drive
+  // which one is active. Mirrors the single-video sync effect above but only
+  // the active video is slaved; see utils/audioVideoSync for the internals.
+  useEffect(() => {
+    if (!multicam || !angleList) return undefined;
+    const a = audioRef.current;
+    const videos = angleList.map((_, i) => multiVideoRefs.current[i]);
+    if (!a || videos.some((v) => !v)) return undefined;
+    const sync = createMulticamAudioMasterSync(
+      angleList.map((ang, i) => ({ video: videos[i], offset: Number(ang.offsetSeconds) || 0 })),
+      a,
+      {
+        cuts,
+        audioStart: masterIn,
+        onActiveAngleChange: (i) => setActiveAngle(i),
+      }
+    );
+    syncRef.current = sync;
+    return () => { sync.destroy(); syncRef.current = null; };
+  }, [multicam, angleList, cuts, masterIn]);
+
+  // Buffering/loaded signal follows whichever stacked video is currently
+  // active (re-binds on every angle swap).
+  useEffect(() => {
+    if (!multicam) return undefined;
+    const el = multiVideoRefs.current[activeAngle];
+    if (!el) return undefined;
+    const onWaiting = () => setBuffering(true);
+    const onPlaying = () => setBuffering(false);
+    const onLoadedMetadata = () => setLoaded(true);
+    el.addEventListener('waiting', onWaiting);
+    el.addEventListener('playing', onPlaying);
+    el.addEventListener('loadedmetadata', onLoadedMetadata);
+    return () => {
+      el.removeEventListener('waiting', onWaiting);
+      el.removeEventListener('playing', onPlaying);
+      el.removeEventListener('loadedmetadata', onLoadedMetadata);
+    };
+  }, [multicam, activeAngle]);
+
+  // The UI clock in multicam mode is the AUDIO element (master time), not any
+  // one video. View counting fires on the first real audio play; trim-end
+  // (masterOut) pauses playback the same way trimEnd does for single-video.
+  useEffect(() => {
+    if (!multicam) return undefined;
+    const a = audioRef.current;
+    if (!a) return undefined;
+    const onTimeUpdate = () => {
+      setCurrentTime(a.currentTime);
+      if (masterOut > masterIn && a.currentTime >= masterOut) {
+        const sync = syncRef.current;
+        if (sync) sync.pause();
+        else { try { a.pause(); } catch (_) {} }
+      }
+    };
+    const onPlay = () => {
+      setPlaying(true);
+      if (!viewCountedRef.current && set?.id) {
+        viewCountedRef.current = true;
+        setDisplayViews((v) => v + 1);
+        updateDoc(doc(db, 'sets', set.id), { views: increment(1) }).catch(() => {});
+      }
+    };
+    const onPause = () => setPlaying(false);
+    const onEnded = () => setPlaying(false);
+    a.addEventListener('timeupdate', onTimeUpdate);
+    a.addEventListener('play', onPlay);
+    a.addEventListener('pause', onPause);
+    a.addEventListener('ended', onEnded);
+    return () => {
+      a.removeEventListener('timeupdate', onTimeUpdate);
+      a.removeEventListener('play', onPlay);
+      a.removeEventListener('pause', onPause);
+      a.removeEventListener('ended', onEnded);
+    };
+  }, [multicam, set?.id, masterIn, masterOut]);
 
   // Esc shrinks the expanded view to the pip rather than closing it, so
   // playback isn't lost by accident. Use the ✕ to close fully.
@@ -191,6 +342,20 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   }, [minimized]);
 
   const togglePlay = () => {
+    if (multicam) {
+      const a = audioRef.current;
+      const sync = syncRef.current;
+      if (!a || !sync) return;
+      const atEnd = masterOut > masterIn && a.currentTime >= masterOut - 0.05;
+      if (a.paused) {
+        setBuffering(true);
+        if (atEnd) sync.seek(masterIn);
+        sync.play();
+      } else {
+        sync.pause();
+      }
+      return;
+    }
     const v = videoRef.current;
     if (!v) return;
     const sync = syncRef.current;
@@ -233,20 +398,31 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     window.dispatchEvent(new CustomEvent('liveset:view-setup', { detail: { setupId } }));
   };
 
-  const effDuration = Math.max(0, (trimEnd ?? duration) - trimStart);
   const progress = effDuration > 0
-    ? Math.min(1, Math.max(0, (currentTime - trimStart) / effDuration))
+    ? Math.min(1, Math.max(0, (currentTime - displayOrigin) / effDuration))
     : 0;
 
   const TIMELINE_PAD = 8;
 
+  // Deliberate user scrub. In multicam mode the controller's seek() takes
+  // MASTER time (audio.currentTime); the single-video controller's seek()
+  // takes VIDEO time — branch accordingly.
   const seekToClientX = (clientX) => {
     const bar = timelineRef.current;
-    if (!bar || !duration) return;
+    if (!bar) return;
+    if (!multicam && !duration) return;
+    if (effDuration <= 0) return;
     const rect = bar.getBoundingClientRect();
     const x = clientX - rect.left;
     const usable = rect.width - 2 * TIMELINE_PAD;
     const p = usable > 0 ? Math.max(0, Math.min(1, (x - TIMELINE_PAD) / usable)) : 0;
+    if (multicam) {
+      const t = masterIn + p * effDuration;
+      const sync = syncRef.current;
+      if (sync) sync.seek(t);
+      setCurrentTime(t);
+      return;
+    }
     const t = trimStart + p * effDuration;
     if (videoRef.current) {
       const sync = syncRef.current;
@@ -274,7 +450,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
       window.removeEventListener('mouseup', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging, duration]);
+  }, [dragging, duration, multicam]);
 
   if (!set?.videoURL) return null;
 
@@ -325,17 +501,31 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
         </div>
 
         <div className="live-set-player-video-wrap" onClick={togglePlay}>
-          <video
-            ref={videoRef}
-            className="live-set-player-video"
-            preload="metadata"
-            muted={audioReplacesVideo || muted}
-            playsInline
-            onWaiting={() => setBuffering(true)}
-            onPlaying={() => setBuffering(false)}
-            onPause={() => setBuffering(false)}
-            onError={() => setBuffering(false)}
-          />
+          {multicam ? (
+            angleList.map((a, i) => (
+              <video
+                key={a.bunnyVideoGuid || i}
+                ref={(el) => { multiVideoRefs.current[i] = el; }}
+                className={`live-set-player-video live-set-player-video--stacked ${i === activeAngle ? 'is-active' : ''}`}
+                preload="metadata"
+                muted
+                playsInline
+                onError={() => setMulticamFailed(true)}
+              />
+            ))
+          ) : (
+            <video
+              ref={videoRef}
+              className="live-set-player-video"
+              preload="metadata"
+              muted={audioReplacesVideo || muted}
+              playsInline
+              onWaiting={() => setBuffering(true)}
+              onPlaying={() => setBuffering(false)}
+              onPause={() => setBuffering(false)}
+              onError={() => setBuffering(false)}
+            />
+          )}
           {(!loaded || buffering) && (
             <div className="live-set-player-buffering" aria-hidden="true">
               <img
@@ -359,12 +549,24 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           aria-label="Seek"
           aria-valuemin={0}
           aria-valuemax={effDuration}
-          aria-valuenow={Math.max(0, currentTime - trimStart)}
+          aria-valuenow={Math.max(0, currentTime - displayOrigin)}
           tabIndex={0}
           onKeyDown={(e) => {
+            const step = e.shiftKey ? 30 : 5;
+            if (multicam) {
+              const a = audioRef.current;
+              const sync = syncRef.current;
+              if (!a || !sync) return;
+              const seekRel = (delta) => {
+                const target = Math.max(masterIn, Math.min(masterOut, a.currentTime + delta));
+                sync.seek(target);
+              };
+              if (e.key === 'ArrowLeft') { e.preventDefault(); seekRel(-step); }
+              else if (e.key === 'ArrowRight') { e.preventDefault(); seekRel(step); }
+              return;
+            }
             const v = videoRef.current;
             if (!v || !duration) return;
-            const step = e.shiftKey ? 30 : 5;
             const seekRel = (delta) => {
               const target = Math.max(trimStart, Math.min(trimEnd ?? duration, v.currentTime + delta));
               const sync = syncRef.current;
@@ -408,7 +610,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             </button>
           )}
           <span className="live-set-player-time">
-            {formatTime(Math.max(0, currentTime - trimStart))} / {formatTime(effDuration)}
+            {formatTime(Math.max(0, currentTime - displayOrigin))} / {formatTime(effDuration)}
           </span>
         </div>
       </div>
