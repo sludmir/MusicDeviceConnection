@@ -161,6 +161,10 @@ exports.getSignedBunnyUrl = onCall(
       fullVideoURL: signIfBunny(data.fullVideoURL),
       audioTrackURL: signIfBunny(data.audioTrackURL),
       thumbnailURL: signIfBunny(data.thumbnailURL),
+      angles: Array.isArray(data.angles)
+        ? data.angles.map((a) => ({ ...a, hlsUrl: signIfBunny(a?.hlsUrl) }))
+        : undefined,
+      angleStatus: data.angleStatus || undefined,
       expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
     };
   }
@@ -210,6 +214,24 @@ exports.bunnyWebhook = onRequest(
         updated += 1;
       });
       if (!snap.empty) await batch.commit();
+    }
+
+    // Second pass: sets that reference this guid as one of their multicam
+    // angles get their per-angle status flipped too.
+    const angleSnap = await db
+      .collection('sets')
+      .where('angleGuids', 'array-contains', VideoGuid)
+      .get();
+    if (!angleSnap.empty) {
+      const batch = db.batch();
+      angleSnap.forEach((doc) => {
+        batch.update(doc.ref, {
+          [`angleStatus.${VideoGuid}`]: nextStatus,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        updated += 1;
+      });
+      await batch.commit();
     }
 
     return res.status(200).send(`ok (updated ${updated})`);
