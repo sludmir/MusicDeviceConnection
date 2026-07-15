@@ -34,6 +34,14 @@ const FOLLOW_MS = 250;        // how often the follow loop samples the clocks
 const FORCE_SEEK = 3;
 const FORCE_SEEK_COOLDOWN_MS = 4000;
 
+// Startup alignment verification: iOS can silently drop a currentTime write
+// on a freshly-attached HLS stream even after metadata is in (no error, no
+// 'seeked'). After each alignment seek, re-check the OUTCOME and re-issue
+// while the video is hopelessly off target (> FORCE_SEEK — same threshold
+// as the follow loop so a merely bandwidth-starved video is never poked).
+const SEEK_VERIFY_MS = 800;
+const SEEK_VERIFY_ATTEMPTS = 6;
+
 /**
  * Create an audio-master sync controller for a (muted) video + lossless audio.
  *
@@ -61,28 +69,50 @@ export function createAudioMasterSync(video, audio, opts = {}) {
   let destroyed = false;
   let lastForceSeekAt = 0;
   let metaCleanup = null;
+  let verifyId = null;
+  let verifyAttempts = 0;
+
+  const clearVerify = () => { if (verifyId) { clearTimeout(verifyId); verifyId = null; } };
 
   const videoTarget = () => Math.max(0, audio.currentTime - offset);
 
-  // Position the video at the current audio target. iOS discards
-  // currentTime writes issued before the video's metadata is loaded (which
-  // on a phone can be seconds after play() is tapped), so when metadata
-  // isn't there yet, re-apply the *fresh* target as soon as it arrives --
-  // otherwise the video plays from 0:00 under the correct audio.
+  // Position the video at the current audio target — and verify the write
+  // took. Two iOS failure modes are covered:
+  //   1. writes before metadata are discarded → re-apply the fresh target on
+  //      loadedmetadata (as before);
+  //   2. writes on a just-attached, already-playing HLS stream are dropped
+  //      with no error and no 'seeked' → re-check shortly after and re-issue,
+  //      bounded, until the video sits near the live target.
   function positionVideo() {
+    clearVerify();
+    verifyAttempts = 0;
+    applyAlignmentSeek();
+  }
+
+  function applyAlignmentSeek() {
     try { video.currentTime = videoTarget(); } catch (_) {}
     if (video.readyState < 1 && typeof video.addEventListener === 'function' && !metaCleanup) {
       const onMeta = () => {
         if (metaCleanup) metaCleanup();
         if (destroyed) return;
-        try { video.currentTime = videoTarget(); } catch (_) {}
+        applyAlignmentSeek();
       };
       video.addEventListener('loadedmetadata', onMeta);
       metaCleanup = () => {
         video.removeEventListener('loadedmetadata', onMeta);
         metaCleanup = null;
       };
+      return; // verification restarts once metadata arrives
     }
+    if (verifyAttempts >= SEEK_VERIFY_ATTEMPTS) return;
+    verifyId = setTimeout(() => {
+      verifyId = null;
+      if (destroyed || !active) return;
+      if (Math.abs(video.currentTime - videoTarget()) <= FORCE_SEEK) return; // landed
+      verifyAttempts += 1;
+      videoSeeks += 1;
+      applyAlignmentSeek();
+    }, SEEK_VERIFY_MS);
   }
 
   // Is `t` already inside a buffered range of `el`? Used to tell "off-clock,
@@ -188,6 +218,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
     try { audio.pause(); } catch (_) {}
     try { video.pause(); } catch (_) {}
     stopFollow();
+    clearVerify();
     if (warmId) { clearInterval(warmId); warmId = null; }
   }
 
@@ -211,6 +242,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
     active = false;
     started = false;
     stopFollow();
+    clearVerify();
     if (warmId) { clearInterval(warmId); warmId = null; }
     if (metaCleanup) metaCleanup();
     document.removeEventListener('visibilitychange', onVisibility);

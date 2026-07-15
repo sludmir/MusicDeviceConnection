@@ -82,6 +82,35 @@ function makeIOSVideo({ currentTime = 0, buffered = [[0, 0]] } = {}) {
   return video;
 }
 
+// iOS-like video whose metadata IS loaded, but which silently drops the
+// first N currentTime writes — the observed behavior on a freshly-attached,
+// already-playing HLS stream on iPhone: no error, no 'seeked', playback
+// just continues from where it was.
+function makeSeekDroppingVideo({ drops = 4, buffered = [[0, 5]] } = {}) {
+  let _currentTime = 0;
+  let dropsLeft = drops;
+  const video = {
+    buffered: makeBuffered(buffered),
+    readyState: 4,
+    duration: NaN,
+    playbackRate: 1,
+    muted: false,
+    currentTimeWrites: 0,
+    play: jest.fn(() => Promise.resolve()),
+    pause: jest.fn(),
+  };
+  Object.defineProperty(video, 'currentTime', {
+    enumerable: true,
+    get() { return _currentTime; },
+    set(v) {
+      video.currentTimeWrites += 1;
+      if (dropsLeft > 0) { dropsLeft -= 1; return; } // silently ignored
+      _currentTime = v;
+    },
+  });
+  return video;
+}
+
 function makeAudio({ currentTime = 0 } = {}) {
   return {
     currentTime,
@@ -613,5 +642,50 @@ describe('createMulticamAudioMasterSync recovery and iOS parity', () => {
 
     video0.loadMetadata(1000);
     expect(video0.currentTime).toBeCloseTo(1.6); // repositioned at the audio clock
+  });
+});
+
+describe('createAudioMasterSync startup alignment verification', () => {
+  test('re-issues a startup alignment seek the element silently dropped', () => {
+    // Feed clip deep into a set (clipStart ≈ 1993s, offset 0): iOS drops the
+    // first several alignment seeks. The controller must notice the video is
+    // still at 0:00 and keep re-issuing until it lands — well before the
+    // follow loop's one-force-seek-per-4s cooldown would get there.
+    const video = makeSeekDroppingVideo({ drops: 4 });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, { audioStart: 1993 });
+
+    sync.play();
+    expect(audio.currentTime).toBe(1993); // audio pre-seeked to the clip window
+
+    // Warm-up: audio passes audioStart + 0.2, then accrues 1.2s of progress.
+    audio.currentTime = 1993.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 1994.6;
+    jest.advanceTimersByTime(100);
+
+    // Both eager seeks (play()-time and warmup-completion) were dropped.
+    expect(video.currentTime).toBe(0);
+
+    // Within two verification periods the alignment must have landed.
+    jest.advanceTimersByTime(1800);
+    expect(video.currentTime).toBeGreaterThan(1990);
+  });
+
+  test('verification stops once the alignment landed (no extra writes)', () => {
+    const video = makeVideo({ currentTime: 0, buffered: [[0, 3000]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, { audioStart: 1993 });
+    sync.play();
+    audio.currentTime = 1993.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 1994.6;
+    jest.advanceTimersByTime(100);
+    // Video accepted the warmup seek; simulate it following naturally.
+    audio.currentTime = 1995.4;
+    video.currentTime = 1995.4;
+    const writes = video.currentTimeWrites;
+    jest.advanceTimersByTime(3000);
+    expect(video.currentTimeWrites).toBe(writes); // zero-touch steady state holds
   });
 });
