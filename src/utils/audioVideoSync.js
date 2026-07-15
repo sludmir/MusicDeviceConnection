@@ -20,6 +20,13 @@ const SEEK_VIDEO = 0.6;       // hard re-seek the video when it is off by more t
 const DEADBAND = 0.05;        // within this, leave the video alone
 const MAX_RATE_DELTA = 0.10;  // cap on the video playbackRate nudge (muted => invisible)
 const FOLLOW_MS = 250;        // how often the slave loop runs
+// Rate nudges reclaim at most MAX_RATE_DELTA seconds of drift per second of
+// playback -- past FORCE_SEEK seconds of drift that is a hopeless slow-motion
+// chase, so hard-seek even into an unbuffered range. The cooldown keeps the
+// anti-spiral property of the buffered-only guard: one recovery fetch at a
+// time, never a per-tick seek storm.
+const FORCE_SEEK = 3;
+const FORCE_SEEK_COOLDOWN_MS = 4000;
 
 /**
  * Create an audio-master sync controller for a (muted) video + lossless audio.
@@ -46,8 +53,31 @@ export function createAudioMasterSync(video, audio, opts = {}) {
   let warm0 = null;
   let videoSeeks = 0;
   let destroyed = false;
+  let lastForceSeekAt = 0;
+  let metaCleanup = null;
 
   const videoTarget = () => Math.max(0, audio.currentTime - offset);
+
+  // Position the video at the current audio target. iOS discards
+  // currentTime writes issued before the video's metadata is loaded (which
+  // on a phone can be seconds after play() is tapped), so when metadata
+  // isn't there yet, re-apply the *fresh* target as soon as it arrives --
+  // otherwise the video plays from 0:00 under the correct audio.
+  function positionVideo() {
+    try { video.currentTime = videoTarget(); } catch (_) {}
+    if (video.readyState < 1 && typeof video.addEventListener === 'function' && !metaCleanup) {
+      const onMeta = () => {
+        if (metaCleanup) metaCleanup();
+        if (destroyed) return;
+        try { video.currentTime = videoTarget(); } catch (_) {}
+      };
+      video.addEventListener('loadedmetadata', onMeta);
+      metaCleanup = () => {
+        video.removeEventListener('loadedmetadata', onMeta);
+        metaCleanup = null;
+      };
+    }
+  }
 
   // Is `t` already inside a buffered range of `el`? Used to tell "off-clock,
   // safe to hard-seek" apart from "legitimately bandwidth-starved" -- seeking
@@ -88,6 +118,13 @@ export function createAudioMasterSync(video, audio, opts = {}) {
         try { video.currentTime = videoTarget(); } catch (_) {}
         video.playbackRate = 1;
         videoSeeks += 1;
+      } else if (ad > FORCE_SEEK && Date.now() - lastForceSeekAt > FORCE_SEEK_COOLDOWN_MS) {
+        // Hopelessly off (wrong position, not mere bandwidth lag): rate
+        // nudges would trail for minutes. One recovery seek, then cooldown.
+        lastForceSeekAt = Date.now();
+        try { video.currentTime = videoTarget(); } catch (_) {}
+        video.playbackRate = 1;
+        videoSeeks += 1;
       } else if (drift < 0) {
         // Behind, and the master's current position isn't buffered yet --
         // bandwidth-starved, not just off-clock. Run at the fastest safe
@@ -115,7 +152,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
           clearInterval(warmId); warmId = null;
           const vp = video.play();
           if (vp && vp.catch) vp.catch(() => {});
-          try { video.currentTime = videoTarget(); } catch (_) {}
+          positionVideo();
           started = true;
           startFollow();
         }
@@ -136,11 +173,16 @@ export function createAudioMasterSync(video, audio, opts = {}) {
       if (audio.readyState >= 1 && audio.currentTime < audioStart) {
         try { audio.currentTime = audioStart; } catch (_) {}
       }
+      // Kick the video's fetch off now, AT the target position, while the
+      // audio warms up -- an iOS HLS stream takes seconds to spin up, and
+      // buffering from 0:00 is wasted when the window starts mid-set.
+      try { video.preload = 'auto'; } catch (_) {}
+      positionVideo();
       warmupThenStartVideo();
     } else {
       const vp = video.play();
       if (vp && vp.catch) vp.catch(() => {});
-      try { video.currentTime = videoTarget(); } catch (_) {}
+      positionVideo();
       startFollow();
     }
   }
@@ -174,6 +216,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
     started = false;
     stopFollow();
     if (warmId) { clearInterval(warmId); warmId = null; }
+    if (metaCleanup) metaCleanup();
     document.removeEventListener('visibilitychange', onVisibility);
     try { video.playbackRate = 1; } catch (_) {}
   }
@@ -228,6 +271,8 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
   let activeIndex = -1;  // -1 = not yet activated
   let destroyed = false;
   let edgeHold = null;   // null | 'start' | 'end' -- freeze-frame state of the active video
+  let lastForceSeekAt = 0;
+  let metaCleanup = null;
 
   const offsetOf = (i) => Number(entries[i] && entries[i].offset) || 0;
   const videoTargetFor = (i) => Math.max(0, audio.currentTime - offsetOf(i));
@@ -251,6 +296,27 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
   const clampVideoSeek = (t, dur) => (
     Number.isFinite(dur) ? Math.max(0, Math.min(t, dur - 0.01)) : Math.max(0, t)
   );
+
+  // Same iOS guard as the single-video controller's positionVideo(): a
+  // currentTime write before metadata is loaded is silently discarded, so
+  // re-apply the fresh (clamped) target on loadedmetadata -- but only if
+  // this angle is still the active one by then.
+  function positionActiveVideo(video, idx) {
+    try { video.currentTime = clampVideoSeek(videoTargetFor(idx), video.duration); } catch (_) {}
+    if (video.readyState < 1 && typeof video.addEventListener === 'function') {
+      if (metaCleanup) metaCleanup();
+      const onMeta = () => {
+        if (metaCleanup) metaCleanup();
+        if (destroyed || idx !== activeIndex) return;
+        try { video.currentTime = clampVideoSeek(videoTargetFor(idx), video.duration); } catch (_) {}
+      };
+      video.addEventListener('loadedmetadata', onMeta);
+      metaCleanup = () => {
+        video.removeEventListener('loadedmetadata', onMeta);
+        metaCleanup = null;
+      };
+    }
+  }
 
   // Freeze-frame at footage edges. When `idx`'s target time is at/past its
   // video's duration, hold the LAST frame (paused); when at/before 0 (and
@@ -345,6 +411,12 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
       if (isBuffered(video, target)) {
         try { video.currentTime = target; } catch (_) {}
         video.playbackRate = 1;
+      } else if (ad > FORCE_SEEK && Date.now() - lastForceSeekAt > FORCE_SEEK_COOLDOWN_MS) {
+        // Hopelessly off -- same one-recovery-seek-per-cooldown policy as
+        // the single-video follow loop.
+        lastForceSeekAt = Date.now();
+        try { video.currentTime = target; } catch (_) {}
+        video.playbackRate = 1;
       } else if (drift < 0) {
         video.playbackRate = 1 + MAX_RATE_DELTA;
       } else {
@@ -371,7 +443,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
       const held = syncEdgeHold(newVideo, newIdx, { forceRealign: seekExact });
       if (!held) {
         if (seekExact) {
-          try { newVideo.currentTime = clampVideoSeek(videoTargetFor(newIdx), newVideo.duration); } catch (_) {}
+          positionActiveVideo(newVideo, newIdx);
         }
         if (active) {
           const vp = newVideo.play();
@@ -469,6 +541,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
     stopFollow();
     stopCutTicker();
     if (warmId) { clearInterval(warmId); warmId = null; }
+    if (metaCleanup) metaCleanup();
     document.removeEventListener('visibilitychange', onVisibility);
     entries.forEach((e) => {
       if (e && e.video) { try { e.video.playbackRate = 1; } catch (_) {} }

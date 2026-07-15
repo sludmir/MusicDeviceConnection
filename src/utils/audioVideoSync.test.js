@@ -37,6 +37,43 @@ function makeVideo({ currentTime = 0, buffered = [[0, 0]], readyState = 4, durat
   return video;
 }
 
+// iOS-like video: discards currentTime writes issued before metadata is
+// loaded (readyState < 1) — the real-device behavior behind "the clip shows
+// the first seconds of the full video". Supports loadedmetadata listeners so
+// tests can deliver metadata later, like a slow HLS spin-up on a phone.
+function makeIOSVideo({ currentTime = 0, buffered = [[0, 0]] } = {}) {
+  let _currentTime = currentTime;
+  const listeners = {};
+  const video = {
+    buffered: makeBuffered(buffered),
+    readyState: 0,
+    duration: NaN,
+    playbackRate: 1,
+    muted: false,
+    currentTimeWrites: 0,
+    play: jest.fn(() => Promise.resolve()),
+    pause: jest.fn(),
+    addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
+    removeEventListener: (ev, fn) => {
+      listeners[ev] = (listeners[ev] || []).filter((f) => f !== fn);
+    },
+    loadMetadata(duration) {
+      video.readyState = 1;
+      video.duration = duration;
+      (listeners.loadedmetadata || []).slice().forEach((fn) => fn());
+    },
+  };
+  Object.defineProperty(video, 'currentTime', {
+    enumerable: true,
+    get() { return _currentTime; },
+    set(v) {
+      video.currentTimeWrites += 1;
+      if (video.readyState >= 1) _currentTime = v; // pre-metadata seeks are lost
+    },
+  });
+  return video;
+}
+
 function makeAudio({ currentTime = 0 } = {}) {
   return {
     currentTime,
@@ -388,5 +425,145 @@ describe('createMulticamAudioMasterSync freeze-frame at footage edges', () => {
     expect(video0.play).toHaveBeenCalledTimes(1);
     expect(video0.currentTime).toBeCloseTo(0.2);
     expect(video0.playbackRate).toBe(1);
+  });
+});
+
+describe('createAudioMasterSync recovery from hopeless drift', () => {
+  // Rate nudges reclaim at most 0.1s of drift per second of playback. Past a
+  // few seconds of drift that's minutes of visible trailing — the controller
+  // must hard-seek even into an unbuffered range (one seek, not a chase).
+  test('force-seeks the video when drift exceeds the rate-nudge horizon even if the target is unbuffered', () => {
+    const video = makeVideo({ currentTime: 0, buffered: [[0, 1]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, {});
+    warmUp(sync, audio);
+
+    // Audio (master) is at 100s; the video sits near 0 with only [0,1]
+    // buffered — the feed-clip failure shape (video never positioned at the
+    // clip, target hundreds of seconds outside the buffer).
+    audio.currentTime = 100;
+    video.currentTime = 0.9;
+    jest.advanceTimersByTime(250);
+
+    expect(video.currentTime).toBe(100);
+    expect(video.playbackRate).toBe(1);
+    expect(sync.getVideoSeeks()).toBe(1);
+  });
+
+  test('a forced seek does not repeat within its cooldown window', () => {
+    const video = makeVideo({ currentTime: 0, buffered: [[0, 1]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, {});
+    warmUp(sync, audio);
+
+    audio.currentTime = 100;
+    video.currentTime = 0.9;
+    jest.advanceTimersByTime(250);
+    expect(sync.getVideoSeeks()).toBe(1); // the first forced seek
+
+    // Still hopeless (the seek target hasn't buffered; audio keeps going).
+    // Within the cooldown the controller must NOT seek again — it falls back
+    // to the catch-up rate instead of compounding fetches.
+    audio.currentTime = 104;
+    video.currentTime = 100;
+    jest.advanceTimersByTime(250);
+    expect(sync.getVideoSeeks()).toBe(1);
+    expect(video.currentTime).toBe(100);
+    expect(video.playbackRate).toBeCloseTo(1.1);
+
+    // Once the cooldown has elapsed and it is still hopelessly behind, one
+    // more forced seek is allowed.
+    audio.currentTime = 110;
+    jest.advanceTimersByTime(4000);
+    expect(sync.getVideoSeeks()).toBeGreaterThanOrEqual(2);
+    expect(video.currentTime).toBeGreaterThan(100);
+  });
+});
+
+describe('createAudioMasterSync with pre-metadata seeks lost (iOS)', () => {
+  test('re-applies the video position once metadata arrives', () => {
+    // Feed clip deep into the set: audio window starts at 601 (clipStart 600
+    // + offset 1). The iOS-like video ignores every seek until metadata
+    // loads, which on a phone happens seconds after play() is tapped.
+    const video = makeIOSVideo({ currentTime: 0, buffered: [[0, 1000]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, { offset: 1, audioStart: 601 });
+
+    sync.play();
+    expect(audio.currentTime).toBe(601); // audio pre-seeked to the clip window
+
+    // Warm-up completes while the video still has no metadata.
+    audio.currentTime = 601.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 602.6;
+    jest.advanceTimersByTime(100);
+    expect(video.currentTime).toBe(0); // every seek so far was discarded
+
+    // Metadata finally arrives: the controller must re-position the video at
+    // the *current* audio target, not leave it playing from 0.
+    video.loadMetadata(1000);
+    expect(video.currentTime).toBeCloseTo(601.6); // 602.6 - offset(1)
+  });
+});
+
+describe('createAudioMasterSync warm-up prefetch', () => {
+  test('positions the video at its target when play() is called so buffering starts at the right place', () => {
+    const video = makeVideo({ currentTime: 0, buffered: [[0, 1000]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, { offset: 1, audioStart: 601 });
+
+    sync.play();
+
+    // Before the warm-up completes, the video should already point at the
+    // clip position (audioStart - offset) so the fetch starts there instead
+    // of at 0:00 — on a phone this is seconds of startup difference.
+    expect(video.currentTime).toBeCloseTo(600);
+    expect(video.preload).toBe('auto');
+  });
+});
+
+describe('createMulticamAudioMasterSync recovery and iOS parity', () => {
+  const SINGLE_ANGLE_CUTS = [{ timeSec: 0, angleIndex: 0 }];
+
+  function warmUpMulti(sync, audio) {
+    sync.play();
+    audio.currentTime = 0.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 1.6;
+    jest.advanceTimersByTime(100);
+  }
+
+  test('force-seeks the active video on hopeless unbuffered drift', () => {
+    const video0 = makeVideo({ currentTime: 0, buffered: [[0, 1]], duration: 1000 });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(
+      [{ video: video0, offset: 0 }],
+      audio,
+      { cuts: SINGLE_ANGLE_CUTS }
+    );
+    warmUpMulti(sync, audio);
+
+    audio.currentTime = 100;
+    video0.currentTime = 0.9;
+    jest.advanceTimersByTime(250);
+
+    expect(video0.currentTime).toBe(100);
+    expect(video0.playbackRate).toBe(1);
+  });
+
+  test('activate() re-applies the active video position once metadata arrives', () => {
+    const video0 = makeIOSVideo({ currentTime: 0, buffered: [[0, 1000]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(
+      [{ video: video0, offset: 0 }],
+      audio,
+      { cuts: SINGLE_ANGLE_CUTS }
+    );
+    warmUpMulti(sync, audio); // activate(0, seekExact) fires with no metadata yet
+
+    expect(video0.currentTime).toBe(0); // the exact seek was discarded
+
+    video0.loadMetadata(1000);
+    expect(video0.currentTime).toBeCloseTo(1.6); // repositioned at the audio clock
   });
 });
