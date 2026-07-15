@@ -330,3 +330,19 @@
     width: auto;
   }
 }
+
+/* Temporary on-device A/V diagnostics overlay (?avdebug=1). Literal colors:
+   chrome overlaying video stays theme-independent. */
+.live-set-player-avdebug {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #4ade80;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+  pointer-events: none;
+}

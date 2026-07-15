@@ -3,11 +3,17 @@
 // Why "audio-master": on iOS, seeking an <audio> element causes an audible
 // stall/rebuffer. Any sync scheme that re-seeks the audio to chase the video
 // therefore stutters (drift -> seek -> stall -> falls behind -> seek again...).
-// The lossless track, however, plays perfectly smoothly as long as it is never
-// seeked. So we make the AUDIO the master clock and never seek it during
-// playback; the muted VIDEO is slaved to it via tiny playbackRate nudges (a
-// muted video running a few % fast/slow is invisible) plus a rare hard seek for
-// large gaps. Verified on iOS Safari/Chrome: drift holds < 0.2s.
+// The lossless track plays perfectly smoothly as long as it is never seeked,
+// so the AUDIO is the master clock and is never seeked during playback.
+//
+// Why "align and leave alone": on iOS every intervention on a playing video
+// -- a playbackRate write or a currentTime seek -- is itself a visible
+// hiccup, and iOS reports media currentTime in coarse (~0.25s) steps, so a
+// tight follow loop sees phantom drift on every tick and pokes the video
+// forever (invisible on desktop, permanent jank on a phone). So the muted
+// VIDEO is aligned once at start and then left completely alone; the follow
+// loop only intervenes with a single hard seek when drift becomes genuinely
+// visible (> SEEK_VIDEO), and otherwise never touches the element.
 //
 // Offset convention (matches the rest of the app):
 //     audio.currentTime = video.currentTime + offset
@@ -16,15 +22,15 @@
 import { angleIndexAt } from './multicam';
 
 const WARMUP_PROGRESS = 1.2;  // seconds of *real* audio progress before starting the video
-const SEEK_VIDEO = 0.6;       // hard re-seek the video when it is off by more than this
-const DEADBAND = 0.05;        // within this, leave the video alone
-const MAX_RATE_DELTA = 0.10;  // cap on the video playbackRate nudge (muted => invisible)
-const FOLLOW_MS = 250;        // how often the slave loop runs
-// Rate nudges reclaim at most MAX_RATE_DELTA seconds of drift per second of
-// playback -- past FORCE_SEEK seconds of drift that is a hopeless slow-motion
-// chase, so hard-seek even into an unbuffered range. The cooldown keeps the
-// anti-spiral property of the buffered-only guard: one recovery fetch at a
-// time, never a per-tick seek storm.
+// Hard re-seek the video only when it is off by more than this. Must sit
+// well above iOS's ~0.25s currentTime read granularity (plus tick phase),
+// or the loop corrects phantom drift forever.
+const SEEK_VIDEO = 0.9;
+const FOLLOW_MS = 250;        // how often the follow loop samples the clocks
+// Past FORCE_SEEK seconds of drift the target being unbuffered no longer
+// matters (the video is at the wrong position, not merely bandwidth-lagged):
+// hard-seek anyway. The cooldown keeps the anti-spiral property of the
+// buffered-only guard: one recovery fetch at a time, never a seek storm.
 const FORCE_SEEK = 3;
 const FORCE_SEEK_COOLDOWN_MS = 4000;
 
@@ -103,7 +109,6 @@ export function createAudioMasterSync(video, audio, opts = {}) {
       if (end > 0 && audio.currentTime >= end - 0.04) {
         try { audio.currentTime = loopStart(); } catch (_) {}
         try { video.currentTime = videoTarget(); } catch (_) {}
-        video.playbackRate = 1;
         return;
       }
     }
@@ -116,28 +121,19 @@ export function createAudioMasterSync(video, audio, opts = {}) {
     if (ad > SEEK_VIDEO) {
       if (isBuffered(video, videoTarget())) {
         try { video.currentTime = videoTarget(); } catch (_) {}
-        video.playbackRate = 1;
         videoSeeks += 1;
       } else if (ad > FORCE_SEEK && Date.now() - lastForceSeekAt > FORCE_SEEK_COOLDOWN_MS) {
-        // Hopelessly off (wrong position, not mere bandwidth lag): rate
-        // nudges would trail for minutes. One recovery seek, then cooldown.
         lastForceSeekAt = Date.now();
         try { video.currentTime = videoTarget(); } catch (_) {}
-        video.playbackRate = 1;
         videoSeeks += 1;
-      } else if (drift < 0) {
-        // Behind, and the master's current position isn't buffered yet --
-        // bandwidth-starved, not just off-clock. Run at the fastest safe
-        // rate instead of seeking into the void; let the buffer catch up.
-        video.playbackRate = 1 + MAX_RATE_DELTA;
-      } else {
-        video.playbackRate = 1 - MAX_RATE_DELTA;
       }
-    } else if (ad > DEADBAND) {
-      const clamped = Math.max(-MAX_RATE_DELTA, Math.min(MAX_RATE_DELTA, drift));
-      video.playbackRate = 1 - clamped; // ahead -> slow down; behind -> speed up
-    } else {
-      video.playbackRate = 1;
+      // else: bandwidth-starved (or in the forced-seek cooldown) -- the
+      // video is buffering, not misclocked. Leave it alone entirely.
+    }
+    // Steady state is zero-touch. Only restore the rate if something
+    // external changed it -- on iOS a playbackRate write is itself a hiccup.
+    if (video.playbackRate !== 1) {
+      try { video.playbackRate = 1; } catch (_) {}
     }
   }
 
@@ -205,7 +201,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
   function onVisibility() {
     if (!document.hidden && active && started) {
       try { video.currentTime = videoTarget(); } catch (_) {}
-      video.playbackRate = 1;
+      if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
     }
   }
   document.addEventListener('visibilitychange', onVisibility);
@@ -218,7 +214,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
     if (warmId) { clearInterval(warmId); warmId = null; }
     if (metaCleanup) metaCleanup();
     document.removeEventListener('visibilitychange', onVisibility);
-    try { video.playbackRate = 1; } catch (_) {}
+    if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
   }
 
   return { play, pause, seek, destroy, getVideoSeeks: () => videoSeeks };
@@ -227,9 +223,9 @@ export function createAudioMasterSync(video, audio, opts = {}) {
 // ---------------------------------------------------------------------------
 // Multicam variant: one audio clock, N muted videos (one per angle). Only the
 // ACTIVE video (per `cuts`, at the audio clock) is slaved to the audio via
-// the same rate-nudge follow loop as createAudioMasterSync above; inactive
-// videos are paused and "parked" -- pre-seeked to their own video time at
-// their next activation cut, so a future cut swap starts on an
+// the same align-and-leave-alone follow loop as createAudioMasterSync above;
+// inactive videos are paused and "parked" -- pre-seeked to their own video
+// time at their next activation cut, so a future cut swap starts on an
 // already-decoded frame instead of a fresh seek.
 //
 // A cut ticker compares the audio clock to the cut list and swaps the active
@@ -337,7 +333,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
         try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
       }
       if (entering) { try { video.pause(); } catch (_) {} }
-      video.playbackRate = 1;
+      if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
       edgeHold = 'end';
       return true;
     }
@@ -347,7 +343,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
         try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
       }
       if (entering) { try { video.pause(); } catch (_) {} }
-      video.playbackRate = 1;
+      if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
       edgeHold = 'start';
       return true;
     }
@@ -356,7 +352,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
       // landed back in range): resume playing and realign exactly.
       edgeHold = null;
       try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
-      video.playbackRate = 1;
+      if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
       if (active && started) {
         const vp = video.play();
         if (vp && vp.catch) vp.catch(() => {});
@@ -410,23 +406,17 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
     if (ad > SEEK_VIDEO) {
       if (isBuffered(video, target)) {
         try { video.currentTime = target; } catch (_) {}
-        video.playbackRate = 1;
       } else if (ad > FORCE_SEEK && Date.now() - lastForceSeekAt > FORCE_SEEK_COOLDOWN_MS) {
         // Hopelessly off -- same one-recovery-seek-per-cooldown policy as
         // the single-video follow loop.
         lastForceSeekAt = Date.now();
         try { video.currentTime = target; } catch (_) {}
-        video.playbackRate = 1;
-      } else if (drift < 0) {
-        video.playbackRate = 1 + MAX_RATE_DELTA;
-      } else {
-        video.playbackRate = 1 - MAX_RATE_DELTA;
       }
-    } else if (ad > DEADBAND) {
-      const clamped = Math.max(-MAX_RATE_DELTA, Math.min(MAX_RATE_DELTA, drift));
-      video.playbackRate = 1 - clamped;
-    } else {
-      video.playbackRate = 1;
+      // else: starved or cooling down -- leave the buffering video alone.
+    }
+    // Zero-touch steady state (see createAudioMasterSync.follow).
+    if (video.playbackRate !== 1) {
+      try { video.playbackRate = 1; } catch (_) {}
     }
   }
 
@@ -449,7 +439,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
           const vp = newVideo.play();
           if (vp && vp.catch) vp.catch(() => {});
         }
-        newVideo.playbackRate = 1;
+        if (newVideo.playbackRate !== 1) { try { newVideo.playbackRate = 1; } catch (_) {} }
       }
     }
     if (prevIdx !== newIdx) onActiveAngleChange(newIdx);
@@ -528,7 +518,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
       const video = entries[activeIndex] && entries[activeIndex].video;
       if (video && !syncEdgeHold(video, activeIndex, { forceRealign: true })) {
         try { video.currentTime = videoTargetFor(activeIndex); } catch (_) {}
-        video.playbackRate = 1;
+        if (video.playbackRate !== 1) { try { video.playbackRate = 1; } catch (_) {} }
       }
     }
   }
@@ -544,7 +534,9 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
     if (metaCleanup) metaCleanup();
     document.removeEventListener('visibilitychange', onVisibility);
     entries.forEach((e) => {
-      if (e && e.video) { try { e.video.playbackRate = 1; } catch (_) {} }
+      if (e && e.video && e.video.playbackRate !== 1) {
+        try { e.video.playbackRate = 1; } catch (_) {}
+      }
     });
   }
 

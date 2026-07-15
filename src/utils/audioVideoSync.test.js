@@ -19,13 +19,14 @@ function makeVideo({ currentTime = 0, buffered = [[0, 0]], readyState = 4, durat
   // subsequent follow ticks. Reads/writes behave exactly like a plain
   // property otherwise, so this is transparent to all existing assertions.
   let _currentTime = currentTime;
+  let _playbackRate = 1;
   const video = {
     buffered: makeBuffered(buffered),
     readyState,
     duration, // NaN by default == "metadata not loaded", matching real elements pre-load
-    playbackRate: 1,
     muted: false,
     currentTimeWrites: 0,
+    playbackRateWrites: 0,
     play: jest.fn(() => Promise.resolve()),
     pause: jest.fn(),
   };
@@ -33,6 +34,13 @@ function makeVideo({ currentTime = 0, buffered = [[0, 0]], readyState = 4, durat
     enumerable: true,
     get() { return _currentTime; },
     set(v) { _currentTime = v; video.currentTimeWrites += 1; },
+  });
+  // playbackRate writes are tracked too: on iOS the *write itself* hiccups
+  // the video pipeline, so the follow loop must not touch it in steady state.
+  Object.defineProperty(video, 'playbackRate', {
+    enumerable: true,
+    get() { return _playbackRate; },
+    set(v) { _playbackRate = v; video.playbackRateWrites += 1; },
   });
   return video;
 }
@@ -121,9 +129,31 @@ describe('createAudioMasterSync follow loop', () => {
     // A hard seek to videoTarget() (3) would jump past the buffered [0,1]
     // range, discarding progress and forcing a fetch further ahead than
     // last time -- the mechanism behind the growing-freeze spiral. It must
-    // not seek there.
+    // not seek there. And it must not "chase" with a rate change either:
+    // the video is starved, not misclocked -- leave it alone to buffer.
     expect(video.currentTime).toBe(0.9);
     expect(sync.getVideoSeeks()).toBe(0);
+    expect(video.playbackRate).toBe(1);
+  });
+
+  test('noise-level drift produces zero writes to the video (iOS clock granularity)', () => {
+    // iOS reports audio.currentTime in coarse (~0.25s) steps, so the loop
+    // permanently sees small phantom drift. Every playbackRate write or
+    // seek is a visible hiccup on iOS -- steady state must be zero-touch.
+    const video = makeVideo({ currentTime: 0, buffered: [[0, 10]] });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createAudioMasterSync(video, audio, {});
+    warmUp(sync, audio);
+
+    audio.currentTime = 2.0;
+    video.currentTime = 2.3; // 0.3s "drift" -- indistinguishable from clock noise
+    const ctWrites = video.currentTimeWrites;
+    const rateWrites = video.playbackRateWrites;
+    jest.advanceTimersByTime(1000); // four follow ticks
+
+    expect(video.currentTimeWrites).toBe(ctWrites);
+    expect(video.playbackRateWrites).toBe(rateWrites);
+    expect(video.playbackRate).toBe(1);
   });
 
   test('hard-seeks once the drifted-to target is already buffered', () => {
@@ -279,18 +309,35 @@ describe('createMulticamAudioMasterSync', () => {
     expect(onActiveAngleChange).toHaveBeenLastCalledWith(1);
   });
 
-  test('drift correction applies only to the active video', () => {
+  test('noise-level drift leaves the active video completely alone', () => {
     const { video0, video1, entries } = makeEntries();
     const audio = makeAudio({ currentTime: 0 });
     const sync = createMulticamAudioMasterSync(entries, audio, { cuts: makeCuts() });
     warmUpMulti(sync, audio); // active = 0; video1 parked at 10, untouched since
 
-    video0.currentTime = 1.9; // target is 1.6 -> 0.3s drift (> DEADBAND, < SEEK_VIDEO)
-    jest.advanceTimersByTime(250); // one FOLLOW_MS tick
+    video0.currentTime = 1.9; // target is 1.6 -> 0.3s "drift" == iOS clock noise
+    const ctWrites0 = video0.currentTimeWrites;
+    const rateWrites0 = video0.playbackRateWrites;
+    jest.advanceTimersByTime(1000); // several follow ticks
 
-    expect(video0.playbackRate).not.toBe(1); // active video gets the rate nudge
-    expect(video1.playbackRate).toBe(1); // inactive video is left alone
-    expect(video1.currentTime).toBe(10); // untouched by the follow loop
+    expect(video0.playbackRate).toBe(1); // no rate nudges -- they hiccup iOS
+    expect(video0.currentTimeWrites).toBe(ctWrites0);
+    expect(video0.playbackRateWrites).toBe(rateWrites0);
+    expect(video1.currentTime).toBe(10); // parked video untouched too
+  });
+
+  test('visible drift hard-seeks the active video only', () => {
+    const { video0, video1, entries } = makeEntries();
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(entries, audio, { cuts: makeCuts() });
+    warmUpMulti(sync, audio); // active = 0, audio at 1.6
+
+    video0.currentTime = 4; // 2.4s ahead of target 1.6, target buffered [0,100]
+    jest.advanceTimersByTime(250);
+
+    expect(video0.currentTime).toBeCloseTo(1.6); // one corrective seek
+    expect(video0.playbackRate).toBe(1);
+    expect(video1.currentTime).toBe(10); // inactive video untouched
   });
 
   test('destroy() clears timers so no further callbacks or swaps fire', () => {
@@ -462,14 +509,15 @@ describe('createAudioMasterSync recovery from hopeless drift', () => {
     expect(sync.getVideoSeeks()).toBe(1); // the first forced seek
 
     // Still hopeless (the seek target hasn't buffered; audio keeps going).
-    // Within the cooldown the controller must NOT seek again — it falls back
-    // to the catch-up rate instead of compounding fetches.
+    // Within the cooldown the controller must NOT seek again — and must not
+    // rate-chase either (the video is buffering at the new position; on iOS
+    // rate writes are themselves hiccups). Leave it alone.
     audio.currentTime = 104;
     video.currentTime = 100;
     jest.advanceTimersByTime(250);
     expect(sync.getVideoSeeks()).toBe(1);
     expect(video.currentTime).toBe(100);
-    expect(video.playbackRate).toBeCloseTo(1.1);
+    expect(video.playbackRate).toBe(1);
 
     // Once the cooldown has elapsed and it is still hopelessly behind, one
     // more forced seek is allowed.

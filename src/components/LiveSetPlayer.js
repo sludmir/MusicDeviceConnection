@@ -338,6 +338,55 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
     };
   }, [multicam, set?.id, masterIn, masterOut]);
 
+  // --- Temporary on-device A/V diagnostics: open with ?avdebug=1 to overlay
+  // live clock/drift/buffer/stall numbers on the player (debugging mobile
+  // playback without a tethered console). Inert without the flag.
+  const avDebug = typeof window !== 'undefined' && /[?&]avdebug=1/.test(window.location.search);
+  const [debugStats, setDebugStats] = useState(null);
+  const debugStallsRef = useRef({ a: 0, v: 0 });
+  useEffect(() => {
+    if (!avDebug) return undefined;
+    const a = audioRef.current;
+    const v = multicam ? multiVideoRefs.current[activeAngle] : videoRef.current;
+    if (!a || !v) return undefined;
+    const onAWait = () => { debugStallsRef.current.a += 1; };
+    const onVWait = () => { debugStallsRef.current.v += 1; };
+    a.addEventListener('waiting', onAWait);
+    v.addEventListener('waiting', onVWait);
+    const off = multicam
+      ? (Number(angleList?.[activeAngle]?.offsetSeconds) || 0)
+      : audioOffsetSeconds;
+    const bufferedAhead = (el) => {
+      try {
+        for (let i = 0; i < el.buffered.length; i++) {
+          if (el.currentTime >= el.buffered.start(i) - 0.5 && el.currentTime <= el.buffered.end(i) + 0.5) {
+            return el.buffered.end(i) - el.currentTime;
+          }
+        }
+      } catch (_) {}
+      return 0;
+    };
+    const id = setInterval(() => {
+      setDebugStats({
+        a: a.currentTime,
+        v: v.currentTime,
+        drift: v.currentTime - Math.max(0, a.currentTime - off),
+        rate: v.playbackRate,
+        ars: a.readyState,
+        vrs: v.readyState,
+        aAhead: bufferedAhead(a),
+        vAhead: bufferedAhead(v),
+        aStalls: debugStallsRef.current.a,
+        vStalls: debugStallsRef.current.v,
+      });
+    }, 500);
+    return () => {
+      clearInterval(id);
+      a.removeEventListener('waiting', onAWait);
+      v.removeEventListener('waiting', onVWait);
+    };
+  }, [avDebug, multicam, activeAngle, audioOffsetSeconds, angleList, videoURL]);
+
   // Esc shrinks the expanded view to the pip rather than closing it, so
   // playback isn't lost by accident. Use the ✕ to close fully.
   useEffect(() => {
@@ -553,6 +602,13 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           <div className={`live-set-player-play-overlay ${!playing ? 'visible' : ''}`}>
             {!playing ? <MdPlayArrow size={48} /> : null}
           </div>
+          {avDebug && debugStats && (
+            <div className="live-set-player-avdebug" aria-hidden="true">
+              {`a ${debugStats.a.toFixed(2)}  v ${debugStats.v.toFixed(2)}  drift ${debugStats.drift >= 0 ? '+' : ''}${debugStats.drift.toFixed(2)}\n`}
+              {`rate ${debugStats.rate.toFixed(2)}  rs a${debugStats.ars}/v${debugStats.vrs}\n`}
+              {`buf a+${debugStats.aAhead.toFixed(1)}s v+${debugStats.vAhead.toFixed(1)}s  stalls a${debugStats.aStalls}/v${debugStats.vStalls}`}
+            </div>
+          )}
         </div>
 
         <div
