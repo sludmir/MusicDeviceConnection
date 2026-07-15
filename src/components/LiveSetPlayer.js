@@ -440,20 +440,29 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   const handleTimelineClick = (e) => seekToClientX(e.clientX);
 
-  const handleTimelineMouseDown = (e) => {
+  // Pointer events cover mouse and touch with one path; capture keeps the
+  // scrub tracking when the pointer leaves the bar mid-drag.
+  const handleTimelinePointerDown = (e) => {
+    if (!e.isPrimary) return;
     e.preventDefault();
+    if (e.currentTarget.setPointerCapture) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* stale pointerId */ }
+    }
+    seekToClientX(e.clientX);
     setDragging(true);
   };
 
   useEffect(() => {
     if (!dragging) return;
-    const onMove = (e) => seekToClientX(e.clientX);
+    const onMove = (e) => { if (e.isPrimary) seekToClientX(e.clientX); };
     const onUp = () => setDragging(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, duration, multicam]);
@@ -550,7 +559,7 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           ref={timelineRef}
           className="live-set-player-timeline"
           onClick={handleTimelineClick}
-          onMouseDown={handleTimelineMouseDown}
+          onPointerDown={handleTimelinePointerDown}
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
