@@ -108,11 +108,12 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   const isDark = theme === 'dark';
 
-  // Multicam eligibility: signed per-angle URLs, every angle's Bunny encode
-  // marked 'ready', and the lossless track actually engaged (audio-master is
+  // Audio-clock (stacked) mode eligibility — a single-angle set is multicam
+  // with one entry: signed per-angle URLs, every angle's Bunny encode marked
+  // 'ready', and the lossless track actually engaged (audio-master is
   // required for the cut controller). Any stacked-video/HLS error flips
   // multicamFailed and drops back to the single-video path below.
-  const angleList = Array.isArray(signed?.angles) && signed.angles.length >= 2 ? signed.angles : null;
+  const angleList = Array.isArray(signed?.angles) && signed.angles.length >= 1 ? signed.angles : null;
   const angleStatus = signed?.angleStatus || set?.angleStatus || {};
   const anglesReady = !!angleList && angleList.every((a) => angleStatus[a.bunnyVideoGuid] === 'ready');
   const cuts = useMemo(
@@ -123,11 +124,16 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   // Master-time window (multicam only): the audio clock is the UI clock, so
   // the displayed/seekable range is expressed in master seconds, not video
-  // seconds. effDuration comes straight from the (already-trimmed) set
-  // duration rather than any one video's metadata.
+  // seconds. Prefer the new trimIn/trimOutMasterSeconds fields (audio-spine
+  // posting) and fall back to the legacy video-time trim + offset / plain
+  // durationSeconds for older docs that never wrote them.
   const offset0 = Number(angleList?.[0]?.offsetSeconds ?? audioOffsetSeconds) || 0;
-  const masterIn = trimStart + offset0;
-  const multicamEffDuration = Math.max(0, Number(set?.durationSeconds) || 0);
+  const masterIn = Number.isFinite(Number(set?.trimInMasterSeconds))
+    ? Number(set.trimInMasterSeconds)
+    : trimStart + offset0;
+  const multicamEffDuration = Number.isFinite(Number(set?.trimOutMasterSeconds))
+    ? Math.max(0, Number(set.trimOutMasterSeconds) - masterIn)
+    : Math.max(0, Number(set?.durationSeconds) || 0);
   const effDuration = multicam ? multicamEffDuration : Math.max(0, (trimEnd ?? duration) - trimStart);
   const masterOut = masterIn + effDuration;
   const displayOrigin = multicam ? masterIn : trimStart;
