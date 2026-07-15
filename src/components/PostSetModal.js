@@ -46,11 +46,13 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
   const [waveformReady, setWaveformReady] = useState(false);
   const [error, setError] = useState(null);
   const [audioSource, setAudioSource] = useState('video');
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const [numClips, setNumClips] = useState(1);
   const [clipRanges, setClipRanges] = useState([{ start: 0, end: 10 }]);
   const [activeClipIndex, setActiveClipIndex] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [dragging, setDragging] = useState(null);
+  const [clipPreviewPlaying, setClipPreviewPlaying] = useState(false);
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -348,12 +350,14 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
       if (audioRef.current) audioRef.current.pause();
     }
     video.play().catch(() => {});
+    setVideoPlaying(true);
   };
 
   const handleVideoPause = () => {
     if (audioRef.current) audioRef.current.pause();
     const video = videoRef.current;
     if (video && !useTrackAudio) video.muted = false;
+    setVideoPlaying(false);
   };
 
   const handleVideoError = useCallback(() => {
@@ -369,9 +373,31 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) return undefined;
     video.muted = useTrackAudio;
-  }, [useTrackAudio, videoURL]);
+    // Guard: while a track is engaged, camera audio must never be heard — if
+    // native controls (or any other UI path) unmute the preview, revert instantly.
+    if (!useTrackAudio || !audioURL) return undefined;
+    const onVolumeChange = () => {
+      if (!video.muted) video.muted = true;
+    };
+    video.addEventListener('volumechange', onVolumeChange);
+    return () => video.removeEventListener('volumechange', onVolumeChange);
+  }, [useTrackAudio, audioURL, videoURL, step]);
+
+  // Same mute integrity for the step-2 clip preview video — it mounts/unmounts
+  // with `step`, so re-run whenever it (re)appears.
+  useEffect(() => {
+    const video = step2VideoRef.current;
+    if (!video) return undefined;
+    video.muted = useTrackAudio;
+    if (!useTrackAudio || !audioURL) return undefined;
+    const onVolumeChange = () => {
+      if (!video.muted) video.muted = true;
+    };
+    video.addEventListener('volumechange', onVolumeChange);
+    return () => video.removeEventListener('volumechange', onVolumeChange);
+  }, [useTrackAudio, audioURL, videoURL, step]);
 
   const scrollWaveformToTime = useCallback((timeSeconds) => {
     const el = scrollRef.current;
@@ -706,7 +732,7 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                   <video
                     ref={videoRef}
                     src={videoURL}
-                    controls
+                    controls={!useTrackAudio}
                     preload="metadata"
                     className="post-set-video"
                     onPlay={handleVideoPlay}
@@ -714,6 +740,20 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                     onError={handleVideoError}
                     onLoadedMetadata={handleStep1VideoLoaded}
                   />
+                  {useTrackAudio && (
+                    <button
+                      type="button"
+                      className="post-set-swap-audio-btn"
+                      onClick={() => {
+                        const video = videoRef.current;
+                        if (!video) return;
+                        if (video.paused) video.play().catch(() => {});
+                        else video.pause();
+                      }}
+                    >
+                      {videoPlaying ? 'Pause preview' : 'Play preview'}
+                    </button>
+                  )}
                   <button type="button" className="post-set-swap-audio-btn" onClick={resetVideoSelection}>
                     Choose different video
                   </button>
@@ -857,12 +897,28 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
                 <video
                   ref={step2VideoRef}
                   src={videoURL}
-                  controls
+                  controls={!useTrackAudio}
                   preload="metadata"
                   className="post-set-clip-video"
                   onLoadedMetadata={handleStep2VideoLoaded}
+                  onPlay={() => setClipPreviewPlaying(true)}
+                  onPause={() => setClipPreviewPlaying(false)}
                 />
               </div>
+              {useTrackAudio && (
+                <button
+                  type="button"
+                  className="post-set-swap-audio-btn"
+                  onClick={() => {
+                    const video = step2VideoRef.current;
+                    if (!video) return;
+                    if (video.paused) video.play().catch(() => {});
+                    else video.pause();
+                  }}
+                >
+                  {clipPreviewPlaying ? 'Pause preview' : 'Play preview'}
+                </button>
+              )}
               <div className="post-set-timeline-wrap">
                 {numClips > 1 && <p className="post-set-timeline-clip-label">Clip {activeClipIndex + 1} range</p>}
                 <div
