@@ -84,8 +84,8 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 | `products` | name, type, brand, category (DJ/Producer/Musician), subcategory, price, modelPath, imageUrl, modelScale, inputs[], outputs[], locationPriority, **affiliateUrl**, ownerId |
 | `users` | displayName, email, followers[], following[], faveProductId, preferences{} (+ `users/{id}/followers`, `/notifications`) |
 | `setups` | name, ownerId, setupType, **setting** (scene variant), devices[] (positions, spotType, placementIndex, model data), mobileDiagram, cameraAngles, isMainSetup |
-| `sets` | creatorId, creatorName, title, videoURL, durationSeconds, setupId?, audioTrackURL?, audioOffsetSeconds? |
-| `clips` | creatorId, videoURL, fullVideoURL, clipStart, clipEnd, fullSetId, likes, likedBy[], setupId?, audioTrackURL? |
+| `sets` | creatorId, creatorName, title, videoURL, durationSeconds (**master-window length** when a track exists), setupId?, audioTrackURL?, audioOffsetSeconds?, audioReplacesVideo, **angles[]** (per-angle Bunny guid/hlsUrl/offset), angleGuids[], angleStatus{}, **cuts[]** (`{timeSec, angleIndex}` in master-audio time), trimIn/trimOutMasterSeconds?, trimStart/trimEndSeconds (legacy, angle-1 video time) |
+| `clips` | creatorId, videoURL, fullVideoURL, clipStart, clipEnd (angle-1 video time, legacy), **clipStartMaster/clipEndMaster** (master time), fullSetId, likes, likedBy[], setupId?, audioTrackURL?, audioReplacesVideo |
 | `affiliateClicks` | click ledger for creator attribution |
 
 **Storage:** `models/*.glb` (≤10MB target), `images/*`, `sets/{uid}/...`, `sets/audio/...`.
@@ -121,9 +121,9 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 
 ## Other Systems
 
-- **Feed (`Feed.js`)** — `clips` paginated (followed creators first), scroll-snap autoplay, optional drift-corrected audio track, tight `clipStart`/`clipEnd` loop, Copy Setup + Full Set, upload FAB.
+- **Feed (`Feed.js`)** — `clips` paginated (followed creators first), scroll-snap autoplay, audio-master track sync, tight `clipStart`/`clipEnd` loop, Copy Setup + Full Set, upload FAB. **Camera audio is never a fallback** when a track exists — load errors retry the signed URL, muted.
 - **Affiliate monetization** — `utils/affiliateLink.js` (link builder) + `utils/affiliateClicks.js` (ledger); buy buttons in mini-profile & `DeviceHoverMenu`; `affiliateUrl` in Product Manager; `/legal` disclosure. Amazon Associates signup pending.
-- **Multi-angle editor (`SetEditor.js`)** — up to 3 cameras + lossless master audio, sync preview (`utils/syncEditorMath`).
+- **Multi-angle editor (`SetEditor.js`)** — up to 3 cameras synced to lossless master audio (**the audio is the set's spine/timeline**; opt-out checkbox = single angle w/ camera audio), FCP-style multicam cuts row (drag markers, keys 1/2/3 live-cut), sync preview (`utils/syncEditorMath`, cut math in `utils/multicam.js`). Playback of track-backed sets uses the audio clock (`createMulticamAudioMasterSync` in `utils/audioVideoSync.js`, freeze-frame past footage edges). Deploy functions before posting multicam sets (per-angle URL signing + webhook `angleStatus`).
 - **Product Manager (`ProductManagerForm.js`)** — two-panel add/edit with live 3D preview, auto-scale badge, manual multiplier.
 - **`productManager.js`** — `PRODUCT_CATEGORIES`, `DEFAULT_PRODUCT_TEMPLATE`, `CONNECTION_TYPES` (RCA/XLR/¼"/USB/MIDI/…).
 
