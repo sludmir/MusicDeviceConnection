@@ -12,6 +12,10 @@ import './Feed.css';
 
 const PRELOAD_WINDOW = 2;
 const DEBUG_FEED_AUDIO = process.env.NODE_ENV !== 'production';
+// Camera audio must never be heard when an uploaded lossless track is
+// supposed to replace it (audio-as-spine policy). On a load error we retry
+// the signed URL with backoff instead of unmuting the video.
+const AUDIO_RETRY_DELAYS_MS = [1000, 3000, 8000];
 
 function toFiniteNumberOr(value, fallback = 0) {
   const parsed = Number(value);
@@ -26,13 +30,14 @@ function getClipAudioTrackURL(clip) {
 }
 
 // True when the uploaded lossless track should replace the video's own (camera
-// mic) audio: there is an external track, the clip opts in, and the track loaded
-// OK. When this is true the <video> must stay muted so only the track is heard.
-function audioReplacesVideoFor(clip, failedAudioClipIds) {
+// mic) audio: there is an external track and the clip opts in. When this is
+// true the <video> must stay muted so only the track is heard — even if the
+// track is momentarily failing to load (see the retry logic below): camera
+// audio is never an acceptable fallback while a master track exists.
+function audioReplacesVideoFor(clip) {
   if (!getClipAudioTrackURL(clip)) return false;
   if (clip?.audioReplacesVideo === false) return false;
-  const failed = clip?.id ? failedAudioClipIds.has(clip.id) : false;
-  return !failed;
+  return true;
 }
 
 function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
@@ -48,7 +53,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
   const [deleting, setDeleting] = useState(false);
   const [pausedOverlay, setPausedOverlay] = useState(null);
   const [bufferingIndices, setBufferingIndices] = useState(() => new Set());
-  const [failedExternalAudioClipIds, setFailedExternalAudioClipIds] = useState(() => new Set());
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
@@ -203,9 +207,9 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     // When the lossless track replaces the video audio, the audio-master sync
     // owns the clip loop (it loops the audio and realigns the video); running
     // this video-side rAF loop too would fight it.
-    if (audioReplacesVideoFor(clip, failedExternalAudioClipIds)) return;
+    if (audioReplacesVideoFor(clip)) return;
     return setupClipSegmentLoop(vid, clip);
-  }, [currentIndex, clips, setupClipSegmentLoop, failedExternalAudioClipIds]);
+  }, [currentIndex, clips, setupClipSegmentLoop]);
 
   // ── HLS attachment for near clips ─────────────────────────────────
   // Attaches each near clip's playlist via attachHls (handles HLS via hls.js
@@ -263,7 +267,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     const clip = clips[currentIndex];
     const audioEl = feedAudioRef.current;
     const audioTrackURL = getClipAudioTrackURL(clip);
-    const trackReplacesVideo = audioReplacesVideoFor(clip, failedExternalAudioClipIds);
+    const trackReplacesVideo = audioReplacesVideoFor(clip);
     if (!audioTrackURL || !audioEl || !vid || !trackReplacesVideo) {
       if (audioEl) {
         logAudioDebug('noExternalTrack-usingVideoAudio', {
@@ -289,6 +293,10 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
       audioLoopEnd: useLoop ? () => end + offset : undefined,
     });
 
+    let cancelled = false;
+    let retryAttempt = 0; // number of retries already scheduled
+    let retryTimerId = null;
+
     // Engaging before the track's metadata is in would start the audio at 0
     // instead of clipStart+offset (sync.play only pre-seeks the audio once its
     // duration is known), so gate on readiness — the loadedmetadata listener
@@ -303,25 +311,60 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     const onAudioReady = () => {
       if (!vid.paused) sync.play();
     };
+
+    // Camera audio must never be heard while a master track exists (audio-
+    // as-spine policy) — the video stays muted through every retry. Only the
+    // signed-URL fetch + audio element are retried; the video/sync are left
+    // alone, so the audio-master warm-up (which holds the video back until
+    // real audio progress happens) is the buffering affordance the viewer
+    // sees while a retry is in flight.
     const onAudioError = () => {
-      logAudioDebug('externalAudioLoadError-fallingBackToVideoAudio', {
+      if (cancelled) return;
+      if (retryAttempt >= AUDIO_RETRY_DELAYS_MS.length) {
+        logAudioDebug('externalAudioUnavailable', {
+          clipId: clip?.id || null,
+          audioTrackURL,
+          attempts: retryAttempt
+        });
+        return;
+      }
+      const delay = AUDIO_RETRY_DELAYS_MS[retryAttempt];
+      retryAttempt += 1;
+      logAudioDebug('externalAudioLoadError-retrying', {
         clipId: clip?.id || null,
-        audioTrackURL
+        audioTrackURL,
+        attempt: retryAttempt,
+        delayMs: delay
       });
-      setFailedExternalAudioClipIds((prev) => {
-        const next = new Set(prev);
-        if (clip?.id) next.add(clip.id);
-        return next;
-      });
+      retryTimerId = setTimeout(() => {
+        retryTimerId = null;
+        if (cancelled || !clip?.id) return;
+        getSignedBunnyUrls('clip', clip.id)
+          .then((signed) => {
+            if (cancelled) return;
+            const freshUrl = getClipAudioTrackURL(signed);
+            if (!freshUrl) { onAudioError(); return; }
+            audioEl.src = freshUrl;
+            audioEl.load();
+            armAudioListeners();
+          })
+          .catch(() => {
+            if (cancelled) return;
+            onAudioError();
+          });
+      }, delay);
+    };
+
+    const armAudioListeners = () => {
+      audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
+      audioEl.addEventListener('error', onAudioError, { once: true });
     };
 
     if (audioEl.src !== audioTrackURL) {
       audioEl.src = audioTrackURL;
-      audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
-      audioEl.addEventListener('error', onAudioError, { once: true });
+      armAudioListeners();
     } else if (audioEl.readyState < 1) {
-      audioEl.addEventListener('loadedmetadata', onAudioReady, { once: true });
-      audioEl.addEventListener('error', onAudioError, { once: true });
+      armAudioListeners();
     }
 
     vid.addEventListener('play', onVidPlay);
@@ -329,6 +372,8 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     if (!vid.paused) engageIfReady();
 
     return () => {
+      cancelled = true;
+      if (retryTimerId) { clearTimeout(retryTimerId); retryTimerId = null; }
       vid.removeEventListener('play', onVidPlay);
       vid.removeEventListener('pause', onVidPause);
       audioEl.removeEventListener('loadedmetadata', onAudioReady);
@@ -336,7 +381,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
       sync.destroy();
       audioEl.pause();
     };
-  }, [currentIndex, clips, failedExternalAudioClipIds, logAudioDebug]);
+  }, [currentIndex, clips, logAudioDebug]);
 
   // ── Data loading ──────────────────────────────────────────────────
 
@@ -469,9 +514,10 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
 
     if (v.paused) {
-      // Keep the video muted when an uploaded lossless track replaces its audio;
-      // only unmute to fall back to the camera mic when there is no track.
-      v.muted = audioReplacesVideoFor(clips[index], failedExternalAudioClipIds);
+      // Keep the video muted when an uploaded lossless track replaces its audio
+      // (never fall back to camera mic while a master track exists); only
+      // unmute when there genuinely is no track (legacy clips).
+      v.muted = audioReplacesVideoFor(clips[index]);
       v.volume = 1;
       setClipBuffering(index, true);
       v.play().catch((err) => {
@@ -655,8 +701,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
           {clips.map((clip, index) => {
           const isCurrent = index === currentIndex;
           const hasExternalAudio = Boolean(getClipAudioTrackURL(clip));
-          const externalAudioFailed = clip?.id ? failedExternalAudioClipIds.has(clip.id) : false;
-          const shouldMuteVideo = !isCurrent || audioReplacesVideoFor(clip, failedExternalAudioClipIds);
+          const shouldMuteVideo = !isCurrent || audioReplacesVideoFor(clip);
 
           return (
           <div key={clip.id} className="feed-item">
@@ -722,7 +767,6 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
                           clipId: clip?.id || null,
                           muted: e.target.muted,
                           hasExternalAudio,
-                          externalAudioFailed,
                           name: err?.name,
                           message: err?.message
                         });
