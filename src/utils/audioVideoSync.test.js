@@ -12,16 +12,29 @@ function makeBuffered(ranges) {
   };
 }
 
-function makeVideo({ currentTime = 0, buffered = [[0, 0]], readyState = 4 } = {}) {
-  return {
-    currentTime,
+function makeVideo({ currentTime = 0, buffered = [[0, 0]], readyState = 4, duration = NaN } = {}) {
+  // `currentTime` is a getter/setter (instead of a plain property) so tests
+  // can assert on write *count*, not just final value -- needed to prove the
+  // freeze-frame edge-hold pauses once and then leaves currentTime alone on
+  // subsequent follow ticks. Reads/writes behave exactly like a plain
+  // property otherwise, so this is transparent to all existing assertions.
+  let _currentTime = currentTime;
+  const video = {
     buffered: makeBuffered(buffered),
     readyState,
+    duration, // NaN by default == "metadata not loaded", matching real elements pre-load
     playbackRate: 1,
     muted: false,
+    currentTimeWrites: 0,
     play: jest.fn(() => Promise.resolve()),
     pause: jest.fn(),
   };
+  Object.defineProperty(video, 'currentTime', {
+    enumerable: true,
+    get() { return _currentTime; },
+    set(v) { _currentTime = v; video.currentTimeWrites += 1; },
+  });
+  return video;
 }
 
 function makeAudio({ currentTime = 0 } = {}) {
@@ -265,5 +278,115 @@ describe('createMulticamAudioMasterSync', () => {
     expect(video1.play.mock.calls.length).toBe(playCallsBefore);
     expect(video0.playbackRate).toBe(1);
     expect(video1.playbackRate).toBe(1);
+  });
+});
+
+describe('createMulticamAudioMasterSync freeze-frame at footage edges', () => {
+  // Angle 0 is cut-active for the whole timeline -- isolates the
+  // freeze-frame behavior from cut-boundary swapping (covered separately
+  // above).
+  const SINGLE_ANGLE_CUTS = [{ timeSec: 0, angleIndex: 0 }];
+
+  function makeEntries({ duration0 = 5, duration1 = 100, offset0 = 0 } = {}) {
+    const video0 = makeVideo({ currentTime: 0, buffered: [[0, 1000]], duration: duration0 });
+    const video1 = makeVideo({ currentTime: 0, buffered: [[0, 1000]], duration: duration1 });
+    return {
+      video0,
+      video1,
+      entries: [
+        { video: video0, offset: offset0 },
+        { video: video1, offset: 0 },
+      ],
+    };
+  }
+
+  function warmUpMulti(sync, audio) {
+    sync.play();
+    audio.currentTime = 0.3;
+    jest.advanceTimersByTime(100);
+    audio.currentTime = 1.6;
+    jest.advanceTimersByTime(100);
+  }
+
+  test('(a) audio advancing past the active angle\'s footage end pauses its video once and stops writing currentTime', () => {
+    // video0's footage is only 5s long; the master clock (and angle-0's own
+    // cut segment) runs well past that.
+    const { video0, entries } = makeEntries({ duration0: 5 });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(entries, audio, { cuts: SINGLE_ANGLE_CUTS });
+    warmUpMulti(sync, audio); // activeIndex=0, target=1.6 -- comfortably inside [0,5)
+
+    expect(video0.pause).not.toHaveBeenCalled();
+
+    // Audio (master) advances past video0's duration (5s) -- well past the
+    // dur-0.05 hold margin.
+    audio.currentTime = 8;
+    jest.advanceTimersByTime(250);
+
+    expect(video0.pause).toHaveBeenCalledTimes(1);
+    expect(video0.playbackRate).toBe(1);
+    // Seeks land on the clamped last frame (dur - 0.01), not the raw
+    // (out-of-range) target -- proves the explicit clamp, not a browser one.
+    expect(video0.currentTime).toBeCloseTo(4.99);
+    const writesAfterFirstHold = video0.currentTimeWrites;
+
+    // Keep advancing the master clock further past the edge over several
+    // more follow ticks -- no further pause() calls, no further writes.
+    audio.currentTime = 12;
+    jest.advanceTimersByTime(250);
+    audio.currentTime = 20;
+    jest.advanceTimersByTime(250);
+
+    expect(video0.pause).toHaveBeenCalledTimes(1); // still exactly once
+    expect(video0.currentTimeWrites).toBe(writesAfterFirstHold); // no more writes
+  });
+
+  test('(b) seeking back into coverage after a hold resumes play() and realigns currentTime to target', () => {
+    const { video0, entries } = makeEntries({ duration0: 5 });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(entries, audio, { cuts: SINGLE_ANGLE_CUTS });
+    warmUpMulti(sync, audio);
+
+    audio.currentTime = 8; // past video0's 5s duration -- enters the 'end' hold
+    jest.advanceTimersByTime(250);
+    expect(video0.pause).toHaveBeenCalledTimes(1);
+    const playCallsBeforeResume = video0.play.mock.calls.length;
+
+    sync.seek(2); // back inside angle 0's footage [0, 5)
+
+    expect(sync.getActiveIndex()).toBe(0);
+    expect(video0.play).toHaveBeenCalledTimes(playCallsBeforeResume + 1);
+    expect(video0.currentTime).toBe(2);
+    expect(video0.playbackRate).toBe(1);
+
+    // Drift correction is live again on the next follow tick (no crash, no
+    // re-entering the hold for an in-range target).
+    video0.currentTime = 2;
+    jest.advanceTimersByTime(250);
+    expect(video0.pause).toHaveBeenCalledTimes(1); // not paused again
+  });
+
+  test('(c) an angle whose footage starts later than the current master time holds the first frame, then auto-plays once covered', () => {
+    // video0's footage doesn't start until 5s into the master timeline
+    // (offset=5), even though angle 0 is cut-active from master time 0.
+    const { video0, entries } = makeEntries({ duration0: 100, offset0: 5 });
+    const audio = makeAudio({ currentTime: 0 });
+    const sync = createMulticamAudioMasterSync(entries, audio, { cuts: SINGLE_ANGLE_CUTS });
+
+    warmUpMulti(sync, audio); // audio lands at 1.6 -> target0 = max(0, 1.6-5) = 0
+
+    expect(sync.getActiveIndex()).toBe(0);
+    expect(video0.pause).toHaveBeenCalledTimes(1); // held at the first frame, not playing
+    expect(video0.play).not.toHaveBeenCalled();
+    expect(video0.currentTime).toBe(0);
+
+    // Master clock reaches video0's footage (offset 5) -- target crosses
+    // back above the hold margin, so the video should auto-resume.
+    audio.currentTime = 5.2; // target = 0.2, inside (0.05, dur-0.05)
+    jest.advanceTimersByTime(250);
+
+    expect(video0.play).toHaveBeenCalledTimes(1);
+    expect(video0.currentTime).toBeCloseTo(0.2);
+    expect(video0.playbackRate).toBe(1);
   });
 });

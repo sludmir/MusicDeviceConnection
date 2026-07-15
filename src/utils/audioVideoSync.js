@@ -194,6 +194,7 @@ export function createAudioMasterSync(video, audio, opts = {}) {
 // determinism under the jest fake-timer harness.
 
 const CUT_TICK_MS = 50; // cut-boundary poll interval
+const EDGE_MARGIN = 0.05; // within this of a footage edge, freeze instead of chasing
 
 /**
  * Create a multicam audio-master sync controller: one lossless audio track
@@ -226,6 +227,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
   let cutTickId = null;
   let activeIndex = -1;  // -1 = not yet activated
   let destroyed = false;
+  let edgeHold = null;   // null | 'start' | 'end' -- freeze-frame state of the active video
 
   const offsetOf = (i) => Number(entries[i] && entries[i].offset) || 0;
   const videoTargetFor = (i) => Math.max(0, audio.currentTime - offsetOf(i));
@@ -240,6 +242,63 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
     }
     return false;
   };
+
+  // Clamp a video seek target into playable bounds. Browsers clamp seeks to
+  // [0, duration] themselves, but doing it explicitly here means an
+  // out-of-range target (footage that starts later, or ends earlier, than
+  // the master window) lands on an actual last/first frame -- and tests can
+  // assert the exact seek destination.
+  const clampVideoSeek = (t, dur) => (
+    Number.isFinite(dur) ? Math.max(0, Math.min(t, dur - 0.01)) : Math.max(0, t)
+  );
+
+  // Freeze-frame at footage edges. When `idx`'s target time is at/past its
+  // video's duration, hold the LAST frame (paused); when at/before 0 (and
+  // the angle is nonetheless cut-active), hold the FIRST frame. Pauses once
+  // on *entering* a hold -- not on every tick -- and auto-resumes (play() +
+  // realign) the instant the target re-enters coverage, whether that's the
+  // audio progressing forward into the footage or a user seek landing back
+  // in range. A no-op (returns false, clears any hold) when the video's
+  // duration isn't known yet (metadata not loaded) -- current behavior.
+  // Returns true when the caller should skip drift correction this tick.
+  function syncEdgeHold(video, idx, { forceRealign = false } = {}) {
+    const dur = video.duration;
+    if (!Number.isFinite(dur)) { edgeHold = null; return false; }
+    const target = videoTargetFor(idx);
+    if (target >= dur - EDGE_MARGIN) {
+      const entering = edgeHold !== 'end';
+      if (entering || forceRealign) {
+        try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
+      }
+      if (entering) { try { video.pause(); } catch (_) {} }
+      video.playbackRate = 1;
+      edgeHold = 'end';
+      return true;
+    }
+    if (target <= EDGE_MARGIN) {
+      const entering = edgeHold !== 'start';
+      if (entering || forceRealign) {
+        try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
+      }
+      if (entering) { try { video.pause(); } catch (_) {} }
+      video.playbackRate = 1;
+      edgeHold = 'start';
+      return true;
+    }
+    if (edgeHold) {
+      // Target re-entered coverage (audio progressed into it, or a seek
+      // landed back in range): resume playing and realign exactly.
+      edgeHold = null;
+      try { video.currentTime = clampVideoSeek(target, dur); } catch (_) {}
+      video.playbackRate = 1;
+      if (active && started) {
+        const vp = video.play();
+        if (vp && vp.catch) vp.catch(() => {});
+      }
+      return true;
+    }
+    return false;
+  }
 
   // Earliest cut after `fromTime` that (re)activates angle `idx`, or null if
   // it never comes back around.
@@ -277,6 +336,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
     const video = entries[activeIndex] && entries[activeIndex].video;
     if (!video) return;
     if (document.hidden || video.readyState < 2) return;
+    if (syncEdgeHold(video, activeIndex)) return; // paused/resumed at a footage edge -- skip drift this tick
 
     const target = videoTargetFor(activeIndex);
     const drift = video.currentTime - target;
@@ -303,18 +363,22 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
   // (seekExact) need an explicit alignment.
   function activate(newIdx, { seekExact = false } = {}) {
     const prevIdx = activeIndex;
+    if (prevIdx !== newIdx) edgeHold = null; // fresh edge state for the newly active video
     activeIndex = newIdx;
     const newVideo = entries[newIdx] && entries[newIdx].video;
     if (newVideo) {
       newVideo.muted = true;
-      if (seekExact) {
-        try { newVideo.currentTime = videoTargetFor(newIdx); } catch (_) {}
+      const held = syncEdgeHold(newVideo, newIdx, { forceRealign: seekExact });
+      if (!held) {
+        if (seekExact) {
+          try { newVideo.currentTime = clampVideoSeek(videoTargetFor(newIdx), newVideo.duration); } catch (_) {}
+        }
+        if (active) {
+          const vp = newVideo.play();
+          if (vp && vp.catch) vp.catch(() => {});
+        }
+        newVideo.playbackRate = 1;
       }
-      if (active) {
-        const vp = newVideo.play();
-        if (vp && vp.catch) vp.catch(() => {});
-      }
-      newVideo.playbackRate = 1;
     }
     if (prevIdx !== newIdx) onActiveAngleChange(newIdx);
     parkInactive(); // pauses + re-parks every now-inactive video, incl. the old active one
@@ -390,7 +454,7 @@ export function createMulticamAudioMasterSync(entries, audio, opts = {}) {
   function onVisibility() {
     if (!document.hidden && active && started && activeIndex >= 0) {
       const video = entries[activeIndex] && entries[activeIndex].video;
-      if (video) {
+      if (video && !syncEdgeHold(video, activeIndex, { forceRealign: true })) {
         try { video.currentTime = videoTargetFor(activeIndex); } catch (_) {}
         video.playbackRate = 1;
       }
