@@ -77,6 +77,10 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const [step, setStep] = useState('edit'); // 'edit' | 'post'
   const [angles, setAngles] = useState([]); // { id, file, url, duration }
   const [audio, setAudio] = useState(null); // { file, url, duration }
+  // Opt-out of master audio (single angle only — see docs/superpowers/specs/
+  // 2026-07-14-audio-spine-design.md). Only meaningful while `audio` is falsy;
+  // adding a track unchecks it.
+  const [noMasterAudio, setNoMasterAudio] = useState(false);
   const [thumbnail, setThumbnail] = useState(null); // { file, url }
   const [error, setError] = useState(null);
 
@@ -84,6 +88,10 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const audioInputRef = useRef(null);
   const thumbnailInputRef = useRef(null);
   const angleIdRef = useRef(0);
+  // The edit-step "Master audio" card's own <audio controls> — paused inside
+  // startPlayback() so auditioning the raw file can't echo against the sync
+  // playback element once master play starts.
+  const masterAudioCardRef = useRef(null);
 
   // ── Post step ─────────────────────────────────────────────────────
   const [title, setTitle] = useState('');
@@ -102,6 +110,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const clipAudioRef = useRef(null);
   const clipDragRef = useRef(null);
   const clipDragEndAtRef = useRef(0);
+  // Post-step clip preview play/pause chip (no native <video controls> — see
+  // the muted/volumechange guard on the effect below).
+  const [clipPreviewPlaying, setClipPreviewPlaying] = useState(false);
 
   // Trim (optional): IN/OUT points in MASTER-timeline seconds, entered as
   // clock text ("1:23") or grabbed from the playhead. Converted to video time
@@ -311,6 +322,10 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const masterReady = master?.status === 'ready';
   const syncEnabled = angles.length >= 1 && audio;
   const allWaveformsReady = syncEnabled && masterReady && angles.every((a) => waveforms[`angle-${a.id}`]?.status === 'ready');
+  // Multi-angle posting requires master audio (the sync anchor); the 4b
+  // opt-out allows exactly one angle with no track, camera audio becoming the
+  // set's audio (no sync/cuts section in that mode).
+  const canContinueToPost = angles.length >= 1 && (audio ? allWaveformsReady : (noMasterAudio && angles.length === 1));
   const previewDuration = useMemo(() => {
     let max = 0;
     Object.values(waveforms).forEach((w) => {
@@ -368,6 +383,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
     const { url, duration } = await readAudioMetadata(file);
     setError(null);
     setAudio({ file, url, duration });
+    setNoMasterAudio(false);
   };
 
   const handleRemoveAudio = () => {
@@ -399,7 +415,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
     setThumbnail(null);
   };
 
-  const canAddAngle = angles.length < MAX_ANGLES;
+  // "Post without master audio" (4b) caps the set at a single angle — the
+  // track is the sync anchor multicam cutting depends on. Only active while
+  // there's no track (adding one auto-unchecks the box).
+  const noMasterAudioMode = noMasterAudio && !audio;
+  const canAddAngle = angles.length < (noMasterAudioMode ? 1 : MAX_ANGLES);
   const isDark = theme === 'dark';
 
   // ── Canvas rendering ───────────────────────────────────────────────
@@ -680,6 +700,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const startPlayback = useCallback(async () => {
     const a = masterAudioPlayerRef.current;
     if (!a) return;
+    // The edit-step "Master audio" card has its own <audio controls> for
+    // auditioning the raw file. If left playing, starting sync playback would
+    // play the same track twice at once (echo) — pause it first.
+    const card = masterAudioCardRef.current;
+    if (card) { try { card.pause(); } catch (_) {} }
     seekAllToMasterTime(playheadSec);
     try {
       await a.play();
@@ -747,62 +772,100 @@ function SetEditor({ onBack, theme = 'dark' }) {
     return () => { cancelled = true; };
   }, [step]);
 
-  const handleContinueToPost = useCallback(() => {
-    setError(null);
-    if (angles.length === 0) { setError('Add at least one angle.'); return; }
-    if (!audio) { setError('Add a master audio track.'); return; }
-    if (!allWaveformsReady) { setError('Still analyzing waveforms — give it a moment.'); return; }
-    stopPlayback();
-    setPlaying(false);
-    setClipRanges((prev) => resizeClipRanges(prev, numClips, angles[0]?.duration || 0));
-    setStep('post');
-  }, [angles, audio, allWaveformsReady, stopPlayback, numClips]);
-
   // ── Feed-clip picker (post step) ───────────────────────────────────
   const primaryDuration = angles[0]?.duration || 0;
   const primaryClipOffset = angleOffsets[angles[0]?.id] || 0;
+  const masterDuration = audio?.duration || 0;
+  // The picker's timeline is MASTER time whenever a track exists (the audio
+  // spine — docs/superpowers/specs/2026-07-14-audio-spine-design.md); in
+  // no-master-audio mode (4b) master IS angle-1 video time, so this collapses
+  // back to today's behavior.
+  const clipTimelineDuration = audio ? masterDuration : primaryDuration;
 
   const trimInSec = parseClockTime(trimInText);
   const trimOutSec = parseClockTime(trimOutText);
   const trimInvalid = trimInSec != null && trimOutSec != null && trimOutSec <= trimInSec;
 
-  // Post-step preview plays the ALIGNED master audio, not the camera mic:
-  // the video is muted and drives the hidden master-audio element
-  // (audio.currentTime = video.currentTime + offset, the app-wide convention).
+  // Coverage warning (non-blocking): does the trimmed master window extend
+  // past the footage the loaded angles actually cover?
+  const coverageStart = angles.length ? Math.min(...angles.map((a) => angleOffsets[a.id] || 0)) : 0;
+  const coverageEnd = angles.length ? Math.max(...angles.map((a) => (angleOffsets[a.id] || 0) + (a.duration || 0))) : 0;
+  const trimWinStart = trimInSec ?? 0;
+  const trimWinEnd = trimOutSec ?? masterDuration;
+  const coverageWarnStart = angles.length > 0 && trimWinStart < coverageStart - 0.5;
+  const coverageWarnEnd = angles.length > 0 && trimWinEnd > coverageEnd + 0.5;
+
+  const handleContinueToPost = useCallback(() => {
+    setError(null);
+    if (angles.length === 0) { setError('Add at least one angle.'); return; }
+    if (!audio) {
+      if (!noMasterAudio) { setError('Add a master audio track, or check "Post without master audio".'); return; }
+      if (angles.length !== 1) { setError('Posting without master audio only supports one angle.'); return; }
+    } else if (!allWaveformsReady) {
+      setError('Still analyzing waveforms — give it a moment.');
+      return;
+    }
+    stopPlayback();
+    setPlaying(false);
+    setClipRanges((prev) => resizeClipRanges(prev, numClips, clipTimelineDuration));
+    setStep('post');
+  }, [angles, audio, allWaveformsReady, noMasterAudio, stopPlayback, numClips, clipTimelineDuration]);
+
+  // Post-step preview: muted only while a master track exists (`audio`) —
+  // then the video drives the hidden master-audio element
+  // (audio.currentTime = video.currentTime + offset, the app-wide convention)
+  // and camera audio must stay unhearable. Without a track, camera audio IS
+  // the set's audio (4b), so the video plays unmuted and there's no hidden
+  // <audio> to align (it isn't rendered — see JSX below). Also tracks
+  // clipPreviewPlaying for the play/pause chip and force-re-mutes on any
+  // volumechange while a track is engaged (no native volume UI is exposed,
+  // but keyboard/media-key unmutes are still possible).
   useEffect(() => {
     if (step !== 'post') return undefined;
     const v = clipVideoRef.current;
-    const a = clipAudioRef.current;
-    if (!v || !a) return undefined;
+    if (!v) return undefined;
+    const a = clipAudioRef.current; // null in no-master-audio mode (4b)
     const offset = primaryClipOffset;
     const alignAudio = () => {
+      if (!a) return;
       try { a.currentTime = Math.max(0, v.currentTime + offset); } catch (_) {}
     };
-    const onPlay = () => { alignAudio(); a.play().catch(() => {}); };
-    const onPause = () => { try { a.pause(); } catch (_) {} };
+    const onPlay = () => {
+      setClipPreviewPlaying(true);
+      if (a) { alignAudio(); a.play().catch(() => {}); }
+    };
+    const onPause = () => {
+      setClipPreviewPlaying(false);
+      if (a) { try { a.pause(); } catch (_) {} }
+    };
     const onTimeUpdate = () => {
-      if (v.paused) return;
+      if (v.paused || !a) return;
       if (Math.abs(a.currentTime - (v.currentTime + offset)) > 0.25) alignAudio();
     };
-    v.muted = true;
+    const onVolumeChange = () => {
+      if (audio && !v.muted) v.muted = true;
+    };
+    v.muted = !!audio;
     v.addEventListener('play', onPlay);
     v.addEventListener('pause', onPause);
     v.addEventListener('seeked', alignAudio);
     v.addEventListener('timeupdate', onTimeUpdate);
+    v.addEventListener('volumechange', onVolumeChange);
     return () => {
       v.removeEventListener('play', onPlay);
       v.removeEventListener('pause', onPause);
       v.removeEventListener('seeked', alignAudio);
       v.removeEventListener('timeupdate', onTimeUpdate);
-      try { a.pause(); } catch (_) {}
+      v.removeEventListener('volumechange', onVolumeChange);
+      if (a) { try { a.pause(); } catch (_) {} }
     };
-  }, [step, primaryClipOffset]);
+  }, [step, primaryClipOffset, audio]);
 
   const handleNumClipsChange = useCallback((n) => {
     setNumClips(n);
-    setClipRanges((prev) => resizeClipRanges(prev, n, primaryDuration));
+    setClipRanges((prev) => resizeClipRanges(prev, n, clipTimelineDuration));
     setActiveClipIndex((prev) => Math.min(prev, n - 1));
-  }, [primaryDuration]);
+  }, [clipTimelineDuration]);
 
   const seekClipPreview = useCallback((t) => {
     const v = clipVideoRef.current;
@@ -811,13 +874,28 @@ function SetEditor({ onBack, theme = 'dark' }) {
     v.currentTime = Math.max(0, Math.min(dur - 0.01, t));
   }, []);
 
+  const toggleClipPreviewPlay = useCallback(() => {
+    const v = clipVideoRef.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {}); else v.pause();
+  }, []);
+
+  // Seek the preview video from a TIMELINE second — master time when a track
+  // exists, angle-1 video time otherwise (clipTimelineDuration above).
+  const seekClipPreviewAtTimelineSec = useCallback((timelineSec) => {
+    const videoSec = audio
+      ? clamp(timelineSec - primaryClipOffset, 0, Math.max(0, primaryDuration - 0.01))
+      : timelineSec;
+    seekClipPreview(videoSec);
+  }, [audio, primaryClipOffset, primaryDuration, seekClipPreview]);
+
   const clipTimelineSecAt = useCallback((clientX) => {
     const el = clipTimelineRef.current;
-    if (!el || !primaryDuration) return 0;
+    if (!el || !clipTimelineDuration) return 0;
     const rect = el.getBoundingClientRect();
     const frac = clamp((clientX - rect.left) / rect.width, 0, 1);
-    return frac * primaryDuration;
-  }, [primaryDuration]);
+    return frac * clipTimelineDuration;
+  }, [clipTimelineDuration]);
 
   const moveClipEdge = useCallback((edge, sec) => {
     setClipRanges((prev) => {
@@ -826,11 +904,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
       const raw = edge === 'start'
         ? { start: Math.min(sec, cur.end - CLIP_MIN_SEC), end: cur.end }
         : { start: cur.start, end: Math.max(sec, cur.start + CLIP_MIN_SEC) };
-      next[activeClipIndex] = normalizeClipRange(raw, primaryDuration);
+      next[activeClipIndex] = normalizeClipRange(raw, clipTimelineDuration);
       return next;
     });
-    seekClipPreview(sec);
-  }, [activeClipIndex, primaryDuration, seekClipPreview]);
+    seekClipPreviewAtTimelineSec(sec);
+  }, [activeClipIndex, clipTimelineDuration, seekClipPreviewAtTimelineSec]);
 
   const handleClipThumbPointerDown = useCallback((edge) => (e) => {
     e.preventDefault();
@@ -846,7 +924,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       // Slide the whole window, preserving its length.
       const dsec = clipTimelineSecAt(e.clientX) - d.grabSec;
       const len = d.startRange.end - d.startRange.start;
-      const start = clamp(d.startRange.start + dsec, 0, Math.max(0, primaryDuration - len));
+      const start = clamp(d.startRange.start + dsec, 0, Math.max(0, clipTimelineDuration - len));
       setClipRanges((prev) => {
         const next = prev.slice();
         next[activeClipIndex] = {
@@ -855,11 +933,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
         };
         return next;
       });
-      seekClipPreview(start);
+      seekClipPreviewAtTimelineSec(start);
       return;
     }
     moveClipEdge(d.edge, clipTimelineSecAt(e.clientX));
-  }, [moveClipEdge, clipTimelineSecAt, activeClipIndex, primaryDuration, seekClipPreview]);
+  }, [moveClipEdge, clipTimelineSecAt, activeClipIndex, clipTimelineDuration, seekClipPreviewAtTimelineSec]);
 
   const handleClipRangePointerDown = useCallback((e) => {
     if (e.button !== 0) return;
@@ -899,8 +977,8 @@ function SetEditor({ onBack, theme = 'dark' }) {
   const handleSelectClipTab = useCallback((i) => {
     setActiveClipIndex(i);
     const r = clipRanges[i];
-    if (r) seekClipPreview(r.start);
-  }, [clipRanges, seekClipPreview]);
+    if (r) seekClipPreviewAtTimelineSec(r.start);
+  }, [clipRanges, seekClipPreviewAtTimelineSec]);
 
   const handleBackToEdit = useCallback(() => {
     setError(null);
@@ -909,9 +987,13 @@ function SetEditor({ onBack, theme = 'dark' }) {
 
   const handlePost = useCallback(async () => {
     if (!auth.currentUser) { setError('Please sign in to post.'); return; }
-    if (angles.length === 0 || !audio) { setError('Missing angle or audio.'); return; }
+    if (angles.length === 0) { setError('Add at least one angle.'); return; }
+    if (!audio && !(noMasterAudio && angles.length === 1)) {
+      setError('Add a master audio track, or check "Post without master audio" with a single angle.');
+      return;
+    }
     if (!selectedSetupId) { setError('Link a saved setup so viewers can copy your gear.'); return; }
-    if (trimInvalid) { setError('Trim OUT must be after trim IN.'); return; }
+    if (audio && trimInvalid) { setError('Trim OUT must be after trim IN.'); return; }
 
     setUploading(true);
     setUploadProgress(0);
@@ -927,18 +1009,28 @@ function SetEditor({ onBack, theme = 'dark' }) {
       const primaryOffset = angleOffsets[primary.id] || 0;
       const safeTitle = (title || primary.file?.name || 'Untitled Set').trim().slice(0, 200);
 
+      // Trim only exists in the master-audio sync UI (4b: no trim UI without
+      // a track) — gate every trim computation on `audio` so a stale IN/OUT
+      // typed before the track was removed can never leak into the post.
       // Trim points arrive in master time; players work in video time.
-      const trimStartV = trimInSec != null
+      const trimStartV = audio && trimInSec != null
         ? Math.max(0, angleTimeAtMaster(trimInSec, primaryOffset))
         : 0;
-      const trimEndVRaw = trimOutSec != null
+      const trimEndVRaw = audio && trimOutSec != null
         ? angleTimeAtMaster(trimOutSec, primaryOffset)
         : null;
       const trimEndV = trimEndVRaw != null && primary.duration
         ? Math.min(Math.max(0, trimEndVRaw), primary.duration)
         : trimEndVRaw;
-      const effectiveDurationSeconds =
+      const legacyDurationSeconds =
         Math.max(0, (trimEndV ?? primary.duration ?? 0) - trimStartV) || (primary.duration || 0);
+      // durationSeconds is the MASTER window length when a track exists (see
+      // docs/superpowers/specs/2026-07-14-audio-spine-design.md); falls back
+      // to the legacy angle-1-video computation without one.
+      const masterDurationSec = audio ? (audio.duration || 0) : 0;
+      const effectiveDurationSeconds = masterDurationSec > 0
+        ? Math.max(0, (trimOutSec ?? masterDurationSec) - (trimInSec ?? 0))
+        : legacyDurationSeconds;
 
       // 1. Reserve Bunny video + upload EVERY angle (progress split evenly across
       // angles, 0–90%; storage/thumbnail steps below take it to 100).
@@ -960,11 +1052,15 @@ function SetEditor({ onBack, theme = 'dark' }) {
       // (videoURL, bunnyVideoGuid, clip fields, …) reads from it exactly as before.
       const bunny = uploaded[0].bunny;
 
-      // 2. Master audio → Firebase Storage.
-      const audioName = (audio.file.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const audioRef = storageRef(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
-      await uploadBytes(audioRef, audio.file);
-      const audioTrackURL = await getDownloadURL(audioRef);
+      // 2. Master audio → Firebase Storage. Skipped entirely when posting
+      // without master audio (4b) — camera audio IS the set's audio there.
+      let audioTrackURL = null;
+      if (audio) {
+        const audioName = (audio.file.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const audioRef = storageRef(storage, `sets/audio/${userId}_${Date.now()}_${audioName}`);
+        await uploadBytes(audioRef, audio.file);
+        audioTrackURL = await getDownloadURL(audioRef);
+      }
       setUploadProgress(98);
 
       // 3. Optional thumbnail.
@@ -994,9 +1090,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
         durationSeconds: effectiveDurationSeconds,
         createdAt: serverTimestamp(),
         views: 0,
-        audioTrackURL,
-        audioOffsetSeconds: primaryOffset,
-        audioReplacesVideo: true,
+        ...(audioTrackURL
+          ? { audioTrackURL, audioOffsetSeconds: primaryOffset, audioReplacesVideo: true }
+          : { audioOffsetSeconds: 0, audioReplacesVideo: false }),
         angles: uploaded.map(({ bunny: b, angle }, i) => ({
           label: `Angle ${i + 1}`,
           bunnyVideoGuid: b.videoGuid,
@@ -1018,12 +1114,20 @@ function SetEditor({ onBack, theme = 'dark' }) {
       }
       if (trimStartV > 0) setData.trimStartSeconds = Number(trimStartV.toFixed(3));
       if (trimEndV != null && trimEndV > trimStartV) setData.trimEndSeconds = Number(trimEndV.toFixed(3));
+      if (audio) {
+        if (trimInSec != null) setData.trimInMasterSeconds = Number(trimInSec.toFixed(3));
+        if (trimOutSec != null) setData.trimOutMasterSeconds = Number(trimOutSec.toFixed(3));
+      }
       const setDocRef = await addDoc(collection(db, 'sets'), setData);
 
-      // 5. User-selected clip ranges into the feed.
+      // 5. User-selected clip ranges into the feed. The picker operates in
+      // MASTER seconds whenever a track exists (4c); legacy clipStart/clipEnd
+      // are always derived back into angle-1 video time so the Feed needs no
+      // changes.
+      const clipTimelineDurationSec = audio ? masterDurationSec : (primary.duration || 0);
       const rangesToPost = clipRanges
         .slice(0, numClips)
-        .map((r) => normalizeClipRange(r, primary.duration || 0));
+        .map((r) => normalizeClipRange(r, clipTimelineDurationSec));
       const baseClipData = {
         creatorId: userId,
         creatorName,
@@ -1039,9 +1143,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
         likes: 0,
         likedBy: [],
         views: 0,
-        audioTrackURL,
-        audioOffsetSeconds: primaryOffset,
-        audioReplacesVideo: true,
+        ...(audioTrackURL
+          ? { audioTrackURL, audioOffsetSeconds: primaryOffset, audioReplacesVideo: true }
+          : { audioOffsetSeconds: 0, audioReplacesVideo: false }),
         setupId: selectedSetupId,
         setupName: linkedSetup?.name || '',
         setupType: linkedSetup?.setupType || 'DJ',
@@ -1051,12 +1155,17 @@ function SetEditor({ onBack, theme = 'dark' }) {
         baseClipData.autoThumbnailURL = bunny.thumbnailUrl;
       }
       for (const r of rangesToPost) {
-        await addDoc(collection(db, 'clips'), {
-          ...baseClipData,
-          clipStart: r.start,
-          clipEnd: r.end,
-          createdAt: serverTimestamp(),
-        });
+        const clipData = { ...baseClipData, createdAt: serverTimestamp() };
+        if (audioTrackURL) {
+          clipData.clipStartMaster = r.start;
+          clipData.clipEndMaster = r.end;
+          clipData.clipStart = Number(clamp(r.start - primaryOffset, 0, primary.duration || 0).toFixed(2));
+          clipData.clipEnd = Number(clamp(r.end - primaryOffset, 0, primary.duration || 0).toFixed(2));
+        } else {
+          clipData.clipStart = r.start;
+          clipData.clipEnd = r.end;
+        }
+        await addDoc(collection(db, 'clips'), clipData);
       }
 
       setUploadProgress(100);
@@ -1069,7 +1178,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
       setError(e?.message || String(e) || 'Upload failed');
       setUploading(false);
     }
-  }, [angles, angleOffsets, audio, thumbnail, title, selectedSetupId, savedSetups, navigate, clipRanges, numClips, trimInSec, trimOutSec, trimInvalid, cuts]);
+  }, [angles, angleOffsets, audio, noMasterAudio, thumbnail, title, selectedSetupId, savedSetups, navigate, clipRanges, numClips, trimInSec, trimOutSec, trimInvalid, cuts]);
 
   const formatTime = (sec) => {
     if (!Number.isFinite(sec)) return '0:00';
@@ -1154,7 +1263,9 @@ function SetEditor({ onBack, theme = 'dark' }) {
             >
               <MdAdd size={28} />
               <span>Add angle</span>
-              <span className="set-editor__add-hint">Up to {MAX_ANGLES}</span>
+              <span className="set-editor__add-hint">
+                {noMasterAudioMode ? 'Add a master track to use multiple angles' : `Up to ${MAX_ANGLES}`}
+              </span>
             </button>
           )}
         </div>
@@ -1191,7 +1302,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 <MdClose size={16} />
               </button>
             </div>
-            <audio className="set-editor__card-audio" src={audio.url} controls />
+            <audio ref={masterAudioCardRef} className="set-editor__card-audio" src={audio.url} controls />
             <div className="set-editor__card-meta">
               <div className="set-editor__card-name">{audio.file.name}</div>
               <div className="set-editor__card-stats">
@@ -1200,15 +1311,29 @@ function SetEditor({ onBack, theme = 'dark' }) {
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            className="set-editor__add-card set-editor__add-card--wide"
-            onClick={() => audioInputRef.current?.click()}
-          >
-            <MdMusicNote size={28} />
-            <span>Add master audio</span>
-            <span className="set-editor__add-hint">Lossless preferred — replaces video audio</span>
-          </button>
+          <>
+            <button
+              type="button"
+              className="set-editor__add-card set-editor__add-card--wide"
+              onClick={() => audioInputRef.current?.click()}
+            >
+              <MdMusicNote size={28} />
+              <span>Add master audio</span>
+              <span className="set-editor__add-hint">Lossless preferred — replaces video audio</span>
+            </button>
+            <label
+              className={`set-editor__checkbox-label ${angles.length >= 2 ? 'set-editor__checkbox-label--disabled' : ''}`}
+              title={angles.length >= 2 ? 'Remove extra angles first — multi-angle sets require master audio' : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={noMasterAudio}
+                disabled={angles.length >= 2}
+                onChange={(e) => setNoMasterAudio(e.target.checked)}
+              />
+              <span>Post without master audio — the camera’s own audio will be used</span>
+            </label>
+          </>
         )}
 
         <input
@@ -1661,6 +1786,16 @@ function SetEditor({ onBack, theme = 'dark' }) {
               </button>
             )}
             {trimInvalid && <span className="set-editor__trim-error">OUT must be after IN</span>}
+            {coverageWarnStart && (
+              <span className="set-editor__coverage-warning">
+                Footage starts at {formatClockTime(coverageStart)} — the first frame will hold for {Math.round(coverageStart - trimWinStart)}s of audio.
+              </span>
+            )}
+            {coverageWarnEnd && (
+              <span className="set-editor__coverage-warning">
+                Footage ends at {formatClockTime(coverageEnd)} — the last frame will hold for {Math.round(trimWinEnd - coverageEnd)}s of audio.
+              </span>
+            )}
             <span className="set-editor__trim-hint">
               Cuts dead time (camera rolling before the music) — viewers only see IN → OUT.
               Type a time like 38:20 for points beyond the preview window.
@@ -1757,17 +1892,28 @@ function SetEditor({ onBack, theme = 'dark' }) {
                 </button>
               ))}
             </div>
-            <video
-              ref={clipVideoRef}
-              src={angles[0]?.url}
-              controls
-              muted
-              preload="metadata"
-              playsInline
-              className="set-editor__clip-video"
-            />
+            <div className="set-editor__clip-video-wrap">
+              <video
+                ref={clipVideoRef}
+                src={angles[0]?.url}
+                muted={!!audio}
+                preload="metadata"
+                playsInline
+                className="set-editor__clip-video"
+              />
+              <button
+                type="button"
+                className="set-editor__play-btn set-editor__clip-play-btn"
+                onClick={toggleClipPreviewPlay}
+                aria-label={clipPreviewPlaying ? 'Pause preview' : 'Play preview'}
+              >
+                {clipPreviewPlaying ? <MdPause size={20} /> : <MdPlayArrow size={20} />}
+              </button>
+            </div>
             {/* Hidden master track — the muted video above drives it, so clip
-                previews are heard with the aligned lossless audio. */}
+                previews are heard with the aligned lossless audio. Without a
+                master track (4b) the video plays unmuted — camera audio IS
+                the audio — so this element is never rendered. */}
             {audio?.url && <audio ref={clipAudioRef} src={audio.url} preload="auto" style={{ display: 'none' }} />}
             <div
               ref={clipTimelineRef}
@@ -1779,7 +1925,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
               <div className="set-editor__clip-track" />
               {(() => {
                 const r = clipRanges[activeClipIndex] || { start: 0, end: CLIP_MIN_SEC };
-                const pct = (t) => (primaryDuration ? (t / primaryDuration) * 100 : 0);
+                const pct = (t) => (clipTimelineDuration ? (t / clipTimelineDuration) * 100 : 0);
                 return (
                   <>
                     <div
@@ -1834,11 +1980,11 @@ function SetEditor({ onBack, theme = 'dark' }) {
           </div>
 
           <div className="set-editor__post-summary">
-            Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video) with master audio replacing the video audio, plus <strong>{numClips}</strong> clip{numClips === 1 ? '' : 's'} to the feed.
+            Posting <strong>{angles.length}</strong> angle{angles.length === 1 ? '' : 's'} (Angle 1 will be the primary video){audio ? ' with master audio replacing the video audio' : " — the camera's own audio will be used"}, plus <strong>{numClips}</strong> clip{numClips === 1 ? '' : 's'} to the feed.
             {angles.length >= 2 && (
               <> Viewers will see <strong>{cuts.length - 1}</strong> cut{cuts.length - 1 === 1 ? '' : 's'} switching between angles.</>
             )}
-            {(trimInSec != null || trimOutSec != null) && (
+            {audio && (trimInSec != null || trimOutSec != null) && (
               <> Trimmed to <strong>{trimInSec != null ? formatClockTime(trimInSec) : 'start'} → {trimOutSec != null ? formatClockTime(trimOutSec) : 'end'}</strong>.</>
             )}
           </div>
@@ -1870,16 +2016,18 @@ function SetEditor({ onBack, theme = 'dark' }) {
             ? 'Add a title (optional) and link a setup, then post.'
             : angles.length === 0
             ? 'Add at least one angle to continue.'
-            : `${angles.length} angle${angles.length === 1 ? '' : 's'}${audio ? ' + master audio' : ''} loaded.`}
+            : `${angles.length} angle${angles.length === 1 ? '' : 's'}${audio ? ' + master audio' : noMasterAudioMode ? ' (camera audio)' : ''} loaded.`}
         </div>
         {step === 'edit' && (
           <button
             type="button"
             className="set-editor__primary"
-            disabled={!syncEnabled || !allWaveformsReady}
+            disabled={!canContinueToPost}
             onClick={handleContinueToPost}
             title={
-              !syncEnabled ? 'Add at least one angle and a master audio track'
+              angles.length === 0 ? 'Add at least one angle'
+                : !audio && !noMasterAudio ? 'Add a master audio track, or check "Post without master audio"'
+                : !audio ? 'Posting without master audio only supports one angle'
                 : !allWaveformsReady ? 'Waiting for waveforms…'
                 : 'Continue to post'
             }
