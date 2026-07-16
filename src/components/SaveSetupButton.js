@@ -1,11 +1,30 @@
 import React, { useState } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { MdSave } from 'react-icons/md';
-import { db, auth } from '../firebaseConfig';
+import { db, auth, storage } from '../firebaseConfig';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { captureScenePreview } from '../utils/scenePreviewCapture';
 import { buildMobileDiagram } from '../utils/buildMobileDiagram';
 import { defaultSettingFor } from '../data/settings';
 import { useToast } from '../ui';
 import './SaveSetupButton.css';
+
+// Best-effort viewport screenshot → Storage → download URL. Returns null on
+// any failure: a setup save must never fail because of its preview image.
+// Storage rules already allow setups/{setupId}/screenshots/* for signed-in
+// users (image/*, <5MB).
+async function uploadSetupPreview(setupId) {
+  try {
+    const blob = await captureScenePreview();
+    if (!blob) return null;
+    const previewRef = storageRef(storage, `setups/${setupId}/screenshots/preview.jpg`);
+    await uploadBytes(previewRef, blob, { contentType: 'image/jpeg' });
+    return await getDownloadURL(previewRef);
+  } catch (err) {
+    console.warn('Setup preview capture failed:', err);
+    return null;
+  }
+}
 
 function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, setupId, setupName: loadedSetupName }) {
   const toast = useToast();
@@ -88,8 +107,12 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
         updatedAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'setups'), setupData);
-      
+      const setupDocRef = await addDoc(collection(db, 'setups'), setupData);
+      const previewImageURL = await uploadSetupPreview(setupDocRef.id);
+      if (previewImageURL) {
+        await updateDoc(doc(db, 'setups', setupDocRef.id), { previewImageURL });
+      }
+
       setShowSaveDialog(false);
       setSetupName('');
       setIsMainSetup(false);
@@ -144,12 +167,15 @@ function SaveSetupButton({ currentDevices, setupType, setting, cameraAngles, set
 
       const mobileDiagram = buildMobileDiagram(currentDevices, setupType || 'DJ');
 
+      const previewImageURL = await uploadSetupPreview(setupId);
+
       await updateDoc(doc(db, 'setups', setupId), {
         devices: devicesData,
         mobileDiagram,
         cameraAngles: cameraAngles ?? null,
         setting: setting || defaultSettingFor(setupType || 'DJ'),
         updatedAt: serverTimestamp(),
+        ...(previewImageURL ? { previewImageURL } : {}),
       });
 
       setShowSaveDialog(false);

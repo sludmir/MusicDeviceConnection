@@ -23,6 +23,7 @@ import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/
 import { buildBuyLink, buyButtonLabel } from './utils/affiliateLink';
 import { midpoint, panOffsetFromMidpointDelta } from './utils/cameraPan';
 import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
+import { registerScenePreviewCapture } from './utils/scenePreviewCapture';
 import MobileNavigation from './MobileNavigation';
 import { MdWbSunny, MdNightlight } from 'react-icons/md';
 import Modal from './ui/Modal';
@@ -1419,6 +1420,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         if (!mountRef.current) return;
 
         let isInitialized = false;
+        let unregisterPreviewCapture = null;
 
         const initializeScene = async () => {
             try {
@@ -1452,6 +1454,25 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 renderer.toneMappingExposure = 1.0; // overridden per-scene by applyGlobalLighting
                 mountRef.current.appendChild(renderer.domElement);
+
+                // Setup previews: the save flow grabs a JPEG of the viewport.
+                // Render-then-copy must happen in the same task — the drawing
+                // buffer is not preserved, so a fresh render() right before
+                // drawImage guarantees pixels. Downscale to cap file size.
+                unregisterPreviewCapture = registerScenePreviewCapture(({ maxWidth = 800, quality = 0.85 } = {}) => {
+                    const r = rendererRef.current;
+                    const s = sceneRef.current;
+                    const cam = cameraRef.current;
+                    if (!r || !s || !cam) return null;
+                    r.render(s, cam);
+                    const src = r.domElement;
+                    const scale = Math.min(1, maxWidth / (src.width || 1));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(src.width * scale));
+                    canvas.height = Math.max(1, Math.round(src.height * scale));
+                    canvas.getContext('2d').drawImage(src, 0, 0, canvas.width, canvas.height);
+                    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+                });
 
                 // Image-based environment lighting: gives PBR gear/scene
                 // materials realistic fill and reflections instead of the flat
@@ -1760,6 +1781,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         });
 
         return () => {
+            if (unregisterPreviewCapture) { unregisterPreviewCapture(); unregisterPreviewCapture = null; }
             unsubscribe();
             // eslint-disable-next-line react-hooks/exhaustive-deps
             const mountElement = mountRef.current; // Copy ref to avoid ESLint warning
