@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { MdDelete, MdPlayArrow, MdVerified, MdLink } from 'react-icons/md';
 import FaveProductViewer from './FaveProductViewer';
 import { useSetPlayer } from './SetPlayerProvider';
 import useViewerRoles from '../utils/useViewerRoles';
+import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import {
   Avatar,
   Button,
@@ -60,26 +61,31 @@ function Profile({ userId, onSetupSelect }) {
     (async () => {
       try {
         setLoading(true);
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
+        // Independent reads go out in parallel — this used to be a 6-deep
+        // sequential await chain, which is what made profiles slow to open
+        // on mobile connections.
+        const [userSnap, followersCount, setsSnap, setupsSnap, meSnap] = await Promise.all([
+          getDoc(doc(db, 'users', userId)),
+          getCountFromServer(collection(db, 'users', userId, 'followers')).catch(() => null),
+          getDocs(query(collection(db, 'sets'), where('creatorId', '==', userId), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'setups'), where('ownerId', '==', userId))),
+          currentUserId && currentUserId !== userId
+            ? getDoc(doc(db, 'users', currentUserId)).catch(() => null)
+            : Promise.resolve(null),
+        ]);
         if (cancelled) return;
+
         if (userSnap.exists()) {
           setProfile(userSnap.data());
-          const followersSnap = await getDocs(collection(db, 'users', userId, 'followers'));
-          if (!cancelled) setFollowers(followersSnap.size);
         } else {
           setProfile({ displayName: userId.slice(0, 8), bio: '', createdAt: new Date() });
-          setFollowers(0);
         }
+        setFollowers(followersCount ? followersCount.data().count : 0);
 
-        const setsQ = query(collection(db, 'sets'), where('creatorId', '==', userId), orderBy('createdAt', 'desc'));
-        const setsSnap = await getDocs(setsQ);
         const setsList = [];
         setsSnap.forEach((d) => setsList.push({ id: d.id, ...d.data() }));
-        if (!cancelled) setSets(setsList);
+        setSets(setsList);
 
-        const setupsQ = query(collection(db, 'setups'), where('ownerId', '==', userId));
-        const setupsSnap = await getDocs(setupsQ);
         const setupsList = [];
         setupsSnap.forEach((d) => setupsList.push({ id: d.id, ...d.data() }));
         setupsList.sort((a, b) => {
@@ -87,21 +93,24 @@ function Profile({ userId, onSetupSelect }) {
           const bt = b.updatedAt?.toDate?.()?.getTime() ?? b.createdAt?.toDate?.()?.getTime() ?? 0;
           return bt - at;
         });
-        if (!cancelled) setSetups(setupsList);
+        setSetups(setupsList);
 
-        if (currentUserId && currentUserId !== userId) {
-          const me = await getDoc(doc(db, 'users', currentUserId));
-          if (!cancelled && me.exists()) {
-            setIsFollowing((me.data().following || []).includes(userId));
-          }
+        if (meSnap && meSnap.exists()) {
+          setIsFollowing((meSnap.data().following || []).includes(userId));
         }
 
-        if (currentUserId && currentUserId === userId) {
-          const productsSnap = await getDocs(collection(db, 'products'));
-          const productsList = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          productsList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          if (!cancelled) setProducts(productsList);
-        }
+        // Thumbnails arrive after first paint: sign in the background and
+        // patch state instead of blocking the profile on N callables.
+        Promise.all(setsList.map(async (s) => {
+          try {
+            const signed = await getSignedBunnyUrls('set', s.id);
+            return { id: s.id, thumbnailURL: signed.thumbnailURL || null };
+          } catch { return { id: s.id, thumbnailURL: null }; }
+        })).then((thumbs) => {
+          if (cancelled) return;
+          const byId = new Map(thumbs.map((t) => [t.id, t.thumbnailURL]));
+          setSets((prev) => prev.map((s) => (byId.get(s.id) ? { ...s, thumbnailURL: byId.get(s.id) } : s)));
+        });
       } catch (err) {
         console.error('Error loading profile:', err);
       } finally {
@@ -110,6 +119,23 @@ function Profile({ userId, onSetupSelect }) {
     })();
     return () => { cancelled = true; };
   }, [userId, currentUserId]);
+
+  // Fave-product options are own-profile-only and only feed the picker —
+  // load them off the critical path so they never delay first paint.
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const productsSnap = await getDocs(collection(db, 'products'));
+        if (cancelled) return;
+        const productsList = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        productsList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setProducts(productsList);
+      } catch { /* picker stays empty; fave viewer falls back to a direct doc read */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isOwnProfile]);
 
   useEffect(() => {
     if (!profile?.faveProductId) {
@@ -135,8 +161,8 @@ function Profile({ userId, onSetupSelect }) {
 
   const refreshFollowerCount = async () => {
     try {
-      const snap = await getDocs(collection(db, 'users', userId, 'followers'));
-      setFollowers(snap.size);
+      const snap = await getCountFromServer(collection(db, 'users', userId, 'followers'));
+      setFollowers(snap.data().count);
     } catch (err) {
       console.error('Error refreshing follower count:', err);
     }
@@ -393,8 +419,10 @@ function Profile({ userId, onSetupSelect }) {
                     className="profile-set"
                   >
                     <div className="profile-set__thumb">
-                      {set.videoURL ? (
-                        <video src={set.videoURL} muted preload="metadata" />
+                      {set.thumbnailURL ? (
+                        <img src={set.thumbnailURL} alt="" loading="lazy" />
+                      ) : set.videoURL ? (
+                        <video src={set.videoURL} muted preload="metadata" playsInline />
                       ) : (
                         <div className="profile-set__placeholder">No preview</div>
                       )}
