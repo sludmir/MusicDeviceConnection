@@ -213,7 +213,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
               >
                 <div className="hub-hero__thumb">
                   {hero.thumbnailURL ? (
-                    <img src={hero.thumbnailURL} alt="" loading="lazy" />
+                    <img src={hero.thumbnailURL} alt="" loading="eager" />
                   ) : hero.videoURL ? (
                     <video src={hero.videoURL} muted preload="metadata" playsInline />
                   ) : null}
