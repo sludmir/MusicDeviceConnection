@@ -157,7 +157,8 @@
   border: 1px solid var(--border);
 }
 
-.hub-hero__thumb video {
+.hub-hero__thumb video,
+.hub-hero__thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -386,7 +387,8 @@
   border-color: var(--border-strong);
 }
 
-.hub-set-tile__thumb video {
+.hub-set-tile__thumb video,
+.hub-set-tile__thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -621,7 +623,8 @@
   overflow: hidden;
 }
 
-.hub-clip-tile__thumb video {
+.hub-clip-tile__thumb video,
+.hub-clip-tile__thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;

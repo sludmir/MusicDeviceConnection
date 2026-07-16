@@ -94,6 +94,15 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
           const setsQ = query(collection(db, 'sets'), orderBy('createdAt', 'desc'), limit(8));
           const setsSnap = await getDocs(setsQ);
           setsSnap.forEach((d) => recent.push({ id: d.id, ...d.data() }));
+          // Bunny token auth 403s bare URLs — sign both the playable URL and
+          // the thumbnail.jpg used for the tile image.
+          await Promise.all(recent.map(async (s) => {
+            try {
+              const signed = await getSignedBunnyUrls('set', s.id);
+              if (signed.videoURL) s.videoURL = signed.videoURL;
+              if (signed.thumbnailURL) s.thumbnailURL = signed.thumbnailURL;
+            } catch { /* keep raw URLs (legacy Firebase Storage sets) */ }
+          }));
         } catch {
           recent = [];
         }
@@ -111,6 +120,7 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
               try {
                 const signed = await getSignedBunnyUrls('clip', c.id);
                 if (signed.videoURL) c.videoURL = signed.videoURL;
+                if (signed.thumbnailURL) c.thumbnailURL = signed.thumbnailURL;
               } catch { /* keep raw videoURL */ }
               return c;
             })
@@ -202,8 +212,10 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
                 aria-label={`Watch ${hero.title || 'set'}`}
               >
                 <div className="hub-hero__thumb">
-                  {hero.videoURL ? (
-                    <video src={hero.videoURL} muted preload="metadata" />
+                  {hero.thumbnailURL ? (
+                    <img src={hero.thumbnailURL} alt="" loading="lazy" />
+                  ) : hero.videoURL ? (
+                    <video src={hero.videoURL} muted preload="metadata" playsInline />
                   ) : null}
                   <div className="hub-hero__overlay">
                     <div className="hub-hero__play"><MdPlayArrow size={28} /></div>
@@ -235,8 +247,10 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
                       aria-label={`Open ${set.title || 'set'}`}
                     >
                       <div className="hub-set-tile__thumb">
-                        {set.videoURL ? (
-                          <video src={set.videoURL} muted preload="metadata" />
+                        {set.thumbnailURL ? (
+                          <img src={set.thumbnailURL} alt="" loading="lazy" />
+                        ) : set.videoURL ? (
+                          <video src={set.videoURL} muted preload="metadata" playsInline />
                         ) : null}
                         {set.durationSeconds ? (
                           <span className="hub-set-tile__duration mono-label">
@@ -311,7 +325,9 @@ function HubLandingPage({ onSetupSelect, onNewSetup, onFeedClick, onSearchClick,
                   aria-label="Play clip"
                 >
                   <div className="hub-clip-tile__thumb">
-                    {clip.videoURL ? (
+                    {clip.thumbnailURL ? (
+                      <img src={clip.thumbnailURL} alt="" loading="lazy" />
+                    ) : clip.videoURL ? (
                       <video src={clip.videoURL} muted preload="metadata" playsInline />
                     ) : null}
                     <div className="hub-clip-tile__play"><MdPlayArrow size={22} /></div>
