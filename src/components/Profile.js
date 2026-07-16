@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdDelete, MdPlayArrow, MdVerified, MdLink } from 'react-icons/md';
+import { MdDelete, MdPlayArrow, MdVerified, MdLink, MdHeadphones, MdPiano } from 'react-icons/md';
+import { IoMusicalNotes } from 'react-icons/io5';
 import FaveProductViewer from './FaveProductViewer';
 import { useSetPlayer } from './SetPlayerProvider';
 import useViewerRoles from '../utils/useViewerRoles';
@@ -9,7 +10,6 @@ import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import {
   Avatar,
   Button,
-  Card,
   Chip,
   Modal,
   Tabs,
@@ -27,6 +27,23 @@ const TAB_ITEMS = [
 function formatDate(ts) {
   if (!ts?.toDate) return '';
   return ts.toDate().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+const SETUP_TYPE_ICONS = { DJ: MdHeadphones, Producer: MdPiano, Musician: IoMusicalNotes };
+
+// Preview image when the setup has one (captured at save time), otherwise a
+// token-colored fallback with the setup-type icon (setups saved before the
+// preview feature shipped).
+function SetupPreview({ setup }) {
+  if (setup.previewImageURL) {
+    return <img className="profile-showcase__img" src={setup.previewImageURL} alt="" loading="lazy" />;
+  }
+  const Icon = SETUP_TYPE_ICONS[setup.setupType] || MdHeadphones;
+  return (
+    <div className="profile-showcase__img profile-showcase__img--fallback">
+      <Icon size={44} aria-hidden="true" />
+    </div>
+  );
 }
 
 function Profile({ userId, onSetupSelect }) {
@@ -308,7 +325,14 @@ function Profile({ userId, onSetupSelect }) {
   const displayName = profile?.displayName || userId?.slice(0, 12) || 'User';
   const isCreatorProfile = profile?.creator === true;
 
-  const setupsList = useMemo(() => setups, [setups]);
+  const featuredSetup = useMemo(
+    () => setups.find((s) => s.isMainSetup) || setups[0] || null,
+    [setups]
+  );
+  const otherSetups = useMemo(
+    () => setups.filter((s) => s !== featuredSetup),
+    [setups, featuredSetup]
+  );
 
   return (
     <div className="profile">
@@ -476,31 +500,58 @@ function Profile({ userId, onSetupSelect }) {
               </div>
             )
           ) : (
-            setupsList.length === 0 ? (
+            setups.length === 0 ? (
               <EmptyState
                 eyebrow="NO SETUPS"
                 title="No saved setups"
                 body={isOwnProfile ? "Build a setup from the Hub to see it here." : "This user hasn't saved any setups yet."}
               />
             ) : (
-              <div className="profile__setups-grid">
-                {setupsList.map((setup) => (
-                  <Card
-                    key={setup.id}
-                    padding="md"
-                    className="profile-setup-card"
-                    onClick={() => onSetupSelect && onSetupSelect(setup)}
+              <div className="profile-showcase">
+                {featuredSetup && (
+                  <button
+                    type="button"
+                    className="profile-showcase__hero press-card"
+                    onClick={() => onSetupSelect && onSetupSelect(featuredSetup)}
+                    aria-label={`Open setup ${featuredSetup.name || 'Untitled Setup'}`}
                   >
-                    <div className="profile-setup-card__top">
-                      <Chip>{(setup.setupType || 'DJ').toUpperCase()}</Chip>
-                      {setup.isMainSetup && <Chip>MAIN</Chip>}
+                    <SetupPreview setup={featuredSetup} />
+                    <div className="profile-showcase__scrim">
+                      <div className="profile-showcase__chips">
+                        <Chip>{(featuredSetup.setupType || 'DJ').toUpperCase()}</Chip>
+                        {featuredSetup.isMainSetup && <Chip>MAIN</Chip>}
+                      </div>
+                      <h3 className="profile-showcase__name">{featuredSetup.name || 'Untitled Setup'}</h3>
+                      <div className="profile-showcase__meta mono-label">
+                        {(featuredSetup.devices?.length || 0)} DEVICES
+                      </div>
                     </div>
-                    <h4 className="profile-setup-card__name">{setup.name || 'Untitled Setup'}</h4>
-                    <div className="profile-setup-card__meta mono-label">
-                      {(setup.devices?.length || 0)} DEVICES
-                    </div>
-                  </Card>
-                ))}
+                  </button>
+                )}
+                {otherSetups.length > 0 && (
+                  <div className="profile-showcase__rail">
+                    {otherSetups.map((setup) => (
+                      <button
+                        key={setup.id}
+                        type="button"
+                        className="profile-showcase__card press-card"
+                        onClick={() => onSetupSelect && onSetupSelect(setup)}
+                        aria-label={`Open setup ${setup.name || 'Untitled Setup'}`}
+                      >
+                        <div className="profile-showcase__card-thumb">
+                          <SetupPreview setup={setup} />
+                        </div>
+                        <div className="profile-showcase__card-meta">
+                          <Chip>{(setup.setupType || 'DJ').toUpperCase()}</Chip>
+                          <div className="profile-showcase__card-name">{setup.name || 'Untitled Setup'}</div>
+                          <div className="profile-showcase__card-devices mono-label">
+                            {(setup.devices?.length || 0)} DEVICES
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           )}

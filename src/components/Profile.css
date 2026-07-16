@@ -373,37 +373,125 @@
   color: var(--text-dim);
 }
 
-.profile__setups-grid {
+/* ---- Setups showcase ---- */
+.profile-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profile-showcase__hero,
+.profile-showcase__card {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.profile-showcase__hero {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+.profile-showcase__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-showcase__img--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background:
+    radial-gradient(120% 90% at 18% 0%, var(--primary-softer), transparent 62%),
+    var(--surface-2);
+}
+
+/* Overlays imagery — fixed dark scrim in both themes (chrome over media
+   stays literal per the design system). */
+.profile-showcase__scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+  padding: var(--space-4);
+  background: linear-gradient(transparent, rgba(10, 9, 8, 0.85));
+  color: #F4EFE6;
+}
+
+.profile-showcase__chips {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.profile-showcase__name {
+  margin: 0;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-heading);
+}
+
+.profile-showcase__meta {
+  color: rgba(244, 239, 230, 0.75);
+}
+
+.profile-showcase__rail {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
 }
 
-.profile-setup-card {
+.profile-showcase__card-thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+
+.profile-showcase__card-meta {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  min-height: 120px;
+  gap: var(--space-1);
+  align-items: flex-start;
+  padding: var(--space-3);
 }
 
-.profile-setup-card__top {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.profile-setup-card__name {
-  margin: 0;
-  font-size: var(--fs-lg);
+.profile-showcase__card-name {
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.profile-setup-card__meta {
-  margin-top: auto;
-  color: var(--text-dim);
+.profile-showcase__card-devices {
+  color: var(--text-muted);
+}
+
+@media (max-width: 1023px) {
+  /* Horizontal snap rail: 1–4 secondary setups swipe like a carousel. */
+  .profile-showcase__rail {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    padding-inline: var(--space-4);
+    scrollbar-width: none;
+  }
+  .profile-showcase__rail::-webkit-scrollbar { display: none; }
+  .profile-showcase__card {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -413,7 +501,6 @@
 
 @media (max-width: 760px) {
   .profile__sets-grid { grid-template-columns: 1fr; }
-  .profile__setups-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 500px) {

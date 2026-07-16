@@ -83,7 +83,7 @@ Firebase config from `REACT_APP_FIREBASE_*` env vars (`.env`).
 |-----------|-----------|
 | `products` | name, type, brand, category (DJ/Producer/Musician), subcategory, price, modelPath, imageUrl, modelScale, inputs[], outputs[], locationPriority, **affiliateUrl**, ownerId |
 | `users` | displayName, email, followers[], following[], faveProductId, preferences{} (+ `users/{id}/followers`, `/notifications`) |
-| `setups` | name, ownerId, setupType, **setting** (scene variant), devices[] (positions, spotType, placementIndex, model data), mobileDiagram, cameraAngles, isMainSetup |
+| `setups` | name, ownerId, setupType, **setting** (scene variant), devices[] (positions, spotType, placementIndex, model data), mobileDiagram, previewImageURL (viewport screenshot captured on save), cameraAngles, isMainSetup |
 | `sets` | creatorId, creatorName, title, videoURL, durationSeconds (**master-window length** when a track exists), setupId?, audioTrackURL?, audioOffsetSeconds?, audioReplacesVideo, **angles[]** (per-angle Bunny guid/hlsUrl/offset), angleGuids[], angleStatus{}, **cuts[]** (`{timeSec, angleIndex}` in master-audio time), trimIn/trimOutMasterSeconds?, trimStart/trimEndSeconds (legacy, angle-1 video time) |
 | `clips` | creatorId, videoURL, fullVideoURL, clipStart, clipEnd (angle-1 video time, legacy), **clipStartMaster/clipEndMaster** (master time), fullSetId, likes, likedBy[], setupId?, audioTrackURL?, audioReplacesVideo |
 | `affiliateClicks` | click ledger for creator attribution |
