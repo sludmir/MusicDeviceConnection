@@ -5,6 +5,7 @@ import {
   MdAdd,
   MdNotificationsNone,
   MdPerson,
+  MdViewInAr,
 } from "react-icons/md";
 
 // `mobileHidden`  — not shown in the mobile bottom tab bar
@@ -12,11 +13,12 @@ import {
 // `accent`        — rendered as an emphasized (filled) create action on mobile
 //
 // Mobile tabs:  Home · Feed · Create(+) · Notifications · Profile
-// Desktop tabs: Home · Feed · Search · Notifications · Profile
+// Desktop tabs: Home · Feed · Scene · Search · Notifications · Profile
 export const NAV_ITEMS = [
   { path: "/hub", label: "Home", icon: MdHome },
   { path: "/feed", label: "Feed", icon: MdPlayCircleOutline },
   { path: "/create", label: "Create", icon: MdAdd, desktopHidden: true, accent: true },
+  { path: "/builder", label: "Scene", icon: MdViewInAr, mobileHidden: true },
   { path: "/search", label: "Search", icon: MdSearch, mobileHidden: true },
   { path: "/notifications", label: "Notifications", icon: MdNotificationsNone },
   { path: "/profile", label: "Profile", icon: MdPerson },

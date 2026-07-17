@@ -31,6 +31,7 @@ import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
 import SetEditorImport from './components/SetEditor';
+import BuilderEmptyStateImport from './components/BuilderEmptyState';
 import useIsMobile from './utils/useIsMobile';
 import useViewerRoles from './utils/useViewerRoles';
 import { trackPageView } from './utils/analytics';
@@ -57,6 +58,7 @@ const Profile = unwrap(ProfileImport);
 const UserSearch = unwrap(UserSearchImport);
 const Notifications = unwrap(NotificationsImport);
 const SetEditor = unwrap(SetEditorImport);
+const BuilderEmptyState = unwrap(BuilderEmptyStateImport);
 
 function isValidComponent(C) {
   return typeof C === 'function' || (C && typeof C === 'object' && typeof C.$$typeof === 'symbol');
@@ -651,7 +653,10 @@ function AppRoutes({
                   </div>
                 </Suspense>
               ) : (
-                <Navigate to="/hub" replace />
+                <BuilderEmptyState
+                  onNewSetup={handleNewSetupFromLanding}
+                  onSetupSelect={handleSetupSelectFromLanding}
+                />
               )
             } />
             <Route path="*" element={<Navigate to="/hub" replace />} />
