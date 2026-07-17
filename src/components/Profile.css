@@ -310,19 +310,24 @@
 .profile-set__change-setup {
   align-self: flex-start;
   margin-top: var(--space-1);
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-1) 55%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  transition: color var(--dur-micro), border-color var(--dur-micro);
 }
 
 .profile-set__change-setup:hover {
-  color: var(--primary-hover);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 .profile-set-relink-list {
