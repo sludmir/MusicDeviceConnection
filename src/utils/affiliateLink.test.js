@@ -1,4 +1,4 @@
-import { buildBuyLink, buildSubtag, buyButtonLabel, detectRetailer } from './affiliateLink';
+import { buildBuyLink, buildSubtag, buildZzoundsAffiliateUrl, buyButtonLabel, detectRetailer, parseZzoundsItemId, purchaseLinkNotice } from './affiliateLink';
 
 describe('buildSubtag', () => {
   test('joins creatorId and setupId with a hyphen', () => {
@@ -17,6 +17,27 @@ describe('buildSubtag', () => {
   });
 });
 
+describe('parseZzoundsItemId', () => {
+  test('extracts item slug from plain and affiliate URLs', () => {
+    expect(parseZzoundsItemId('https://www.zzounds.com/item--PIOCDJ3000')).toBe('PIOCDJ3000');
+    expect(parseZzoundsItemId('https://www.zzounds.com/a--3998299/sid--creator1/item--PIOCDJ3000')).toBe('PIOCDJ3000');
+  });
+});
+
+describe('buildZzoundsAffiliateUrl', () => {
+  test('builds official a-- and sid-- path format', () => {
+    expect(buildZzoundsAffiliateUrl('PIOCDJ3000', 'creator1-setup9', '3998299')).toBe(
+      'https://www.zzounds.com/a--3998299/sid--creator1-setup9/item--PIOCDJ3000'
+    );
+  });
+
+  test('omits sid segment when no subtag', () => {
+    expect(buildZzoundsAffiliateUrl('PIOCDJ3000', '', '3998299')).toBe(
+      'https://www.zzounds.com/a--3998299/item--PIOCDJ3000'
+    );
+  });
+});
+
 describe('detectRetailer', () => {
   test('detects supported retailer hostnames', () => {
     expect(detectRetailer('www.zzounds.com')?.id).toBe('cj');
@@ -24,6 +45,7 @@ describe('detectRetailer', () => {
     expect(detectRetailer('www.reverb.com')?.id).toBe('awin');
     expect(detectRetailer('www.thomann.de')?.id).toBe('thomann');
     expect(detectRetailer('www.amazon.com')?.id).toBe('amazon');
+    expect(detectRetailer('teile.life')?.id).toBe('manufacturer');
   });
 });
 
@@ -37,12 +59,35 @@ describe('buyButtonLabel', () => {
   });
 });
 
+describe('purchaseLinkNotice', () => {
+  test('shows non-monetized notice', () => {
+    expect(purchaseLinkNotice({ commerceStatus: 'non_monetized', monetized: false }, null))
+      .toBe('LiveSet may not earn commission from this link.');
+  });
+
+  test('shows affiliate notice when monetized', () => {
+    expect(purchaseLinkNotice({ monetized: true, urlKind: 'product-link' }, { creatorId: 'c1' }))
+      .toContain('Affiliate link');
+  });
+});
+
 describe('buildBuyLink', () => {
   const OLD_ENV = process.env.REACT_APP_AMAZON_ASSOC_TAG;
   beforeEach(() => { process.env.REACT_APP_AMAZON_ASSOC_TAG = 'liveset-20'; });
   afterEach(() => { process.env.REACT_APP_AMAZON_ASSOC_TAG = OLD_ENV; });
 
-  test('builds Amazon search fallback when product has no affiliateUrl', () => {
+  test('prefers purchaseUrl over affiliateUrl', () => {
+    const link = buildBuyLink({
+      name: 'Teile Revolo',
+      purchaseUrl: 'https://teile.life/products/revolo',
+      affiliateUrl: 'https://www.zzounds.com/item--OLD',
+    }, null);
+    expect(link.url).toBe('https://teile.life/products/revolo');
+    expect(link.commerceStatus).toBe('non_monetized');
+    expect(link.monetized).toBe(false);
+  });
+
+  test('builds Amazon search fallback when product has no purchase URL', () => {
     const link = buildBuyLink({ name: 'CDJ-3000', brand: 'Pioneer DJ' }, null);
     const url = new URL(link.url);
     expect(url.hostname).toBe('www.amazon.com');
@@ -66,18 +111,19 @@ describe('buildBuyLink', () => {
     expect(url.searchParams.get('th')).toBe('1');
     expect(link.urlKind).toBe('product-link');
     expect(link.retailer).toBe('amazon');
+    expect(link.monetized).toBe(true);
   });
 
-  test('adds sid to CJ retailer URLs', () => {
+  test('rebuilds zZounds URLs with a-- and sid-- path segments', () => {
     const link = buildBuyLink(
       { name: 'CDJ-3000', affiliateUrl: 'https://www.zzounds.com/item--PIONEERCDJ3000' },
       { creatorId: 'creator1', setupId: 'setup9' }
     );
-    const url = new URL(link.url);
-    expect(url.searchParams.get('sid')).toBe('creator1-setup9');
+    expect(link.url).toBe('https://www.zzounds.com/a--3998299/sid--creator1-setup9/item--PIONEERCDJ3000');
     expect(link.retailer).toBe('cj');
     expect(link.retailerLabel).toBe('zZounds');
     expect(link.isAmazon).toBe(false);
+    expect(link.monetized).toBe(true);
   });
 
   test('adds clickref to Reverb URLs', () => {
@@ -103,12 +149,12 @@ describe('buildBuyLink', () => {
     expect(link.retailerLabel).toBe('Thomann');
   });
 
-  test('omits subid when there is no attribution', () => {
+  test('omits sid when there is no attribution on zZounds', () => {
     const link = buildBuyLink(
       { name: 'CDJ-3000', affiliateUrl: 'https://www.zzounds.com/item--PIONEERCDJ3000' },
       null
     );
-    expect(new URL(link.url).searchParams.get('sid')).toBeNull();
+    expect(link.url).toBe('https://www.zzounds.com/a--3998299/item--PIONEERCDJ3000');
   });
 
   test('omits ascsubtag when there is no attribution', () => {

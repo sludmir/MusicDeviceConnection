@@ -394,14 +394,36 @@ const ProductManagerForm = ({ onClose, editingProduct = null }) => {
               </div>
 
               <div className="form-group">
+                <label>Purchase link (optional)</label>
+                <input
+                  type="url"
+                  value={formData.purchaseUrl || ''}
+                  onChange={(e) => handleInputChange('purchaseUrl', e.target.value.trim())}
+                  placeholder="Canonical product page (Sweetwater, Thomann, manufacturer store, etc.)"
+                />
+              </div>
+
+              <div className="form-group">
                 <label>Affiliate link (optional)</label>
                 <input
                   type="url"
                   value={formData.affiliateUrl || ''}
                   onChange={(e) => handleInputChange('affiliateUrl', e.target.value.trim())}
-                  placeholder="Paste tagged Amazon product URL (falls back to Amazon search if empty)"
+                  placeholder="Monetized retailer URL (zZounds a-- link, Amazon, etc.)"
                 />
               </div>
+
+              {formData.commerceStatus && (
+                <div className="form-group">
+                  <label>Commerce status</label>
+                  <input type="text" value={formData.commerceStatus} readOnly disabled />
+                  {formData.commerceValidationReason && (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted, #888)' }}>
+                      {formData.commerceValidationReason}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Connection Points */}

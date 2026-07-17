@@ -1,6 +1,10 @@
 // Builds outbound purchase links with per-retailer affiliate tags and creator
 // SubIDs so commission reports can be reconciled to creators for the 50/50 split.
 
+const ZZOUNDS_AFFILIATE_ID = process.env.REACT_APP_ZZOUNDS_AFFILIATE_ID || '3998299';
+
+const MONETIZED_RETAILERS = new Set(['amazon', 'cj', 'awin', 'thomann', 'impact']);
+
 function getAssocTag() {
   return process.env.REACT_APP_AMAZON_ASSOC_TAG || '';
 }
@@ -37,6 +41,7 @@ const RETAILERS = [
     subIdParam: 'sid',
     subIdMaxLen: 64,
     decorate(url, subtag) {
+      if (/zzounds/i.test(url.hostname)) return;
       if (subtag) url.searchParams.set(this.subIdParam, subtag);
     },
   },
@@ -70,10 +75,35 @@ const RETAILERS = [
       if (subtag) url.searchParams.set(this.subIdParam, subtag);
     },
   },
+  {
+    id: 'manufacturer',
+    label: 'Manufacturer',
+    matchHost: (hostname) => /(^|\.)teile\.life$/i.test(hostname) || /(^|\.)telepathicinstruments\.com$/i.test(hostname),
+    subIdParam: null,
+    subIdMaxLen: 0,
+    decorate() {},
+  },
 ];
 
 export function detectRetailer(hostname) {
   return RETAILERS.find((r) => r.matchHost(hostname)) || null;
+}
+
+export function parseZzoundsItemId(urlString) {
+  try {
+    const url = new URL(urlString);
+    const match = url.pathname.match(/\/item--([^/?#]+)/i);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+export function buildZzoundsAffiliateUrl(itemId, subtag, affiliateId = ZZOUNDS_AFFILIATE_ID) {
+  if (!itemId) return null;
+  const cleanSubtag = (subtag || '').replace(/[^A-Za-z0-9-]/g, '');
+  const sidSegment = cleanSubtag ? `/sid--${cleanSubtag}` : '';
+  return `https://www.zzounds.com/a--${affiliateId}${sidSegment}/item--${itemId}`;
 }
 
 function retailerLabel(retailer, hostname) {
@@ -82,41 +112,82 @@ function retailerLabel(retailer, hostname) {
   return retailer.label || null;
 }
 
-function buildLinkResult(url, { urlKind, retailer, hostname }) {
+function isMonetizedRetailer(retailerId) {
+  return MONETIZED_RETAILERS.has(retailerId);
+}
+
+export function getEffectivePurchaseUrl(product) {
+  if (!product) return null;
+  return product.purchaseUrl || product.affiliateUrl || null;
+}
+
+function resolveCommerceStatus(product, retailerId, fallbackMonetized) {
+  if (product?.commerceStatus) return product.commerceStatus;
+  if (fallbackMonetized) return 'monetized';
+  if (retailerId && isMonetizedRetailer(retailerId)) return 'monetized';
+  if (retailerId) return 'non_monetized';
+  return 'unknown';
+}
+
+function buildLinkResult(url, { urlKind, retailer, hostname, monetized, commerceStatus }) {
   const isAmazon = retailer?.id === 'amazon';
   return {
-    url: url.toString(),
+    url: typeof url === 'string' ? url : url.toString(),
     urlKind,
     isAmazon,
     retailer: retailer?.id || (isAmazon ? 'amazon' : 'other'),
     retailerLabel: retailerLabel(retailer, hostname),
+    monetized: !!monetized,
+    commerceStatus: commerceStatus || (monetized ? 'monetized' : 'non_monetized'),
   };
 }
 
-function decorateAffiliateUrl(url, attribution) {
+function decorateAffiliateUrl(url, attribution, product) {
   const retailer = detectRetailer(url.hostname);
   const subtag = retailer ? buildSubtag(attribution, retailer.subIdMaxLen) : '';
+
+  if (/zzounds/i.test(url.hostname)) {
+    const itemId = parseZzoundsItemId(url.toString());
+    if (itemId) {
+      const rebuilt = buildZzoundsAffiliateUrl(itemId, subtag);
+      return buildLinkResult(rebuilt, {
+        urlKind: 'product-link',
+        retailer,
+        hostname: url.hostname,
+        monetized: true,
+        commerceStatus: resolveCommerceStatus(product, retailer?.id, true),
+      });
+    }
+  }
+
   if (retailer) retailer.decorate(url, subtag);
-  return buildLinkResult(url, { urlKind: 'product-link', retailer, hostname: url.hostname });
+  const monetized = retailer ? isMonetizedRetailer(retailer.id) : false;
+  return buildLinkResult(url, {
+    urlKind: 'product-link',
+    retailer,
+    hostname: url.hostname,
+    monetized,
+    commerceStatus: resolveCommerceStatus(product, retailer?.id, monetized),
+  });
 }
 
 export function buildBuyLink(product, attribution) {
   if (!product) return null;
 
-  if (product.affiliateUrl) {
-    let url;
+  const rawUrl = getEffectivePurchaseUrl(product);
+  if (rawUrl) {
     try {
-      url = new URL(product.affiliateUrl);
+      const url = new URL(rawUrl);
+      return decorateAffiliateUrl(url, attribution, product);
     } catch (e) {
-      return {
-        url: product.affiliateUrl,
+      return buildLinkResult(rawUrl, {
         urlKind: 'product-link',
-        isAmazon: false,
-        retailer: 'other',
-        retailerLabel: null,
-      };
+        retailer: null,
+        hostname: '',
+        monetized: product.commerceStatus === 'monetized',
+        commerceStatus: product.commerceStatus || 'unknown',
+      });
     }
-    return decorateAffiliateUrl(url, attribution);
   }
 
   const query = [product.brand, product.name].filter(Boolean).join(' ').trim();
@@ -131,6 +202,8 @@ export function buildBuyLink(product, attribution) {
     urlKind: 'search-fallback',
     retailer: amazon,
     hostname: url.hostname,
+    monetized: !!getAssocTag(),
+    commerceStatus: 'unknown',
   });
 }
 
@@ -139,4 +212,18 @@ export function buyButtonLabel(link) {
   if (link.retailerLabel) return `Buy on ${link.retailerLabel} ↗`;
   if (link.isAmazon) return 'Buy on Amazon ↗';
   return 'Buy ↗';
+}
+
+export function purchaseLinkNotice(link, attribution) {
+  if (!link) return null;
+  if (link.commerceStatus === 'non_monetized' || link.monetized === false) {
+    return 'LiveSet may not earn commission from this link.';
+  }
+  if (link.urlKind === 'search-fallback') {
+    return 'Search link — verify the exact product before buying.';
+  }
+  if (link.monetized) {
+    return `Affiliate link — purchases support LiveSet${attribution?.creatorId ? ' and this creator' : ''}.`;
+  }
+  return 'Purchase link — availability not verified.';
 }

@@ -3,7 +3,7 @@
 // payouts (manual in this phase).
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-export function buildClickPayload({ product, attribution, clickerUid, source, urlKind, retailer }) {
+export function buildClickPayload({ product, attribution, clickerUid, source, urlKind, retailer, monetized }) {
   return {
     productId: product?.id ?? null,
     productName: product?.name ?? '',
@@ -13,6 +13,7 @@ export function buildClickPayload({ product, attribution, clickerUid, source, ur
     source,
     urlKind,
     retailer: retailer ?? null,
+    monetized: monetized ?? null,
   };
 }
 

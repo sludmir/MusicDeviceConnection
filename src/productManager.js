@@ -140,6 +140,12 @@ export const DEFAULT_PRODUCT_TEMPLATE = {
   modelScale: 1.0,
   imageUrl: "",
   affiliateUrl: "",
+  purchaseUrl: "",
+  commerceStatus: "",
+  commerceRetailer: "",
+  commerceAvailability: "",
+  commerceValidatedAt: "",
+  commerceValidationReason: "",
   isActive: true,
   createdAt: null,
   updatedAt: null

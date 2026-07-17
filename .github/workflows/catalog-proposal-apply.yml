@@ -1,0 +1,48 @@
+name: Apply catalog proposal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'catalog/proposals/**.json'
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MUSICDEVICECONNECTION }}
+
+      - run: npm ci
+
+      - name: Detect changed proposal files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only HEAD~1 HEAD -- 'catalog/proposals/*.json' | tr '\n' ' ')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          if [ -z "$FILES" ]; then
+            echo "No proposal JSON changed on this push."
+            exit 0
+          fi
+          echo "Changed proposals: $FILES"
+
+      - name: Apply catalog proposals
+        if: steps.changed.outputs.files != ''
+        run: |
+          for f in ${{ steps.changed.outputs.files }}; do
+            echo "Applying $f"
+            node scripts/applyCatalogProposal.js --file "$f"
+          done

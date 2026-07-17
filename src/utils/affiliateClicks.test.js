@@ -19,6 +19,7 @@ describe('buildClickPayload', () => {
       source: 'mini-profile',
       urlKind: 'product-link',
       retailer: 'cj',
+      monetized: null,
     });
   });
 
