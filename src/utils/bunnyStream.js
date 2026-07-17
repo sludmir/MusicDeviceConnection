@@ -1,9 +1,13 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import * as tus from 'tus-js-client';
 import { app } from '../firebaseConfig';
 
 /**
  * Reserves a Bunny Stream video record on the server (which holds the API key)
  * and returns everything the client needs to upload + later play the file.
+ *
+ * The server returns a presigned TUS signature — NOT the Bunny API key — so the
+ * browser can upload directly without ever seeing a credential.
  *
  * @param {Object} params
  * @param {string} params.title  — display title for the Bunny library entry
@@ -11,8 +15,9 @@ import { app } from '../firebaseConfig';
  * @returns {Promise<{
  *   videoGuid: string,
  *   libraryId: string,
- *   uploadUrl: string,
- *   uploadHeaders: Record<string,string>,
+ *   tusEndpoint: string,
+ *   tusSignature: string,
+ *   tusExpire: number,
  *   hlsUrl: string,
  *   thumbnailUrl: string,
  *   previewUrl: string,
@@ -26,31 +31,49 @@ export async function createBunnyVideo({ title, kind }) {
 }
 
 /**
- * Uploads a video File/Blob to a Bunny Stream upload URL with progress.
- * Resolves on HTTP 2xx, rejects otherwise.
+ * Uploads a video File/Blob to Bunny Stream via the resumable TUS protocol,
+ * authenticated with the server-issued presigned signature (no API key in the
+ * browser). Resolves when Bunny confirms the upload, rejects on error.
  *
  * @param {File|Blob} file
- * @param {{ uploadUrl: string, uploadHeaders: Record<string,string> }} target
+ * @param {{ tusEndpoint: string, tusSignature: string, tusExpire: number,
+ *          libraryId: string|number, videoGuid: string }} bunny
+ *          — the object returned by createBunnyVideo()
  * @param {(fraction:number)=>void} [onProgress]  — 0..1
  * @returns {Promise<void>}
  */
-export function uploadToBunny(file, { uploadUrl, uploadHeaders }, onProgress) {
+export function uploadToBunny(file, bunny, onProgress) {
+  const { tusEndpoint, tusSignature, tusExpire, libraryId, videoGuid } = bunny || {};
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl, true);
-    Object.entries(uploadHeaders || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && typeof onProgress === 'function') {
-        onProgress(e.loaded / e.total);
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Bunny upload failed (HTTP ${xhr.status}): ${xhr.responseText || ''}`));
-    };
-    xhr.onerror = () => reject(new Error('Bunny upload network error'));
-    xhr.onabort = () => reject(new Error('Bunny upload aborted'));
-    xhr.send(file);
+    const upload = new tus.Upload(file, {
+      endpoint: tusEndpoint,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        AuthorizationSignature: tusSignature,
+        AuthorizationExpire: String(tusExpire),
+        VideoId: videoGuid,
+        LibraryId: String(libraryId),
+      },
+      metadata: {
+        filetype: file.type || 'video/mp4',
+        title: (file.name || 'video').slice(0, 200),
+      },
+      onError: (err) => reject(err instanceof Error ? err : new Error(String(err))),
+      onProgress: (bytesUploaded, bytesTotal) => {
+        if (bytesTotal && typeof onProgress === 'function') {
+          onProgress(bytesUploaded / bytesTotal);
+        }
+      },
+      onSuccess: () => resolve(),
+    });
+    // Resume a prior interrupted upload of the same file if one exists.
+    upload
+      .findPreviousUploads()
+      .then((previous) => {
+        if (previous.length > 0) upload.resumeFromPreviousUpload(previous[0]);
+        upload.start();
+      })
+      .catch(() => upload.start());
   });
 }
 

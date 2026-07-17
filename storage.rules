@@ -2,25 +2,35 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper functions
+    // ---- Helpers ----
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // Set media is stored as "<uid>_<timestamp>_<name>" (no uid path segment),
+    // so the owner is derived from the filename prefix.
+    function isNamePrefixedByUid(fileName) {
+      return isSignedIn() && fileName.matches(request.auth.uid + '_.*');
+    }
+
     function isValidImage() {
       return request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024; // 5MB max
     }
-    
+
     function isValidModel() {
       return request.resource.contentType.matches('model/.*|application/octet-stream|image/.*')
         && request.resource.size < 50 * 1024 * 1024; // 50MB max
     }
-    
+
     function isValidVideo() {
       return request.resource.contentType.matches('video/.*')
         && request.resource.size < 10 * 1024 * 1024 * 1024; // 10GB max
@@ -31,79 +41,74 @@ service firebase.storage {
         && request.resource.size < 1024 * 1024 * 1024; // 1GB max (covers full-set lossless audio)
     }
 
-    // Allow public read access to all files in the models directory and its subdirectories
+    // ---- Catalog assets: world-readable, admin-managed ----
+    // (Uploads come only from the /admin/products screens. Locking writes+deletes
+    //  to the admin claim stops any signed-in user overwriting/deleting the shared
+    //  3D catalog — previously delete was allowed to anyone signed in.)
     match /models/{allPaths=**} {
-      allow read: if true;  // Public read access
-      allow write: if isSignedIn() && isValidModel();
-      allow create: if isSignedIn() && isValidModel();
-      allow update: if isSignedIn() && isValidModel();
-      allow delete: if isSignedIn();
+      allow read: if true;                            // public read (builder needs it)
+      allow create, update: if isAdmin() && isValidModel();
+      allow delete: if isAdmin();
     }
 
-    // Allow public read access to textures directory
     match /textures/{allPaths=**} {
-      allow read: if true;  // Public read access
-      allow write: if isSignedIn() && isValidImage();
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidImage();
+      allow delete: if isAdmin();
     }
 
-    // Allow public read access to images directory (for product images)
     match /images/{allPaths=**} {
-      allow read: if true;  // Public read access
-      allow write: if isSignedIn() && isValidImage();
-      allow create: if isSignedIn() && isValidImage();
-      allow update: if isSignedIn() && isValidImage();
-      allow delete: if isSignedIn();
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidImage();
+      allow delete: if isAdmin();
     }
 
-    // User profile images
-    match /users/{userId}/profile/{imageId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() 
-        && isOwner(userId)
-        && isValidImage();
-    }
-
-    // Device images
+    // Device-specific 3D models / images (admin-managed; no user upload path)
     match /devices/{deviceId}/images/{imageId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() 
-        && isValidImage();
+      allow create, update: if isAdmin() && isValidImage();
+      allow delete: if isAdmin();
     }
-
-    // Device 3D models and their textures
     match /devices/{deviceId}/models/{allPaths=**} {
-      allow read: if true;  // Public read access to models and their textures
-      allow write: if isSignedIn() 
-        && isValidModel();
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidModel();
+      allow delete: if isAdmin();
     }
 
-    // Setup screenshots
+    // ---- User content ----
+    // Profile images — owner only
+    match /users/{userId}/profile/{imageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(userId) && isValidImage();
+    }
+
+    // Setup screenshots — path carries no uid, so kept at signed-in write
+    // (worst case is a cosmetic preview overwrite; low risk).
     match /setups/{setupId}/screenshots/{imageId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() 
-        && isValidImage();
+      allow write: if isSignedIn() && isValidImage();
     }
 
-    // Live sets - full video uploads (5 min–90 min sets, typically 50MB–1.5GB)
-    // Read must be public: <video src="downloadURL"> requests don't send Firebase auth, so
-    // allow read: if true lets feed/profile video playback work. Write stays restricted.
-    // Video now streams via Bunny; this path holds audio tracks (sets/audio/**)
-    // and thumbnails (sets/thumbnails/**), with legacy video still permitted.
+    // Live-set media: audio tracks (sets/audio/**) + thumbnails (sets/thumbnails/**),
+    // plus legacy video. Read stays public because <video>/<audio> download URLs are
+    // fetched by the browser without a Firebase auth token. Writes + deletes are
+    // scoped to the owner via the "<uid>_..." filename prefix (was: any signed-in
+    // user could overwrite/delete anyone's set media).
     match /sets/{allPaths=**} {
-      allow read: if true;  // Download URLs are loaded by browser without auth token
-      allow write: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
-      allow create: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
-      allow update: if isSignedIn() && (isValidVideo() || isValidAudio() || isValidImage());
-      allow delete: if isSignedIn();
+      allow read: if true;
+    }
+    match /sets/{folder}/{fileName} {
+      allow create, update: if isNamePrefixedByUid(fileName)
+        && (isValidVideo() || isValidAudio() || isValidImage());
+      allow delete: if isNamePrefixedByUid(fileName);
     }
 
-    // Clips - short video clips for feed (can reuse sets or be separate)
+    // Clips — short video now streams from Bunny; this Storage path is unused.
+    // Keep authenticated read; deletes locked to admin (was: any signed-in user).
     match /clips/{allPaths=**} {
-      allow read: if isSignedIn(); // Authenticated users can read
-      allow write: if isSignedIn() && isValidVideo();
-      allow create: if isSignedIn() && isValidVideo();
-      allow update: if isSignedIn() && isValidVideo();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidVideo();
+      allow delete: if isAdmin();
     }
   }
-} 
+}

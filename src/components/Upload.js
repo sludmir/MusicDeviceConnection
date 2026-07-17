@@ -167,7 +167,7 @@ function Upload({ onBack, onSuccess }) {
 
       await uploadToBunny(
         videoFile,
-        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
+        bunny,
         (fraction) => setUploadProgress(Math.min(100, Math.round(fraction * 100)))
       );
 

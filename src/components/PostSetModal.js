@@ -597,10 +597,10 @@ function PostSetModal({ onClose, theme = 'light', onSuccess }) {
         kind: 'set',
       });
 
-      // 2. Upload the video file directly to Bunny with progress.
+      // 2. Upload the video file directly to Bunny (TUS, presigned) with progress.
       await uploadToBunny(
         videoFile,
-        { uploadUrl: bunny.uploadUrl, uploadHeaders: bunny.uploadHeaders },
+        bunny,
         (fraction) => setUploadProgress(Math.min(100, Math.round(fraction * 100)))
       );
 

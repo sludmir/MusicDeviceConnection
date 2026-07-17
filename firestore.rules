@@ -46,7 +46,11 @@ service cloud.firestore {
     // Products
     match /products/{productId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidProduct();
+      // Catalog is shared + world-readable, so only admins may add products.
+      // (The UI already gates creation on the admin claim; this closes the
+      // rule-level gap that let any signed-in user inject catalog entries /
+      // affiliate URLs by calling Firestore directly.)
+      allow create: if isSignedIn() && request.auth.token.admin == true && isValidProduct();
       allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
       allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.token.admin == true);
     }
@@ -106,10 +110,10 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && isOwner(resource.data.ownerId);
     }
 
-    // Connections
+    // Connections — retired collection. No code reads or writes it anymore;
+    // it was previously writable/deletable by ANY signed-in user. Deny all.
     match /connections/{connectionId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if false;
     }
 
     // Clips (short-form feed videos) — posting requires a creator account

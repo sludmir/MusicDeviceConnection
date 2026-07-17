@@ -64,7 +64,8 @@ function isBunnyUrl(url, cdnHost) {
  *
  * Client flow:
  *   1. Call createBunnyVideo({ title, kind })  — kind is 'set' or 'clip'
- *   2. Use returned { uploadUrl, uploadHeaders } to PUT the video file
+ *   2. Upload the file via TUS to { tusEndpoint } using { tusSignature,
+ *      tusExpire, libraryId, videoGuid } — the API key is never exposed
  *   3. Save returned { videoGuid, hlsUrl, thumbnailUrl } on the Firestore doc
  */
 exports.createBunnyVideo = onCall(
@@ -103,11 +104,22 @@ exports.createBunnyVideo = onCall(
     const created = await createRes.json();
     const videoGuid = created.guid;
 
+    // Presigned TUS upload: the browser uploads straight to Bunny using a
+    // one-time signature scoped to THIS video — the raw API key never leaves
+    // the server. signature = sha256( libraryId + apiKey + expire + videoId ).
+    const tusExpire = Math.floor(Date.now() / 1000) + 24 * 3600; // 24h to finish the upload
+    const tusSignature = crypto
+      .createHash('sha256')
+      .update(`${libraryId}${apiKey}${tusExpire}${videoGuid}`)
+      .digest('hex');
+
     return {
       videoGuid,
       libraryId,
-      uploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${videoGuid}`,
-      uploadHeaders: { AccessKey: apiKey },
+      // Presigned upload — no AccessKey. Client uploads via TUS with these.
+      tusEndpoint: 'https://video.bunnycdn.com/tusupload',
+      tusSignature,
+      tusExpire,
       hlsUrl: `https://${cdnHost}/${videoGuid}/playlist.m3u8`,
       thumbnailUrl: `https://${cdnHost}/${videoGuid}/thumbnail.jpg`,
       previewUrl: `https://${cdnHost}/${videoGuid}/preview.webp`,

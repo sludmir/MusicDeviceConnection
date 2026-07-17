@@ -1043,7 +1043,7 @@ function SetEditor({ onBack, theme = 'dark' }) {
         });
         await uploadToBunny(
           angle.file,
-          { uploadUrl: angleBunny.uploadUrl, uploadHeaders: angleBunny.uploadHeaders },
+          angleBunny,
           (fraction) => setUploadProgress(Math.round(((i + fraction) / angles.length) * 90))
         );
         uploaded.push({ bunny: angleBunny, angle });
