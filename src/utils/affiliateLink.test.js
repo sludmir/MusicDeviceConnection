@@ -1,4 +1,4 @@
-import { buildBuyLink, buildSubtag, buildZzoundsAffiliateUrl, buyButtonLabel, detectRetailer, parseZzoundsItemId, purchaseLinkNotice } from './affiliateLink';
+import { buildBuyLink, buildSubtag, buildZzoundsAffiliateUrl, buyButtonLabel, detectRetailer, parseZzoundsItemId, purchaseLinkNotice, resolveCartMonetized } from './affiliateLink';
 
 describe('buildSubtag', () => {
   test('joins creatorId and setupId with a hyphen', () => {
@@ -60,14 +60,19 @@ describe('buyButtonLabel', () => {
 });
 
 describe('purchaseLinkNotice', () => {
-  test('shows non-monetized notice', () => {
-    expect(purchaseLinkNotice({ commerceStatus: 'non_monetized', monetized: false }, null))
+  test('shows non-monetized notice for manufacturer links', () => {
+    expect(purchaseLinkNotice({ cartMonetized: false, monetized: false, url: 'https://teile.life/x' }, null))
       .toBe('LiveSet may not earn commission from this link.');
   });
 
-  test('shows affiliate notice when monetized', () => {
-    expect(purchaseLinkNotice({ monetized: true, urlKind: 'product-link' }, { creatorId: 'c1' }))
-      .toContain('Affiliate link');
+  test('shows zZounds affiliate notice when cart is gold', () => {
+    expect(purchaseLinkNotice({ cartMonetized: true, monetized: true, url: 'https://www.zzounds.com/a--3998299/item--X', urlKind: 'product-link' }, { creatorId: 'c1' }))
+      .toContain('zZounds affiliate link');
+  });
+
+  test('shows unverified zZounds notice when affiliate but not in stock', () => {
+    expect(purchaseLinkNotice({ cartMonetized: false, monetized: true, url: 'https://www.zzounds.com/a--3998299/item--X', urlKind: 'product-link' }, null))
+      .toContain('unavailable or stock not verified');
   });
 });
 
@@ -124,6 +129,45 @@ describe('buildBuyLink', () => {
     expect(link.retailerLabel).toBe('zZounds');
     expect(link.isAmazon).toBe(false);
     expect(link.monetized).toBe(true);
+    expect(link.cartMonetized).toBe(false);
+  });
+
+  test('gold cart only for verified in-stock zZounds links', () => {
+    const inStock = buildBuyLink(
+      {
+        name: 'CDJ-3000X',
+        affiliateUrl: 'https://www.zzounds.com/item--CDJ3000X',
+        commerceAvailability: 'in_stock',
+        commerceStatus: 'monetized',
+      },
+      { creatorId: 'c1' }
+    );
+    expect(inStock.cartMonetized).toBe(true);
+
+    const discontinued = buildBuyLink(
+      {
+        name: 'CDJ-3000',
+        affiliateUrl: 'https://www.zzounds.com/item--PIOCDJ3000',
+        commerceAvailability: 'discontinued',
+      },
+      null
+    );
+    expect(discontinued.monetized).toBe(true);
+    expect(discontinued.cartMonetized).toBe(false);
+
+    const amazon = buildBuyLink(
+      { name: 'CDJ-3000', affiliateUrl: 'https://www.amazon.com/dp/B08F2ND1' },
+      null
+    );
+    expect(amazon.monetized).toBe(true);
+    expect(amazon.cartMonetized).toBe(false);
+  });
+
+  test('resolveCartMonetized helper', () => {
+    const link = { url: 'https://www.zzounds.com/a--3998299/item--X', monetized: true };
+    expect(resolveCartMonetized({ commerceAvailability: 'in_stock' }, link)).toBe(true);
+    expect(resolveCartMonetized({ commerceAvailability: 'discontinued' }, link)).toBe(false);
+    expect(resolveCartMonetized({}, link)).toBe(false);
   });
 
   test('adds clickref to Reverb URLs', () => {

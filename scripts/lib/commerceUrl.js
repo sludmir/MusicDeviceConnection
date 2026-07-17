@@ -30,7 +30,7 @@ const RETAILERS = [
   {
     id: 'thomann',
     label: 'Thomann',
-    matchHost: (hostname) => /(^|\.)thomann\.[a-z.]{2,}$/i.test(hostname),
+    matchHost: (hostname) => /(^|\.)thomann(?:music)?\.[a-z.]{2,}$/i.test(hostname),
     subIdParam: 'subid',
     subIdMaxLen: 50,
   },
@@ -44,7 +44,9 @@ const RETAILERS = [
   {
     id: 'manufacturer',
     label: 'Manufacturer',
-    matchHost: (hostname) => /(^|\.)teile\.life$/i.test(hostname) || /(^|\.)telepathicinstruments\.com$/i.test(hostname),
+    matchHost: (hostname) => /(^|\.)teile\.life$/i.test(hostname)
+      || /(^|\.)telepathicinstruments\.com$/i.test(hostname)
+      || /(^|\.)apple\.com$/i.test(hostname),
     subIdParam: null,
     subIdMaxLen: 0,
   },

@@ -8,10 +8,11 @@ const ALLOWED_PURCHASE_HOSTS = [
   /(^|\.)amazon\.[a-z.]{2,}$/i,
   /(^|\.)(zzounds|guitarcenter|musiciansfriend)\.com$/i,
   /(^|\.)reverb\.com$/i,
-  /(^|\.)thomann\.[a-z.]{2,}$/i,
+  /(^|\.)thomann(?:music)?\.[a-z.]{2,}$/i,
   /(^|\.)sweetwater\.com$/i,
   /(^|\.)teile\.life$/i,
   /(^|\.)telepathicinstruments\.com$/i,
+  /(^|\.)apple\.com$/i,
 ];
 
 const PROPOSAL_ALLOWED_UPDATE_FIELDS = new Set([

@@ -1,0 +1,383 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-17T22:01:49.438Z",
+  "runId": "2026-07-17-weekly-affiliate-audit",
+  "summary": {
+    "totalProducts": 20,
+    "checked": 20,
+    "proposedChanges": 20,
+    "unreachable": 12,
+    "nonMonetized": 2
+  },
+  "changes": [
+    {
+      "productId": "1pIub3og5rC8ma6RdwUC",
+      "productName": "CDJ-3000",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--PIOCDJ3000",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--PIOCDJ3000"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--PIOCDJ3000",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--PIOCDJ3000"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "4mhqPOxI8q6d092ai3mY",
+      "productName": "DJM-900NXS2",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--PNRDJM900NXS2",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--PNRDJM900NXS2"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--PNRDJM900NXS2",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--PNRDJM900NXS2"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "55g8R1TvWvMMGZNSXxPc",
+      "productName": "Roland TB-303",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--ROLTB3",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--ROLTB3"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--ROLTB3",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--ROLTB3"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "9kqynlGyGmWGQYJI7dtz",
+      "productName": "Korg Minilogue XD",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--KORMINILOGUEXD",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--KORMINILOGUEXD"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--KORMINILOGUEXD",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--KORMINILOGUEXD"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "DUbrzGs29UguFJzYMmdc",
+      "productName": "Technics SL-1210 MK7",
+      "updates": {
+        "commerceStatus": "unknown",
+        "commerceAvailability": "unknown",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "missing_purchase_url"
+      },
+      "evidence": {
+        "checkedUrl": null,
+        "httpStatus": 0,
+        "finalUrl": null
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "DsYwnSaD8r7tZwKml4qh",
+      "productName": "Arturia MiniFreak",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--ARAMINIFREAK",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--ARAMINIFREAK"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--ARAMINIFREAK",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--ARAMINIFREAK"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "JIQttWqaMfDO3Go9lWdi",
+      "productName": "Laptop",
+      "updates": {
+        "commerceStatus": "unknown",
+        "commerceAvailability": "unknown",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "missing_purchase_url"
+      },
+      "evidence": {
+        "checkedUrl": null,
+        "httpStatus": 0,
+        "finalUrl": null
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "S7VZM6PRfVldVg9KznR0",
+      "productName": "RMX-1000",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--PNRRMX1000",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--PNRRMX1000"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--PNRRMX1000",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--PNRRMX1000"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "XfV46qbmbzXuAmtchrXr",
+      "productName": "Fender Stratocaster",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--FEN0140512",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--FEN0140512"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--FEN0140512",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--FEN0140512"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "ePSyI0F9qj0eGxPctmkY",
+      "productName": "Orchid",
+      "updates": {
+        "purchaseUrl": "https://telepathicinstruments.com/products/orchid-orc-1",
+        "commerceStatus": "non_monetized",
+        "commerceRetailer": "manufacturer",
+        "commerceAvailability": "out_of_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; out_of_stock"
+      },
+      "evidence": {
+        "checkedUrl": "https://telepathicinstruments.com/products/orchid-orc-1",
+        "httpStatus": 200,
+        "finalUrl": "https://telepathicinstruments.com/products/orchid-orc-1"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "l99XT3AKl15yzPalCVyv",
+      "productName": "Rane MP2015",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--RNEMP2015",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--RNEMP2015"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--RNEMP2015",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--RNEMP2015"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "lVIzwlNosgslfk9OUVKm",
+      "productName": "Yamaha HS8",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--YAMHS8",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--YAMHS8"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--YAMHS8",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--YAMHS8"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "nrKWTOJ5zf0XymwUvqpW",
+      "productName": "Sequential Prophet-6",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--SEQPROPHET6",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--SEQPROPHET6"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--SEQPROPHET6",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--SEQPROPHET6"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "pjbOdWgal7pdKo8wGSwl",
+      "productName": "Xone:96",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--AAHXONE96",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--AAHXONE96"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--AAHXONE96",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--AAHXONE96"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "qC1pm1ONBmdWzCNdKSPt",
+      "productName": "Focusrite Scarlett 2i2",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--FOCSCAR2I2V4",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--FOCSCAR2I2V4"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--FOCSCAR2I2V4",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--FOCSCAR2I2V4"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "rFBO93Q1urgbLz2GkcXl",
+      "productName": "Revolo",
+      "updates": {
+        "purchaseUrl": "https://teile.life/products/teil2-reverb",
+        "commerceStatus": "non_monetized",
+        "commerceRetailer": "manufacturer",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200"
+      },
+      "evidence": {
+        "checkedUrl": "https://teile.life/products/teil2-reverb",
+        "httpStatus": 200,
+        "finalUrl": "https://teile.life/products/teil2-reverb"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "sdJxUNoS4C60JHCEf7G6",
+      "productName": "Pioneer DDJ-400",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--PIODDJ400",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--PIODDJ400"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--PIODDJ400",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--PIODDJ400"
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "test",
+      "productName": "test",
+      "updates": {
+        "commerceStatus": "unknown",
+        "commerceAvailability": "unknown",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "missing_purchase_url"
+      },
+      "evidence": {
+        "checkedUrl": null,
+        "httpStatus": 0,
+        "finalUrl": null
+      },
+      "action": "review_required"
+    },
+    {
+      "productId": "v3e0RIDzZ8BFiXEJTAuR",
+      "productName": "Gibson Les Paul Standard",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--GIBLPSL5A25",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200",
+        "affiliateUrl": "https://www.zzounds.com/item--GIBLPSL5A25"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--GIBLPSL5A25",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--GIBLPSL5A25"
+      },
+      "action": "update"
+    },
+    {
+      "productId": "yNY0UUGxmYyp2huXOCKD",
+      "productName": "Bose L1",
+      "updates": {
+        "purchaseUrl": "https://www.zzounds.com/item--BOEL1MISBP",
+        "commerceStatus": "unknown",
+        "commerceRetailer": "cj",
+        "commerceAvailability": "discontinued",
+        "commerceValidatedAt": "2026-07-17T22:01:49.438Z",
+        "commerceValidationReason": "http_200; discontinued",
+        "affiliateUrl": "https://www.zzounds.com/item--BOEL1MISBP"
+      },
+      "evidence": {
+        "checkedUrl": "https://www.zzounds.com/item--BOEL1MISBP",
+        "httpStatus": 200,
+        "finalUrl": "https://www.zzounds.com/item--BOEL1MISBP"
+      },
+      "action": "review_required"
+    }
+  ]
+}

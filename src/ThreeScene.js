@@ -5030,7 +5030,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                         handleBuyClick(d, 'hover-menu');
                         setMenuDevice(null);
                     } : undefined}
-                    buyMonetized={menuBuyLink?.monetized ?? null}
+                    buyMonetized={menuBuyLink?.cartMonetized ?? null}
                     buyTitle={menuBuyLink ? purchaseLinkNotice(menuBuyLink, affiliateAttribution) : 'Buy'}
                     onClose={() => setMenuDevice(null)}
                 />

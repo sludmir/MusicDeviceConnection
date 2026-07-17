@@ -45,6 +45,7 @@ describe('commerceUrl helpers', () => {
 
   test('isAllowedPurchaseHost permits manufacturer stores', () => {
     expect(isAllowedPurchaseHost('teile.life')).toBe(true);
+    expect(isAllowedPurchaseHost('apple.com')).toBe(true);
     expect(isAllowedPurchaseHost('evil.example.com')).toBe(false);
   });
 });

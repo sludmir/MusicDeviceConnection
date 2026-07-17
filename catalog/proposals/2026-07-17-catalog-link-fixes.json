@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-17T22:20:00.000Z",
+  "runId": "2026-07-17-catalog-link-fixes",
+  "summary": {
+    "totalProducts": 2,
+    "proposedChanges": 2
+  },
+  "changes": [
+    {
+      "productId": "DUbrzGs29UguFJzYMmdc",
+      "productName": "Technics SL-1210 MK7",
+      "action": "update",
+      "updates": {
+        "purchaseUrl": "https://www.thomannmusic.com/technics_sl_1210_mk_7.htm",
+        "commerceStatus": "monetized",
+        "commerceRetailer": "thomann",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:20:00.000Z",
+        "commerceValidationReason": "http_200; thomann_listing_not_on_zzounds"
+      }
+    },
+    {
+      "productId": "JIQttWqaMfDO3Go9lWdi",
+      "productName": "Laptop",
+      "action": "update",
+      "updates": {
+        "purchaseUrl": "https://www.apple.com/shop/buy-mac/macbook-pro/14-inch-space-black-standard-display-apple-m4-chip-16gb-memory-512gb-storage",
+        "commerceStatus": "non_monetized",
+        "commerceRetailer": "manufacturer",
+        "commerceAvailability": "in_stock",
+        "commerceValidatedAt": "2026-07-17T22:20:00.000Z",
+        "commerceValidationReason": "http_200"
+      }
+    }
+  ]
+}

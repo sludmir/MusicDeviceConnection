@@ -8,7 +8,7 @@ const STEPS = [
   'Drag to orbit the scene. Pinch or scroll to zoom in and out.',
   'Tap an empty ghost spot to add a piece of gear.',
   'Tap a placed device to swap it, remove it, or open the store link.',
-  'Gold cart = LiveSet earns commission. Red cart = direct store link only.',
+  'Gold cart = in-stock zZounds affiliate link. Red cart = other store or unavailable.',
   'Save your setup when you are happy with the layout.',
 ];
 
