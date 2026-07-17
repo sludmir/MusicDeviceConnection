@@ -1,0 +1,85 @@
+/* Chooser shown when /builder is opened with no setup loaded. The card steps
+   reuse the hub-type-card look (HubLandingPage.css); below are the
+   chooser-specific bits: back link + saved-setup rows. */
+
+.setup-chooser__back {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: var(--space-3);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.setup-chooser__back:hover {
+  color: var(--primary);
+}
+
+.setup-chooser__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.setup-chooser__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.setup-chooser__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-micro);
+}
+
+.setup-chooser__option:hover {
+  border-color: var(--primary);
+}
+
+.setup-chooser__thumb {
+  width: 56px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.setup-chooser__thumb--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.setup-chooser__option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.setup-chooser__option-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-chooser__option-meta {
+  color: var(--text-muted);
+}
