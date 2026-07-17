@@ -29,6 +29,22 @@
 .dhm-swap:hover { background: #15303d; border-color: var(--primary); }
 .dhm-buy { color: #ff9900; font-size: 14px; }
 .dhm-buy:hover { background: #3a2d15; border-color: #ff9900; }
+.dhm-buy--monetized {
+  color: var(--primary, #D9C2A0);
+  border-color: color-mix(in srgb, var(--primary, #D9C2A0) 55%, #2a313b);
+}
+.dhm-buy--monetized:hover {
+  background: color-mix(in srgb, var(--primary, #D9C2A0) 18%, #1b1f26);
+  border-color: var(--primary, #D9C2A0);
+}
+.dhm-buy--non-monetized {
+  color: #ff5566;
+  border-color: color-mix(in srgb, #ff5566 55%, #2a313b);
+}
+.dhm-buy--non-monetized:hover {
+  background: #3a1f24;
+  border-color: #ff5566;
+}
 
 /* Touch devices: enlarge the buy/swap/remove targets to ~44px. */
 @media (pointer: coarse) {

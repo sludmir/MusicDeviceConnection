@@ -44,6 +44,30 @@ describe('DeviceHoverMenu', () => {
     expect(screen.getByLabelText(/buy/i)).toBeInTheDocument();
   });
 
+  test('applies monetized cart styling when buyMonetized is true', () => {
+    const { container } = render(
+      <DeviceHoverMenu
+        device={{ uniqueId: 'd1', name: 'CDJ-3000' }}
+        screenPosition={{ x: 0, y: 0 }}
+        onRemove={()=>{}} onSwap={()=>{}} onClose={()=>{}} onBuy={()=>{}}
+        buyMonetized={true}
+      />
+    );
+    expect(container.querySelector('.dhm-buy--monetized')).toBeTruthy();
+  });
+
+  test('applies non-monetized cart styling when buyMonetized is false', () => {
+    const { container } = render(
+      <DeviceHoverMenu
+        device={{ uniqueId: 'd1', name: 'CDJ-3000' }}
+        screenPosition={{ x: 0, y: 0 }}
+        onRemove={()=>{}} onSwap={()=>{}} onClose={()=>{}} onBuy={()=>{}}
+        buyMonetized={false}
+      />
+    );
+    expect(container.querySelector('.dhm-buy--non-monetized')).toBeTruthy();
+  });
+
   test('clicking buy calls onBuy with device', () => {
     const onBuy = jest.fn();
     const device = { uniqueId: 'd1', name: 'CDJ-3000' };

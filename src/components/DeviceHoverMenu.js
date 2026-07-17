@@ -1,10 +1,25 @@
 import React from 'react';
 import './DeviceHoverMenu.css';
 
-export default function DeviceHoverMenu({ device, screenPosition, onRemove, onSwap, onClose, onBuy }) {
+export default function DeviceHoverMenu({
+  device,
+  screenPosition,
+  onRemove,
+  onSwap,
+  onClose,
+  onBuy,
+  buyMonetized = null,
+  buyTitle = 'Buy',
+}) {
   if (!device) return null;
   const left = (screenPosition?.x ?? 0);
   const top = (screenPosition?.y ?? 0);
+
+  const buyClass = buyMonetized === true
+    ? 'dhm-btn dhm-buy dhm-buy--monetized'
+    : buyMonetized === false
+      ? 'dhm-btn dhm-buy dhm-buy--non-monetized'
+      : 'dhm-btn dhm-buy';
 
   return (
     <div
@@ -17,9 +32,9 @@ export default function DeviceHoverMenu({ device, screenPosition, onRemove, onSw
         <div className="dhm-actions">
           {onBuy && (
             <button
-              className="dhm-btn dhm-buy"
-              aria-label="Buy product"
-              title="Buy"
+              className={buyClass}
+              aria-label={buyTitle || 'Buy product'}
+              title={buyTitle || 'Buy'}
               onClick={() => onBuy(device)}
             >
               🛒

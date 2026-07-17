@@ -15,12 +15,13 @@ import ProductSuggestionForm from './ProductSuggestionForm';
 import ModelPreviewPanel from './ModelPreviewPanel';
 import ProductSelectorModal from './components/ProductSelectorModal';
 import DeviceHoverMenu from './components/DeviceHoverMenu';
+import BuilderInstructionsModal from './components/BuilderInstructionsModal';
 import ConnectionGuideButton from './components/ConnectionGuideButton';
 import GhostSpotContextMenu from './components/GhostSpotContextMenu';
 import GhostSpotEditorPanel from './components/GhostSpotEditorPanel';
 import CameraAngleControls from './components/CameraAngleControls';
 import { getDefaultLayout, loadLayout, saveLayout, makeSpotType } from './utils/ghostSpotLayout';
-import { buildBuyLink, buyButtonLabel, purchaseLinkNotice } from './utils/affiliateLink';
+import { buildBuyLink, purchaseLinkNotice } from './utils/affiliateLink';
 import { midpoint, panOffsetFromMidpointDelta } from './utils/cameraPan';
 import { buildClickPayload, logAffiliateClick } from './utils/affiliateClicks';
 import { registerScenePreviewCapture } from './utils/scenePreviewCapture';
@@ -116,9 +117,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
     const [isSetupListExpanded, setIsSetupListExpanded] = useState(false);
     const [isUpdatingPaths, setIsUpdatingPaths] = useState(false);
     const [showSuggestionForm, setShowSuggestionForm] = useState(false);
-    const [showMiniProfile, setShowMiniProfile] = useState(false);
-    const [miniProfileDevice, setMiniProfileDevice] = useState(null);
-    const [editConnectionsMode, setEditConnectionsMode] = useState(false);
     const [suggestionModelFile, setSuggestionModelFile] = useState(null);
     const [suggestionModelScale, setSuggestionModelScale] = useState(1.0);
     const [menuDevice, setMenuDevice] = useState(null);
@@ -1390,9 +1388,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         if (deviceAtSpot) {
             setShowSearch(false);
             setSearchMode('');
-            setMiniProfileDevice(deviceAtSpot);
-            setShowMiniProfile(true);
-            setEditConnectionsMode(false);
+            setMenuDevice(deviceAtSpot);
+            setMenuScreenPos(projectMenuAnchor(deviceAtSpot.uniqueId));
             return;
         }
         openSearch('ghost', index);
@@ -3976,55 +3973,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         }
     };
 
-    const isDJM900Mixer = (device) => {
-        if (!device?.name) return false;
-        const n = device.name.toLowerCase();
-        return n.includes('djm') || n.includes('900nxs2') || n.includes('900 nxs2') || n.includes('mixer');
-    };
-
-    // Add Send Out (output) and Return In (input) to mixer product if missing (for DJM900NXS2 etc.)
-    const addMixerSendReturnPorts = async () => {
-        if (!miniProfileDevice?.id || !db) return;
-        if (!isDJM900Mixer(miniProfileDevice)) return;
-        try {
-            const deviceRef = doc(db, 'products', miniProfileDevice.id);
-            const snap = await getDoc(deviceRef);
-            if (!snap.exists()) {
-                alert('Product not found in database.');
-                return;
-            }
-            const data = snap.data();
-            const existingInputs = data.inputs || [];
-            const existingOutputs = data.outputs || [];
-            const hasSendOut = existingOutputs.some(o => o.type && o.type.toLowerCase().includes('send'));
-            const hasReturnIn = existingInputs.some(i => i.type && i.type.toLowerCase().includes('return'));
-            if (hasSendOut && hasReturnIn) {
-                alert('Mixer already has Send and Return ports.');
-                return;
-            }
-            const newInputs = [...existingInputs];
-            const newOutputs = [...existingOutputs];
-            if (!hasSendOut) {
-                newOutputs.push({ type: 'Send Out', coordinate: { x: 0.02, y: 0.075, z: -0.28 } });
-            }
-            if (!hasReturnIn) {
-                newInputs.push({ type: 'Return In', coordinate: { x: 0.06, y: 0.075, z: -0.28 } });
-            }
-            await updateDoc(deviceRef, { inputs: newInputs, outputs: newOutputs });
-            const fresh = (await getDoc(deviceRef)).data();
-            const updated = { ...miniProfileDevice, inputs: fresh.inputs || newInputs, outputs: fresh.outputs || newOutputs };
-            setMiniProfileDevice(updated);
-            const list = placedDevicesListRef.current || [];
-            placedDevicesListRef.current = list.map(d => d.uniqueId === miniProfileDevice.uniqueId ? updated : d);
-            setPlacedDevicesList(placedDevicesListRef.current);
-            if (sceneRef.current && placedDevicesListRef.current.length > 0) updateConnections(placedDevicesListRef.current);
-            alert('Send Out and Return In ports added. Open "Edit connection positions" to see and adjust them.');
-        } catch (err) {
-            console.error('Error adding Send/Return ports:', err);
-            alert('Failed to add ports: ' + (err.message || 'check console'));
-        }
-    };
-
     // Add click event listener for model mapping
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
@@ -4257,10 +4205,8 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                 return true;
             });
 
-            if (miniProfileDevice?.uniqueId === uniqueId) {
-                setShowMiniProfile(false);
-                setMiniProfileDevice(null);
-                setEditConnectionsMode(false);
+            if (menuDevice?.uniqueId === uniqueId) {
+                setMenuDevice(null);
             }
 
             updatePlacedDevicesList(device, 'remove');
@@ -4296,9 +4242,7 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         });
         cablesRef.current = [];
 
-        setShowMiniProfile(false);
-        setMiniProfileDevice(null);
-        setEditConnectionsMode(false);
+        setMenuDevice(null);
         setBasicSetupComplete(false);
         setPlacedDevicesList([]);
     };
@@ -4523,31 +4467,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         });
     };
 
-    const COORD_STEP = 0.01;
-    const getCoord = (c) => ({ x: Number(c?.x) || 0, y: Number(c?.y) || 0, z: Number(c?.z) || 0 });
-
-    const updateConnectionCoordinate = (portKind, portIndex, axis, newValue) => {
-        if (!miniProfileDevice) return;
-        const ports = [...(miniProfileDevice[portKind] || [])];
-        if (portIndex < 0 || portIndex >= ports.length) return;
-        const port = { ...ports[portIndex], coordinate: { ...getCoord(ports[portIndex].coordinate) } };
-        port.coordinate[axis] = Math.round(Number(newValue) * 1000) / 1000;
-        ports[portIndex] = port;
-        const updatedDevice = { ...miniProfileDevice, [portKind]: ports };
-        const currentList = placedDevicesListRef.current || [];
-        const newList = currentList.map(d => d.uniqueId === miniProfileDevice.uniqueId ? updatedDevice : d);
-        placedDevicesListRef.current = newList;
-        setPlacedDevicesList(newList);
-        setMiniProfileDevice(updatedDevice);
-        if (sceneRef.current && newList.length > 0) {
-            updateConnections(newList);
-        }
-        if (rendererRef.current && sceneRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-        }
-    };
-
-    // Update updatePlacedDevicesList to check for basic setup completion
     const updatePlacedDevicesList = (device, action = 'add') => {
         if (action === 'add') {
             const deviceWithPosition = {
@@ -4682,33 +4601,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         snapCameraToAngle(angle);
     };
 
-    // Zoom camera in close to a placed device (for product profile)
-    const moveCameraToDevice = (device) => {
-        if (!cameraRef.current || !controlsRef.current || !device?.position) return;
-        const p = device.position;
-        const tx = typeof p.x === 'number' ? p.x : 0;
-        const ty = typeof p.y === 'number' ? p.y : 1;
-        const tz = typeof p.z === 'number' ? p.z : 0;
-        const dist = 0.8;
-        const camX = tx;
-        const camY = ty + 0.15;
-        const camZ = tz + dist;
-        gsap.to(cameraRef.current.position, {
-            x: camX, y: camY, z: camZ,
-            duration: 1,
-            ease: 'power2.inOut',
-            onUpdate: () => {
-                cameraRef.current.lookAt(tx, ty, tz);
-            }
-        });
-        gsap.to(controlsRef.current.target, {
-            x: tx, y: ty, z: tz,
-            duration: 1,
-            ease: 'power2.inOut',
-            onUpdate: () => { controlsRef.current.update(); }
-        });
-    };
-
     // Add this useEffect after your other effects
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
@@ -4805,34 +4697,11 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         setShowSuggestionForm(true);
     };
 
-
-
-    useEffect(() => {
-        if (showMiniProfile && miniProfileDevice?.uniqueId) {
-            const updated = placedDevicesList.find(d => d.uniqueId === miniProfileDevice.uniqueId);
-            if (updated) {
-                setMiniProfileDevice(updated);
-            } else {
-                setShowMiniProfile(false);
-                setMiniProfileDevice(null);
-                setEditConnectionsMode(false);
-            }
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only update when list changes, not when panel/device changes
-    }, [placedDevicesList]);
-
     // Toggle ghost-square visibility whenever devices are added/removed/loaded.
     useEffect(() => {
         applyGhostOccupancyVisibility();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- applyGhostOccupancyVisibility is a stable hoisted function
     }, [placedDevicesList]);
-
-    useEffect(() => {
-        if (showMiniProfile && miniProfileDevice && cameraRef.current && controlsRef.current) {
-            moveCameraToDevice(miniProfileDevice);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when panel opens, zoom to device
-    }, [showMiniProfile]);
 
 
     const handleBuyClick = (device, source) => {
@@ -4852,8 +4721,11 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
         }));
     };
 
+    const menuBuyLink = menuDevice ? buildBuyLink(menuDevice, affiliateAttribution) : null;
+
     return (
         <>
+            <BuilderInstructionsModal />
             <div ref={mountRef} onContextMenu={handleGhostContextMenu} style={{
                 width: "100%",
                 height: isMobile ? "calc(100vh - 60px)" : "100%",
@@ -5079,201 +4951,6 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                     </div>
                 )}
 
-                {/* Product profile: right-side panel with product info, purchase link, and Edit connections at bottom */}
-                {showMiniProfile && miniProfileDevice && (
-                    <div className="mini-profile-panel" style={{
-                        position: 'fixed',
-                        top: 0,
-                        right: 0,
-                        bottom: 0,
-                        width: isMobile ? '100%' : '320px',
-                        maxWidth: '100%',
-                        zIndex: 900,
-                        background: 'linear-gradient(180deg, #1a1a1e 0%, #121218 100%)',
-                        boxShadow: '-4px 0 24px rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.06)',
-                        borderLeft: '1px solid rgba(255,255,255,0.1)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden'
-                    }}>
-                        <div style={{ padding: '20px 20px 16px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>{miniProfileDevice.name}</h3>
-                                <button type="button" aria-label="Close" style={{
-                                    background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '24px', cursor: 'pointer', padding: '0 4px', lineHeight: 1
-                                }} onClick={() => { setShowMiniProfile(false); setEditConnectionsMode(false); setMiniProfileDevice(null); }}>×</button>
-                            </div>
-                        </div>
-                        <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {/* Product info: cost and link to purchase */}
-                            <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <div style={{ marginBottom: '10px' }}>
-                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cost</span>
-                                    <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
-                                        {typeof miniProfileDevice.price === 'number' && miniProfileDevice.price > 0
-                                            ? `$${Number(miniProfileDevice.price).toLocaleString()}`
-                                            : '—'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Purchase</span>
-                                    <div style={{ marginTop: '6px' }}>
-                                        {(() => {
-                                            const link = buildBuyLink(miniProfileDevice, affiliateAttribution);
-                                            if (!link) return <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>No purchase link available</span>;
-                                            return (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleBuyClick(miniProfileDevice, 'mini-profile')}
-                                                        style={{
-                                                            display: 'block', width: '100%', padding: '10px 12px',
-                                                            background: '#ff9900', border: 'none', borderRadius: '8px',
-                                                            color: '#111', fontSize: '14px', fontWeight: 700, cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        {buyButtonLabel(link)}
-                                                    </button>
-                                                    <div style={{ marginTop: '6px', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
-                                                        {purchaseLinkNotice(link, affiliateAttribution)}
-                                                    </div>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            </div>
-                            {!editConnectionsMode ? (
-                                <>
-                                    {isDJM900Mixer(miniProfileDevice) && (() => {
-                                        const outs = miniProfileDevice.outputs || [];
-                                        const ins = miniProfileDevice.inputs || [];
-                                        const missing = !outs.some(o => o.type && o.type.toLowerCase().includes('send')) || !ins.some(i => i.type && i.type.toLowerCase().includes('return'));
-                                        return missing ? (
-                                            <div style={{ marginBottom: '4px' }}>
-                                                <button type="button" style={{
-                                                    width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: '#2ecc71',
-                                                    background: 'rgba(46, 204, 113, 0.2)', border: '1px solid rgba(46, 204, 113, 0.5)', borderRadius: '10px',
-                                                    cursor: 'pointer', fontFamily: 'inherit'
-                                                }} onClick={addMixerSendReturnPorts}>
-                                                    Add Send &amp; Return ports to mixer
-                                                </button>
-                                                <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Adds &quot;Send Out&quot; (output) and &quot;Return In&quot; (input) for FX/Revolo cables. Then use Edit connection positions below to place them.</p>
-                                            </div>
-                                        ) : null;
-                                    })()}
-                                    <p style={{ margin: '0 0 8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Adjust where cables attach to this device (X, Y, Z). Changes appear in the scene.</p>
-                                    <button type="button" className="edit-connections-btn" style={{
-                                        width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 600, color: 'var(--accent)',
-                                        background: 'var(--primary-soft)', border: '1px solid var(--primary-border)', borderRadius: '10px',
-                                        cursor: 'pointer', fontFamily: 'inherit'
-                                    }} onClick={() => setEditConnectionsMode(true)}>
-                                        Edit connection positions
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>Nudge X, Y, Z so cable endpoints match the 3D model. Watch the scene update.</p>
-                                    {(() => {
-                                        const mixerMissingSendReturn = isDJM900Mixer(miniProfileDevice) && (
-                                            !(miniProfileDevice.outputs || []).some(o => o.type && o.type.toLowerCase().includes('send')) ||
-                                            !(miniProfileDevice.inputs || []).some(i => i.type && i.type.toLowerCase().includes('return'))
-                                        );
-                                        return mixerMissingSendReturn ? (
-                                            <div style={{ marginBottom: '16px' }}>
-                                                <button type="button" style={{
-                                                    width: '100%', padding: '10px 16px', fontSize: '13px', fontWeight: 600, color: '#2ecc71',
-                                                    background: 'rgba(46, 204, 113, 0.15)', border: '1px solid rgba(46, 204, 113, 0.4)', borderRadius: '8px',
-                                                    cursor: 'pointer', fontFamily: 'inherit'
-                                                }} onClick={addMixerSendReturnPorts}>
-                                                    Add Send &amp; Return ports
-                                                </button>
-                                                <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Adds &quot;Send Out&quot; (output) and &quot;Return In&quot; (input) for FX/Revolo cables.</p>
-                                            </div>
-                                        ) : null;
-                                    })()}
-                                    {(['inputs', 'outputs']).map(portKind => {
-                                        const ports = miniProfileDevice[portKind] || [];
-                                        const label = portKind === 'inputs' ? 'Inputs' : 'Outputs';
-                                        const isMixer = (miniProfileDevice.name || '').toLowerCase().includes('djm') || (miniProfileDevice.name || '').toLowerCase().includes('mixer');
-                                        const getDisplayLabel = (p, idx) => {
-                                            if (isMixer && portKind === 'inputs') {
-                                                const t = (p.type || '').toLowerCase();
-                                                if (t.includes('return')) return 'Return';
-                                                if (t.match(/^line\s*(\d)$/)) {
-                                                    const num = t.replace(/\D/g, '');
-                                                    if (num === '6') return 'Return';
-                                                    return `Line ${num}`;
-                                                }
-                                                if (t.includes('1/4') || t === 'rca' || (t && !t.match(/^line\s*\d$/) && !t.match(/^ch\s*\d$/))) {
-                                                    if (idx + 1 === 6) return 'Return';
-                                                    return `Line ${idx + 1}`;
-                                                }
-                                            }
-                                            return p.type || `${label.slice(0, -1)} ${idx + 1}`;
-                                        };
-                                        if (ports.length === 0) return null;
-                                        return (
-                                            <div key={portKind} style={{ marginBottom: '20px' }}>
-                                                <h4 style={{ margin: '0 0 8px', color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>{label}</h4>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                    {ports.map((port, i) => {
-                                                        const coord = getCoord(port.coordinate);
-                                                        const axisStyle = { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' };
-                                                        const btnStyle = { width: '28px', height: '28px', padding: 0, border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' };
-                                                        const numStyle = { width: '76px', padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', color: '#fff', fontSize: '13px', textAlign: 'center' };
-                                                        const displayLabel = getDisplayLabel(port, i);
-                                                        return (
-                                                            <div key={i} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                                                <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500, marginBottom: '6px' }}>{displayLabel}</div>
-                                                                {['x', 'y', 'z'].map(axis => (
-                                                                    <div key={axis} style={axisStyle}>
-                                                                        <span style={{ width: '14px', color: 'rgba(255,255,255,0.7)', fontSize: '12px', textTransform: 'uppercase' }}>{axis}</span>
-                                                                        <button type="button" aria-label={`${axis} minus`} style={btnStyle} onClick={() => updateConnectionCoordinate(portKind, i, axis, coord[axis] - COORD_STEP)}>−</button>
-                                                                        <input type="number" step={COORD_STEP} value={coord[axis]} style={numStyle} onChange={e => updateConnectionCoordinate(portKind, i, axis, e.target.value)} />
-                                                                        <button type="button" aria-label={`${axis} plus`} style={btnStyle} onClick={() => updateConnectionCoordinate(portKind, i, axis, coord[axis] + COORD_STEP)}>+</button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    <button type="button" style={{
-                                        marginTop: '16px', width: '100%', padding: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.8)',
-                                        background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit'
-                                    }} onClick={async () => {
-                                        let saved = false;
-                                        if (miniProfileDevice?.id) {
-                                            const pos = (c) => ({ x: Number(c?.x) || 0, y: Number(c?.y) || 0, z: Number(c?.z) || 0 });
-                                            const inputs = miniProfileDevice.inputs || [];
-                                            for (let i = 0; i < inputs.length; i++) {
-                                                const port = inputs[i];
-                                                if (port?.coordinate) {
-                                                    await updateConnectionPoint(miniProfileDevice.id, 'inputs', port.type, pos(port.coordinate), i);
-                                                    saved = true;
-                                                }
-                                            }
-                                            const outputs = miniProfileDevice.outputs || [];
-                                            for (let i = 0; i < outputs.length; i++) {
-                                                const port = outputs[i];
-                                                if (port?.coordinate) {
-                                                    await updateConnectionPoint(miniProfileDevice.id, 'outputs', port.type, pos(port.coordinate), i);
-                                                    saved = true;
-                                                }
-                                            }
-                                        }
-                                        setEditConnectionsMode(false);
-                                        if (saved) alert('Connection positions saved to product.');
-                                    }}>Done</button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* Mobile Navigation */}
                 {isMobile && (
                     <MobileNavigation
@@ -5349,10 +5026,12 @@ function ThreeScene({ devices, isInitialized, setupType, setting, onSettingChang
                         }
                         setMenuDevice(null);
                     }}
-                    onBuy={(d) => {
+                    onBuy={menuBuyLink ? (d) => {
                         handleBuyClick(d, 'hover-menu');
                         setMenuDevice(null);
-                    }}
+                    } : undefined}
+                    buyMonetized={menuBuyLink?.monetized ?? null}
+                    buyTitle={menuBuyLink ? purchaseLinkNotice(menuBuyLink, affiliateAttribution) : 'Buy'}
                     onClose={() => setMenuDevice(null)}
                 />
 
