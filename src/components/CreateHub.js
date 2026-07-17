@@ -81,10 +81,7 @@ function CreateHub({ onNewSetup }) {
                 <MdVideocam size={26} />
               </div>
               <div className="hub-post-card__body">
-                <div className="hub-post-card__title">
-                  Multi-angle edit
-                  <span className="hub-post-card__badge">New</span>
-                </div>
+                <div className="hub-post-card__title">Multi-angle edit</div>
                 <div className="hub-post-card__subtitle">Up to 3 cameras + lossless master audio.</div>
               </div>
               <div className="hub-post-card__arrow" aria-hidden="true">
