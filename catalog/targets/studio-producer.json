@@ -1,0 +1,154 @@
+{
+  "persona": "studio-producer",
+  "label": "Studio producer / engineer",
+  "description": "Interfaces, monitors, mics, MIDI controllers, and workhorse studio gear beyond flagship synths.",
+  "targets": [
+    {
+      "name": "Shure SM57",
+      "brand": "Shure",
+      "category": "Producer",
+      "subcategory": "microphones",
+      "type": "dynamic",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Ubiquitous instrument mic; every studio should have one."
+    },
+    {
+      "name": "Shure SM7B",
+      "brand": "Shure",
+      "category": "Producer",
+      "subcategory": "microphones",
+      "type": "dynamic",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Podcast/vocal staple; high recognition for producers and streamers."
+    },
+    {
+      "name": "Shure SM58",
+      "brand": "Shure",
+      "category": "Musician",
+      "subcategory": "microphones",
+      "type": "vocal_mic",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Live vocal standard; also useful in Musician setups.",
+      "kbKeys": ["SM58"]
+    },
+    {
+      "name": "Novation Launchpad X",
+      "brand": "Novation",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "pad_controller",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Fill empty MIDI/pad controller subcategory.",
+      "width_mm": 241,
+      "depth_mm": 241,
+      "height_mm": 21
+    },
+    {
+      "name": "Ableton Push 3",
+      "brand": "Ableton",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "midi_controller",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "High-visibility Ableton controller.",
+      "kbKeys": ["Push 3", "Ableton Push 3"]
+    },
+    {
+      "name": "Akai APC40 mkII",
+      "brand": "Akai",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "midi_controller",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Classic Ableton performance controller."
+    },
+    {
+      "name": "Universal Audio Volt 2",
+      "brand": "Universal Audio",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Accessible UA interface tier below Apollo."
+    },
+    {
+      "name": "SSL 2",
+      "brand": "Solid State Logic",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Popular budget SSL interface."
+    },
+    {
+      "name": "Universal Audio Apollo Twin",
+      "brand": "Universal Audio",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Pro interface; KB already has entry.",
+      "kbKeys": ["Apollo Twin"]
+    },
+    {
+      "name": "beyerdynamic DT 770 Pro",
+      "brand": "beyerdynamic",
+      "category": "DJ",
+      "subcategory": "accessories",
+      "type": "headphones",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Studio monitoring headphones; maps to accessories until a dedicated headphones subcategory exists."
+    },
+    {
+      "name": "Audio-Technica ATH-M50x",
+      "brand": "Audio-Technica",
+      "category": "DJ",
+      "subcategory": "accessories",
+      "type": "headphones",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Very common producer/DJ headphone."
+    },
+    {
+      "name": "KRK Rokit 5 G4",
+      "brand": "KRK",
+      "category": "Producer",
+      "subcategory": "monitors",
+      "type": "studio_monitor",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Bedroom-studio monitor alternative to HS8."
+    },
+    {
+      "name": "Adam Audio T7V",
+      "brand": "Adam Audio",
+      "category": "Producer",
+      "subcategory": "monitors",
+      "type": "studio_monitor",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Popular mid-budget studio monitors."
+    },
+    {
+      "name": "Elektron Digitakt",
+      "brand": "Elektron",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "priority": 2,
+      "tier": "nice",
+      "notes": "Lower priority while synth subcategory is already heavy; keep for sampler/groovebox coverage.",
+      "kbKeys": ["Digitakt"]
+    }
+  ]
+}

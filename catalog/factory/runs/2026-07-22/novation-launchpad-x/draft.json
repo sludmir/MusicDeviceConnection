@@ -1,0 +1,82 @@
+{
+  "id": "novation-launchpad-x",
+  "name": "Novation Launchpad X",
+  "brand": "Novation",
+  "category": "Producer",
+  "subcategory": "controllers",
+  "reasons": [
+    "essential target",
+    "priority 5",
+    "controllers empty"
+  ],
+  "draft": {
+    "name": "Novation Launchpad X",
+    "brand": "Novation",
+    "type": "pad_controller",
+    "category": "Producer",
+    "subcategory": "controllers",
+    "description": "Fill empty MIDI/pad controller subcategory.",
+    "price": 0,
+    "locationPriority": 1000,
+    "inputs": [],
+    "outputs": [],
+    "connections": [],
+    "specifications": {},
+    "features": [],
+    "modelPath": "",
+    "modelScale": 1,
+    "imageUrl": "",
+    "affiliateUrl": "",
+    "purchaseUrl": "",
+    "commerceStatus": "",
+    "commerceRetailer": "",
+    "commerceAvailability": "",
+    "width_mm": 241,
+    "depth_mm": 241,
+    "height_mm": 21,
+    "isActive": true,
+    "factoryMeta": {
+      "backlogId": "novation-launchpad-x",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "controllers empty"
+      ],
+      "kbMatch": false
+    }
+  },
+  "filename": "NovationNovationLaunchpadX.glb",
+  "glbRelativePath": "catalog/factory/runs/2026-07-22/novation-launchpad-x/NovationNovationLaunchpadX.glb",
+  "hasGlb": true,
+  "sizeBytes": 7128208,
+  "thumbnailUrl": "https://assets.meshy.ai/2751f438-2824-430e-b9f8-dd8f9fb730bb/tasks/019f87bf-c815-7c98-bad9-f2407db5c4a6/output/preview.png?Expires=1784948281&Signature=ao3zpadYWK8WUxR69WpELAUd1Dx8VdE1b-oByKPyVRIn5gHB2aYGv8PtjsrzoV2nmkdXN2Da2~DkkIabzI5-uOHCvGyIoqZVjPxiL6lNkQFmwZYK5iJyxhpx1SHeSE-BaFOKrYD0E0q8Josbpr9hiz15adfEPxjMcwAwGz~FA6dW5aBcR8XRo~3QGSuqG~dTThBeVftZ~hBXNH~etxt2DJanE~RsDGdovQEennx9w1PYKTctpqbcG9NzmGtDOo2OzkK6s08FNXr3Gw0R5oVn8dX6mFCg5BrfukCaus-CKlIF00qZTn5yx8edB09lCnvV-NCtfgy8AtwcOWZ9DPt~rA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "modelThumbnailUrl": "https://assets.meshy.ai/2751f438-2824-430e-b9f8-dd8f9fb730bb/tasks/019f87bf-c815-7c98-bad9-f2407db5c4a6/output/preview.png?Expires=1784948281&Signature=ao3zpadYWK8WUxR69WpELAUd1Dx8VdE1b-oByKPyVRIn5gHB2aYGv8PtjsrzoV2nmkdXN2Da2~DkkIabzI5-uOHCvGyIoqZVjPxiL6lNkQFmwZYK5iJyxhpx1SHeSE-BaFOKrYD0E0q8Josbpr9hiz15adfEPxjMcwAwGz~FA6dW5aBcR8XRo~3QGSuqG~dTThBeVftZ~hBXNH~etxt2DJanE~RsDGdovQEennx9w1PYKTctpqbcG9NzmGtDOo2OzkK6s08FNXr3Gw0R5oVn8dX6mFCg5BrfukCaus-CKlIF00qZTn5yx8edB09lCnvV-NCtfgy8AtwcOWZ9DPt~rA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "modelPreviewPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/runs/2026-07-22/novation-launchpad-x/model-preview.jpg",
+  "referenceImageUrl": null,
+  "publicImageUrl": null,
+  "previewPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/runs/2026-07-22/novation-launchpad-x/model-preview.jpg",
+  "refPreviewPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/refs/novation-launchpad-x.jpg",
+  "cachedPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/refs/novation-launchpad-x.jpg",
+  "meshyTaskId": "019f87bf-c815-7c98-bad9-f2407db5c4a6",
+  "targetPolycount": 10000,
+  "qa": {
+    "ok": true,
+    "sizeBytes": 7128208,
+    "bbox": {
+      "x": 0.12167343497276306,
+      "y": 0.029999997466802597,
+      "z": 0.12239052355289459
+    },
+    "reasons": [],
+    "softFlags": [
+      "mid_axis_ratio_mismatch"
+    ]
+  },
+  "status": "staged_pending_approval",
+  "approveUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJub3ZhdGlvbi1sYXVuY2hwYWQteCIsImRlY2lzaW9uIjoiYXBwcm92ZSIsImV4cCI6MTc4NTI5Mzg5MDg1N30.lZSSB9PekTi4LuN2GT0Q-3H4c71idY5URTbZep2M-9c",
+  "rejectUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJub3ZhdGlvbi1sYXVuY2hwYWQteCIsImRlY2lzaW9uIjoicmVqZWN0IiwiZXhwIjoxNzg1MjkzODkwODU4fQ.XiYs27KA4ZnRoOhZBWuxB0B8_sBsOOwi85epauz_jvc"
+}

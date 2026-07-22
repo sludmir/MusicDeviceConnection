@@ -1,0 +1,70 @@
+{
+  "id": "pioneer-cdj-2000nxs2",
+  "name": "Pioneer CDJ-2000NXS2",
+  "brand": "Pioneer DJ",
+  "category": "DJ",
+  "subcategory": "players",
+  "reasons": [
+    "essential target",
+    "priority 5",
+    "in KB not live"
+  ],
+  "draft": {
+    "name": "Pioneer CDJ-2000NXS2",
+    "brand": "Pioneer DJ",
+    "type": "cdj",
+    "category": "DJ",
+    "subcategory": "players",
+    "description": "Club-standard older CDJ; still widely used and cheaper used than CDJ-3000.",
+    "price": 0,
+    "locationPriority": 1000,
+    "inputs": [],
+    "outputs": [],
+    "connections": [],
+    "specifications": {},
+    "features": [],
+    "modelPath": "",
+    "modelScale": 1,
+    "imageUrl": "",
+    "affiliateUrl": "",
+    "purchaseUrl": "",
+    "commerceStatus": "",
+    "commerceRetailer": "",
+    "commerceAvailability": "",
+    "width_mm": null,
+    "depth_mm": null,
+    "height_mm": null,
+    "isActive": true,
+    "factoryMeta": {
+      "backlogId": "pioneer-cdj-2000nxs2",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 100,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "in KB not live"
+      ],
+      "kbMatch": true
+    }
+  },
+  "filename": "PioneerDJPioneerCDJ2000NXS2.glb",
+  "glbRelativePath": null,
+  "sizeBytes": 0,
+  "thumbnailUrl": null,
+  "referenceImageUrl": "file:///Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/refs/pioneer-cdj-2000nxs2.jpg",
+  "meshyTaskId": null,
+  "targetPolycount": 10000,
+  "qa": {
+    "ok": true,
+    "sizeBytes": 0,
+    "reasons": [
+      "meshy_skipped"
+    ],
+    "softFlags": []
+  },
+  "status": "staged_pending_approval",
+  "approveUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJwaW9uZWVyLWNkai0yMDAwbnhzMiIsImRlY2lzaW9uIjoiYXBwcm92ZSIsImV4cCI6MTc4NTI5MDQwMTc4OX0.bKu2_xdhlobp_f8HYF41jvtyCgHMSz09fScO1-E5tSE",
+  "rejectUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJwaW9uZWVyLWNkai0yMDAwbnhzMiIsImRlY2lzaW9uIjoicmVqZWN0IiwiZXhwIjoxNzg1MjkwNDAxNzg5fQ.oGNoiSD0yXEinUKLOqjiGAPYO25rdTlICAzcs2YlJOs"
+}

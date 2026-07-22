@@ -1,0 +1,47 @@
+name: Catalog gap analysis
+
+on:
+  schedule:
+    # Mondays 14:00 UTC — refresh backlog while the side project sleeps
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MUSICDEVICECONNECTION }}
+
+      - run: npm ci
+
+      - name: Analyze catalog gaps
+        run: npm run analyze-catalog -- --no-dated
+
+      - name: Open PR if backlog changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore(catalog): refresh product backlog'
+          title: 'chore(catalog): refresh product backlog'
+          body: |
+            Weekly catalog gap analysis refresh (`npm run analyze-catalog`).
+
+            Review `catalog/backlog/latest.md` for need-more / need-less and top recommendations.
+            This PR does **not** create products or change Firestore.
+          branch: chore/catalog-backlog-refresh
+          delete-branch: true
+          add-paths: |
+            catalog/backlog/latest.json
+            catalog/backlog/latest.md

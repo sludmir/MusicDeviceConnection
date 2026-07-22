@@ -249,3 +249,7 @@ exports.bunnyWebhook = onRequest(
     return res.status(200).send(`ok (updated ${updated})`);
   }
 );
+
+/** Product factory: one-click Approve/Reject from weekly email digests. */
+const { createFactoryDecide } = require('./factoryDecide');
+exports.factoryDecide = createFactoryDecide();

@@ -1,0 +1,1251 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-17T23:58:41.292Z",
+  "source": "firestore",
+  "summary": {
+    "totalLiveProducts": 19,
+    "backlogOpen": 47,
+    "backlogLive": 0,
+    "targetFiles": 3,
+    "kbNotLiveCount": 23
+  },
+  "coverage": {
+    "DJ::players": 3,
+    "DJ::mixers": 3,
+    "DJ::effects": 2,
+    "DJ::speakers": 1,
+    "DJ::cables": 0,
+    "DJ::accessories": 0,
+    "Producer::audio-interface": 1,
+    "Producer::synthesizers": 5,
+    "Producer::controllers": 0,
+    "Producer::monitors": 1,
+    "Producer::microphones": 0,
+    "Producer::software": 0,
+    "Musician::instruments": 2,
+    "Musician::amplifiers": 0,
+    "Musician::effects": 0,
+    "Musician::microphones": 0,
+    "Musician::cables": 0,
+    "Musician::accessories": 0,
+    "Producer::accessories": 1
+  },
+  "coverageSummary": {
+    "needMore": [
+      {
+        "category": "DJ",
+        "subcategory": "accessories",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Musician",
+        "subcategory": "amplifiers",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Musician",
+        "subcategory": "effects",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Musician",
+        "subcategory": "microphones",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Musician",
+        "subcategory": "accessories",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Producer",
+        "subcategory": "controllers",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "Producer",
+        "subcategory": "microphones",
+        "count": 0,
+        "note": "empty — prioritize"
+      },
+      {
+        "category": "DJ",
+        "subcategory": "speakers",
+        "count": 1,
+        "note": "thin coverage"
+      },
+      {
+        "category": "Producer",
+        "subcategory": "audio-interface",
+        "count": 1,
+        "note": "thin coverage"
+      },
+      {
+        "category": "Producer",
+        "subcategory": "monitors",
+        "count": 1,
+        "note": "thin coverage"
+      },
+      {
+        "category": "Producer",
+        "subcategory": "accessories",
+        "count": 1,
+        "note": "thin coverage"
+      }
+    ],
+    "needLess": [
+      {
+        "category": "Producer",
+        "subcategory": "synthesizers",
+        "count": 5,
+        "note": "well covered — deprioritize similar adds"
+      }
+    ]
+  },
+  "topRecommendations": [
+    {
+      "id": "boss-ds-1-distortion",
+      "name": "Boss DS-1 Distortion",
+      "score": 115,
+      "personas": [
+        "guitar-rig"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "effects empty"
+      ]
+    },
+    {
+      "id": "fender-twin-reverb",
+      "name": "Fender Twin Reverb",
+      "score": 115,
+      "personas": [
+        "guitar-rig"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "amplifiers empty"
+      ]
+    },
+    {
+      "id": "ibanez-tube-screamer-ts9",
+      "name": "Ibanez Tube Screamer TS9",
+      "score": 115,
+      "personas": [
+        "guitar-rig"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "effects empty"
+      ]
+    },
+    {
+      "id": "marshall-jcm800",
+      "name": "Marshall JCM800",
+      "score": 115,
+      "personas": [
+        "guitar-rig"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "amplifiers empty"
+      ]
+    },
+    {
+      "id": "novation-launchpad-x",
+      "name": "Novation Launchpad X",
+      "score": 115,
+      "personas": [
+        "studio-producer"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "controllers empty"
+      ]
+    },
+    {
+      "id": "shure-sm57",
+      "name": "Shure SM57",
+      "score": 115,
+      "personas": [
+        "studio-producer"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "microphones empty"
+      ]
+    },
+    {
+      "id": "shure-sm7b",
+      "name": "Shure SM7B",
+      "score": 115,
+      "personas": [
+        "studio-producer"
+      ],
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "microphones empty"
+      ]
+    },
+    {
+      "id": "ableton-push-3",
+      "name": "Ableton Push 3",
+      "score": 112,
+      "personas": [
+        "studio-producer"
+      ],
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "controllers empty",
+        "in KB not live"
+      ]
+    },
+    {
+      "id": "shure-sm58",
+      "name": "Shure SM58",
+      "score": 112,
+      "personas": [
+        "studio-producer"
+      ],
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "microphones empty",
+        "in KB not live"
+      ]
+    },
+    {
+      "id": "strymon-bigsky",
+      "name": "Strymon BigSky",
+      "score": 112,
+      "personas": [
+        "guitar-rig"
+      ],
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "effects empty",
+        "in KB not live"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "boss-ds-1-distortion",
+      "name": "Boss DS-1 Distortion",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "effects empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Most recognizable distortion pedal; fills empty effects subcategory."
+    },
+    {
+      "id": "fender-twin-reverb",
+      "name": "Fender Twin Reverb",
+      "brand": "Fender",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "guitar_amp",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "amplifiers empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Iconic clean amp; fills empty amplifiers subcategory."
+    },
+    {
+      "id": "ibanez-tube-screamer-ts9",
+      "name": "Ibanez Tube Screamer TS9",
+      "brand": "Ibanez",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "effects empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Overdrive staple on countless boards."
+    },
+    {
+      "id": "marshall-jcm800",
+      "name": "Marshall JCM800",
+      "brand": "Marshall",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "guitar_amp",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "amplifiers empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Classic rock amp head; high recognition."
+    },
+    {
+      "id": "novation-launchpad-x",
+      "name": "Novation Launchpad X",
+      "brand": "Novation",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "pad_controller",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "controllers empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Fill empty MIDI/pad controller subcategory."
+    },
+    {
+      "id": "shure-sm57",
+      "name": "Shure SM57",
+      "brand": "Shure",
+      "category": "Producer",
+      "subcategory": "microphones",
+      "type": "dynamic",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "microphones empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Ubiquitous instrument mic; every studio should have one."
+    },
+    {
+      "id": "shure-sm7b",
+      "name": "Shure SM7B",
+      "brand": "Shure",
+      "category": "Producer",
+      "subcategory": "microphones",
+      "type": "dynamic",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "microphones empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Podcast/vocal staple; high recognition for producers and streamers."
+    },
+    {
+      "id": "ableton-push-3",
+      "name": "Ableton Push 3",
+      "brand": "Ableton",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "midi_controller",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 112,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "controllers empty",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "High-visibility Ableton controller."
+    },
+    {
+      "id": "shure-sm58",
+      "name": "Shure SM58",
+      "brand": "Shure",
+      "category": "Musician",
+      "subcategory": "microphones",
+      "type": "vocal_mic",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 112,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "microphones empty",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Live vocal standard; also useful in Musician setups."
+    },
+    {
+      "id": "strymon-bigsky",
+      "name": "Strymon BigSky",
+      "brand": "Strymon",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 112,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "effects empty",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Premium reverb; also in KB (mis-tagged Producer — treat as Musician pedal)."
+    },
+    {
+      "id": "pioneer-cdj-2000nxs2",
+      "name": "Pioneer CDJ-2000NXS2",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "cdj",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 100,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Club-standard older CDJ; still widely used and cheaper used than CDJ-3000."
+    },
+    {
+      "id": "beyerdynamic-dt-770-pro",
+      "name": "beyerdynamic DT 770 Pro",
+      "brand": "beyerdynamic",
+      "category": "DJ",
+      "subcategory": "accessories",
+      "type": "headphones",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 92,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "accessories empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Studio monitoring headphones; maps to accessories until a dedicated headphones subcategory exists."
+    },
+    {
+      "id": "boss-dd-8-digital-delay",
+      "name": "Boss DD-8 Digital Delay",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 92,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "effects empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Workhorse delay pedal."
+    },
+    {
+      "id": "vox-ac30",
+      "name": "Vox AC30",
+      "brand": "Vox",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "combo_amp",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 92,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "amplifiers empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "British combo staple."
+    },
+    {
+      "id": "boss-re-201-space-echo",
+      "name": "Boss RE-201 Space Echo",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 89,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "effects empty",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Iconic tape echo; in KB."
+    },
+    {
+      "id": "pioneer-ddj-flx4",
+      "name": "Pioneer DDJ-FLX4",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 80,
+      "reasons": [
+        "essential target",
+        "priority 5"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Current entry-level rekordbox/Serato controller; beginner-friendly."
+    },
+    {
+      "id": "pioneer-djm-750mk2",
+      "name": "Pioneer DJM-750MK2",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 80,
+      "reasons": [
+        "essential target",
+        "priority 5"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "4-channel club mixer below A9/V10 price; common upgrade from controllers."
+    },
+    {
+      "id": "allen-heath-xone-92",
+      "name": "Allen & Heath Xone:92",
+      "brand": "Allen & Heath",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 77,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Analog cult classic; pairs with CDJs/turntables."
+    },
+    {
+      "id": "pioneer-ddj-1000",
+      "name": "Pioneer DDJ-1000",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 77,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Full-size jog controller; strong mid-tier reputation."
+    },
+    {
+      "id": "pioneer-ddj-flx10",
+      "name": "Pioneer DDJ-FLX10",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 77,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Pro 4-channel controller; bridge between bedroom and club."
+    },
+    {
+      "id": "pioneer-xdj-xz",
+      "name": "Pioneer XDJ-XZ",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 77,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "All-in-one standalone system; common home/club hybrid."
+    },
+    {
+      "id": "krk-rokit-5-g4",
+      "name": "KRK Rokit 5 G4",
+      "brand": "KRK",
+      "category": "Producer",
+      "subcategory": "monitors",
+      "type": "studio_monitor",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 75,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "monitors thin (1)"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Bedroom-studio monitor alternative to HS8."
+    },
+    {
+      "id": "ssl-2",
+      "name": "SSL 2",
+      "brand": "Solid State Logic",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 75,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "audio-interface thin (1)"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Popular budget SSL interface."
+    },
+    {
+      "id": "universal-audio-volt-2",
+      "name": "Universal Audio Volt 2",
+      "brand": "Universal Audio",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 75,
+      "reasons": [
+        "popular target",
+        "priority 4",
+        "audio-interface thin (1)"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Accessible UA interface tier below Apollo."
+    },
+    {
+      "id": "universal-audio-apollo-twin",
+      "name": "Universal Audio Apollo Twin",
+      "brand": "Universal Audio",
+      "category": "Producer",
+      "subcategory": "audio-interface",
+      "type": "audio_interface",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 72,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "audio-interface thin (1)",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Pro interface; KB already has entry."
+    },
+    {
+      "id": "akai-apc40-mkii",
+      "name": "Akai APC40 mkII",
+      "brand": "Akai",
+      "category": "Producer",
+      "subcategory": "controllers",
+      "type": "midi_controller",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 69,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "controllers empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Classic Ableton performance controller."
+    },
+    {
+      "id": "audio-technica-ath-m50x",
+      "name": "Audio-Technica ATH-M50x",
+      "brand": "Audio-Technica",
+      "category": "DJ",
+      "subcategory": "accessories",
+      "type": "headphones",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 69,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "accessories empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Very common producer/DJ headphone."
+    },
+    {
+      "id": "electro-harmonix-soul-food",
+      "name": "Electro-Harmonix Soul Food",
+      "brand": "Electro-Harmonix",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 69,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "effects empty"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Popular transparent overdrive."
+    },
+    {
+      "id": "native-instruments-traktor-kontrol-s4-mk3",
+      "name": "Native Instruments Traktor Kontrol S4 MK3",
+      "brand": "Native Instruments",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 69,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "native-instruments-traktor-kontrol-x1",
+      "name": "Native Instruments Traktor Kontrol X1",
+      "brand": "Native Instruments",
+      "category": "DJ",
+      "subcategory": "effects",
+      "type": "controller",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 69,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "pioneer-djm-v10",
+      "name": "Pioneer DJM-V10",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 69,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "pioneer-djs-1000",
+      "name": "Pioneer DJS-1000",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "effects",
+      "type": "fx_unit",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 69,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "pioneer-sp-16",
+      "name": "Pioneer SP-16",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "effects",
+      "type": "fx_unit",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 69,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "denon-dj-sc5000",
+      "name": "Denon DJ SC5000",
+      "brand": "Denon DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "media_player",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 57,
+      "reasons": [
+        "popular target",
+        "priority 4"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Engine OS alternative to Pioneer CDJs."
+    },
+    {
+      "id": "adam-audio-t7v",
+      "name": "Adam Audio T7V",
+      "brand": "Adam Audio",
+      "category": "Producer",
+      "subcategory": "monitors",
+      "type": "studio_monitor",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 52,
+      "reasons": [
+        "nice target",
+        "priority 3",
+        "monitors thin (1)"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Popular mid-budget studio monitors."
+    },
+    {
+      "id": "eventide-h9",
+      "name": "Eventide H9",
+      "brand": "Eventide",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "pedal",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "moog-minimoog-model-d",
+      "name": "Moog Minimoog Model D",
+      "brand": "Moog",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "roland-juno-106",
+      "name": "Roland Juno-106",
+      "brand": "Roland",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "roland-tr-808",
+      "name": "Roland TR-808",
+      "brand": "Roland",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "roland-tr-909",
+      "name": "Roland TR-909",
+      "brand": "Roland",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "teenage-engineering-op-1-field",
+      "name": "Teenage Engineering OP-1 Field",
+      "brand": "Teenage Engineering",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "kb-gap"
+      ],
+      "score": 49,
+      "reasons": [
+        "popular target",
+        "priority 3",
+        "synthesizers already heavy (5)",
+        "in KB not live",
+        "KB-only candidate"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Present in productKnowledgeBase but not live in Firestore."
+    },
+    {
+      "id": "pioneer-djm-a9",
+      "name": "Pioneer DJM-A9",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 46,
+      "reasons": [
+        "nice target",
+        "priority 2",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Flagship mixer — lower priority while mid-tier gaps remain."
+    },
+    {
+      "id": "audio-technica-at-lp140xp",
+      "name": "Audio-Technica AT-LP140XP",
+      "brand": "Audio-Technica",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "turntable",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 34,
+      "reasons": [
+        "nice target",
+        "priority 3"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Accessible direct-drive DJ turntable."
+    },
+    {
+      "id": "denon-dj-prime-go",
+      "name": "Denon DJ Prime Go",
+      "brand": "Denon DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 34,
+      "reasons": [
+        "nice target",
+        "priority 3"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Battery-powered all-in-one; mobile/DJ-lite setups."
+    },
+    {
+      "id": "fender-precision-bass",
+      "name": "Fender Precision Bass",
+      "brand": "Fender",
+      "category": "Musician",
+      "subcategory": "instruments",
+      "type": "bass",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 34,
+      "reasons": [
+        "nice target",
+        "priority 3"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Bass coverage beyond Strat/Les Paul."
+    },
+    {
+      "id": "reloop-rp-7000-mk2",
+      "name": "Reloop RP-7000 MK2",
+      "brand": "Reloop",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "turntable",
+      "personas": [
+        "accessible-dj"
+      ],
+      "score": 34,
+      "reasons": [
+        "nice target",
+        "priority 3"
+      ],
+      "status": "proposed",
+      "kbMatch": false,
+      "meshyBrief": null,
+      "notes": "Reputable Technics alternative for vinyl DJs."
+    },
+    {
+      "id": "elektron-digitakt",
+      "name": "Elektron Digitakt",
+      "brand": "Elektron",
+      "category": "Producer",
+      "subcategory": "synthesizers",
+      "type": "synthesizer",
+      "personas": [
+        "studio-producer"
+      ],
+      "score": 26,
+      "reasons": [
+        "nice target",
+        "priority 2",
+        "synthesizers already heavy (5)",
+        "in KB not live"
+      ],
+      "status": "proposed",
+      "kbMatch": true,
+      "meshyBrief": null,
+      "notes": "Lower priority while synth subcategory is already heavy; keep for sampler/groovebox coverage."
+    }
+  ]
+}

@@ -50,3 +50,9 @@ Blender files export/
 # Local tooling / scratch (not app code)
 .superpowers/
 models/
+
+# Product factory binaries (manifests/drafts JSON may be committed)
+catalog/factory/runs/**/*.glb
+catalog/factory/refs/**
+!catalog/factory/refs/README.md
+

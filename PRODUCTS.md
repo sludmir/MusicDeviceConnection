@@ -2,7 +2,7 @@
 
 Auto-generated from the Firestore `products` collection. **Do not edit by hand** — run `npm run dump-products` to regenerate.
 
-Last generated: 2026-07-08
+Last generated: 2026-07-22
 Total products: 20
 
 Products compatible with multiple setup types appear in each relevant section.
@@ -35,17 +35,14 @@ Products compatible with multiple setup types appear in each relevant section.
 - **Sequential Prophet-6** — Sequential — synthesizers — 3D model: ✓
 - **Yamaha HS8** — Yamaha — monitors — 3D model: ✓
 
-## Musician (5)
+## Musician (6)
 
+- **Boss DS-1 Distortion** — Boss — effects — 3D model: ✓
 - **DJM-900NXS2** — Pioneer DJ — mixers — 3D model: ✓
 - **Fender Stratocaster** — Fender — instruments — 3D model: ✓
 - **Gibson Les Paul Standard** — Gibson — instruments — 3D model: ✓
 - **RMX-1000** — Pioneer DJ — FX unit — 3D model: ✓
 - **Yamaha HS8** — Yamaha — monitors — 3D model: ✓
-
-## Other (1)
-
-- **undefined** — — — — — 3D model: ✗
 
 ---
 

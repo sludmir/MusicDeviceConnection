@@ -1,0 +1,82 @@
+name: LiveSet Product Factory
+
+on:
+  schedule:
+    # Mondays 15:00 UTC — weekly product batch (max 15)
+    - cron: '0 15 * * 1'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max products this run (≤15)'
+        required: false
+        default: '15'
+      dry_run:
+        description: 'Dry run (no Meshy, no email send)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  factory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MUSICDEVICECONNECTION }}
+
+      - run: npm ci
+
+      - name: Run product factory
+        env:
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+          FACTORY_HMAC_SECRET: ${{ secrets.FACTORY_HMAC_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FACTORY_EMAIL_TO: sebasludmir@gmail.com
+          FACTORY_DECIDE_URL: https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '15' }}"
+          EXTRA=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA="--dry-run --skip-meshy"
+          fi
+          npm run factory:week -- --limit "$LIMIT" $EXTRA
+
+      - name: Upload run to Storage
+        if: ${{ github.event.inputs.dry_run != true }}
+        env:
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+        run: |
+          RUN_ID=$(node -e "console.log(new Date().toISOString().slice(0,10))")
+          if [ -d "catalog/factory/runs/$RUN_ID" ]; then
+            npm run factory:upload -- --run "$RUN_ID"
+          else
+            echo "No run directory for $RUN_ID — nothing to upload"
+          fi
+
+      - name: Open PR with run manifest (no GLBs)
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore(factory): weekly product factory run'
+          title: 'chore(factory): weekly product factory run'
+          body: |
+            Weekly LiveSet Product Factory run.
+
+            Review the email at sebasludmir@gmail.com for Approve/Reject links.
+            This PR commits run manifests (GLBs stay in Storage / gitignored).
+          branch: chore/product-factory-run
+          delete-branch: true
+          add-paths: |
+            catalog/backlog/latest.json
+            catalog/backlog/latest.md
+            catalog/factory/runs/**

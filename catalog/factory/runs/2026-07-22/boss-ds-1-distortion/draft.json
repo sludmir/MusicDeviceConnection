@@ -1,0 +1,78 @@
+{
+  "id": "boss-ds-1-distortion",
+  "name": "Boss DS-1 Distortion",
+  "brand": "Boss",
+  "category": "Musician",
+  "subcategory": "effects",
+  "reasons": [
+    "essential target",
+    "priority 5",
+    "effects empty"
+  ],
+  "draft": {
+    "name": "Boss DS-1 Distortion",
+    "brand": "Boss",
+    "type": "pedal",
+    "category": "Musician",
+    "subcategory": "effects",
+    "description": "Most recognizable distortion pedal; fills empty effects subcategory.",
+    "price": 0,
+    "locationPriority": 1000,
+    "inputs": [],
+    "outputs": [],
+    "connections": [],
+    "specifications": {},
+    "features": [],
+    "modelPath": "",
+    "modelScale": 1,
+    "imageUrl": "",
+    "affiliateUrl": "",
+    "purchaseUrl": "",
+    "commerceStatus": "",
+    "commerceRetailer": "",
+    "commerceAvailability": "",
+    "width_mm": 73,
+    "depth_mm": 129,
+    "height_mm": 59,
+    "isActive": true,
+    "factoryMeta": {
+      "backlogId": "boss-ds-1-distortion",
+      "personas": [
+        "guitar-rig"
+      ],
+      "score": 115,
+      "reasons": [
+        "essential target",
+        "priority 5",
+        "effects empty"
+      ],
+      "kbMatch": false
+    },
+    "referenceImageUrl": "https://www.boss.info/global/products/ds-1/images/ds-1_gal_01.jpg"
+  },
+  "filename": "BossBossDS1Distortion.glb",
+  "glbRelativePath": "catalog/factory/runs/2026-07-22/boss-ds-1-distortion/BossBossDS1Distortion.glb",
+  "hasGlb": true,
+  "sizeBytes": 6308424,
+  "thumbnailUrl": "https://assets.meshy.ai/2751f438-2824-430e-b9f8-dd8f9fb730bb/tasks/019f87a7-fa76-7d28-8fed-d298940d218e/output/preview.png?Expires=1784946677&Signature=G-4l8jhwyD-CSJTJ0UbCw7~qgVTB6mH1IfK6lOiAaWlK6szP2X~deOTWMLT8tvD8knW3erj9enGoUxFKEPb1VX9JuvFea8TXEJYg2hh9OchfYSkK6DIP-Tl2zKzIALtnLAIgGdB9oFJCuhuzInlUJkWwCAJYYNDzYtdFEfhqwFom4O0DxyWUFDpCl389VpG3eaT4bslWRbxqLu6ggWa6WL-ftC35XPmOFSa3z0k9AKcaHTX~MmWipgc4HGfV1jIUObXBZoIfvQroxV~0q9QYJ07513HM71MAFtDFgarw~GpJwFwksrO0Zrq4Twkb6lL2Z-56T3Ym7mMH8gun4d7IqA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "referenceImageUrl": "https://www.boss.info/global/products/ds-1/images/ds-1_gal_01.jpg",
+  "publicImageUrl": "https://www.boss.info/global/products/ds-1/images/ds-1_gal_01.jpg",
+  "previewPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/refs/boss-ds-1-distortion.jpg",
+  "cachedPath": "/Users/sebastianludmir/dev/MusicDeviceConnection/catalog/factory/refs/boss-ds-1-distortion.jpg",
+  "meshyTaskId": "019f87a7-fa76-7d28-8fed-d298940d218e",
+  "targetPolycount": 10000,
+  "qa": {
+    "ok": true,
+    "sizeBytes": 6308424,
+    "bbox": {
+      "x": 0.02929689921438694,
+      "y": 0.05000000074505806,
+      "z": 0.016064451076090336
+    },
+    "reasons": [],
+    "softFlags": []
+  },
+  "status": "staged_pending_approval",
+  "approveUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJib3NzLWRzLTEtZGlzdG9ydGlvbiIsImRlY2lzaW9uIjoiYXBwcm92ZSIsImV4cCI6MTc4NTI5MjI3ODM4Nn0.XXn1NkHQb5FZRz84ShmeN3YMCP2J7IfS7lSAZ04j-g4",
+  "rejectUrl": "https://us-central1-musicdeviceconnection.cloudfunctions.net/factoryDecide?token=eyJydW5JZCI6IjIwMjYtMDctMjIiLCJwcm9kdWN0SWQiOiJib3NzLWRzLTEtZGlzdG9ydGlvbiIsImRlY2lzaW9uIjoicmVqZWN0IiwiZXhwIjoxNzg1MjkyMjc4Mzg2fQ.QxggV30PDRv8IgaKdAEvVq21ZLd1P1SvX2BBNeS_3PY"
+}

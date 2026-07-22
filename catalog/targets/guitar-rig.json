@@ -1,0 +1,114 @@
+{
+  "persona": "guitar-rig",
+  "label": "Guitarist (amps & pedals)",
+  "description": "Starter guitar-rig targets for empty Musician amplifiers/effects coverage. Refine with John Mayer amp-setup screenshot when available.",
+  "notes": "Detailed amp/pedal list will be expanded from the John Mayer setup screenshot. These essentials unstick scoring for empty subcategories.",
+  "targets": [
+    {
+      "name": "Fender Twin Reverb",
+      "brand": "Fender",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "guitar_amp",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Iconic clean amp; fills empty amplifiers subcategory."
+    },
+    {
+      "name": "Marshall JCM800",
+      "brand": "Marshall",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "guitar_amp",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Classic rock amp head; high recognition."
+    },
+    {
+      "name": "Vox AC30",
+      "brand": "Vox",
+      "category": "Musician",
+      "subcategory": "amplifiers",
+      "type": "combo_amp",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "British combo staple."
+    },
+    {
+      "name": "Boss DS-1 Distortion",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Most recognizable distortion pedal; fills empty effects subcategory.",
+      "width_mm": 73,
+      "depth_mm": 129,
+      "height_mm": 59,
+      "referenceImageUrl": "https://www.boss.info/global/products/ds-1/images/ds-1_gal_01.jpg"
+    },
+    {
+      "name": "Ibanez Tube Screamer TS9",
+      "brand": "Ibanez",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Overdrive staple on countless boards."
+    },
+    {
+      "name": "Boss DD-8 Digital Delay",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Workhorse delay pedal."
+    },
+    {
+      "name": "Strymon BigSky",
+      "brand": "Strymon",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Premium reverb; also in KB (mis-tagged Producer — treat as Musician pedal).",
+      "kbKeys": ["BigSky", "Strymon BigSky"]
+    },
+    {
+      "name": "Electro-Harmonix Soul Food",
+      "brand": "Electro-Harmonix",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Popular transparent overdrive."
+    },
+    {
+      "name": "Fender Precision Bass",
+      "brand": "Fender",
+      "category": "Musician",
+      "subcategory": "instruments",
+      "type": "bass",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Bass coverage beyond Strat/Les Paul."
+    },
+    {
+      "name": "Boss RE-201 Space Echo",
+      "brand": "Boss",
+      "category": "Musician",
+      "subcategory": "effects",
+      "type": "pedal",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Iconic tape echo; in KB.",
+      "kbKeys": ["RE-201", "Space Echo"]
+    }
+  ]
+}

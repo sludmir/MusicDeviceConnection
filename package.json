@@ -64,7 +64,10 @@
     "dump-products": "node scripts/dumpProducts.js",
     "set-affiliate-urls": "node scripts/setAffiliateUrls.js",
     "audit-affiliate-links": "node scripts/auditAffiliateLinks.js",
-    "apply-catalog-proposal": "node scripts/applyCatalogProposal.js"
+    "apply-catalog-proposal": "node scripts/applyCatalogProposal.js",
+    "analyze-catalog": "node scripts/analyzeCatalogGaps.js",
+    "factory:week": "node scripts/factory/runFactoryWeek.js",
+    "factory:upload": "node scripts/factory/uploadRunToStorage.js"
   },
   "eslintConfig": {
     "extends": [

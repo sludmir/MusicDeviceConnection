@@ -1,0 +1,136 @@
+{
+  "persona": "accessible-dj",
+  "label": "Accessible DJ",
+  "description": "Controllers, older CDJs, and mid-tier mixers — alternatives to flagship CDJ-3000 + DJM combos.",
+  "targets": [
+    {
+      "name": "Pioneer CDJ-2000NXS2",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "cdj",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Club-standard older CDJ; still widely used and cheaper used than CDJ-3000.",
+      "kbKeys": ["CDJ-2000NXS2", "CDJ2000NXS2"]
+    },
+    {
+      "name": "Pioneer DDJ-FLX4",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "Current entry-level rekordbox/Serato controller; beginner-friendly.",
+      "width_mm": 482,
+      "depth_mm": 273,
+      "height_mm": 59
+    },
+    {
+      "name": "Pioneer DDJ-FLX10",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Pro 4-channel controller; bridge between bedroom and club.",
+      "kbKeys": ["DDJ-FLX10", "DDJFLX10"]
+    },
+    {
+      "name": "Pioneer XDJ-XZ",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "All-in-one standalone system; common home/club hybrid.",
+      "kbKeys": ["XDJ-XZ", "XDJXZ"]
+    },
+    {
+      "name": "Pioneer DDJ-1000",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Full-size jog controller; strong mid-tier reputation.",
+      "kbKeys": ["DDJ-1000", "DDJ1000"]
+    },
+    {
+      "name": "Pioneer DJM-750MK2",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "priority": 5,
+      "tier": "essential",
+      "notes": "4-channel club mixer below A9/V10 price; common upgrade from controllers."
+    },
+    {
+      "name": "Allen & Heath Xone:92",
+      "brand": "Allen & Heath",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Analog cult classic; pairs with CDJs/turntables.",
+      "kbKeys": ["Xone:92", "Xone92"]
+    },
+    {
+      "name": "Denon DJ SC5000",
+      "brand": "Denon DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "media_player",
+      "priority": 4,
+      "tier": "popular",
+      "notes": "Engine OS alternative to Pioneer CDJs."
+    },
+    {
+      "name": "Denon DJ Prime Go",
+      "brand": "Denon DJ",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "controller",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Battery-powered all-in-one; mobile/DJ-lite setups."
+    },
+    {
+      "name": "Reloop RP-7000 MK2",
+      "brand": "Reloop",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "turntable",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Reputable Technics alternative for vinyl DJs."
+    },
+    {
+      "name": "Audio-Technica AT-LP140XP",
+      "brand": "Audio-Technica",
+      "category": "DJ",
+      "subcategory": "players",
+      "type": "turntable",
+      "priority": 3,
+      "tier": "nice",
+      "notes": "Accessible direct-drive DJ turntable."
+    },
+    {
+      "name": "Pioneer DJM-A9",
+      "brand": "Pioneer DJ",
+      "category": "DJ",
+      "subcategory": "mixers",
+      "type": "mixer",
+      "priority": 2,
+      "tier": "nice",
+      "notes": "Flagship mixer — lower priority while mid-tier gaps remain.",
+      "kbKeys": ["DJM-A9", "DJMA9"]
+    }
+  ]
+}

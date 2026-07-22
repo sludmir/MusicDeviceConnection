@@ -98,12 +98,18 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     setPausedOverlay(null);
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
     const clip = clips[currentIndex];
+    const trackBacked = audioReplacesVideoFor(clip);
     const start = toFiniteNumberOr(clip?.clipStart, 0);
     setBufferingIndices(new Set([currentIndex]));
     clips.forEach((_, idx) => {
       const vid = videoRefs.current[idx];
       if (!vid) return;
       if (idx !== currentIndex) {
+        vid.pause();
+      } else if (trackBacked) {
+        // Track-backed clips: audio-master sync owns seek + play. Starting
+        // the video here races HLS attach and leaves mobile browsers stuck at
+        // 0:00 (correct audio, wrong footage from the start of the full set).
         vid.pause();
       } else {
         try { vid.currentTime = start; } catch (_) {}
@@ -302,6 +308,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     // duration is known), so gate on readiness — the loadedmetadata listener
     // picks it up otherwise.
     const engageIfReady = () => {
+      if (cancelled) return;
       if (audioEl.readyState >= 1) sync.play();
     };
     const onVidPlay = engageIfReady;
@@ -309,7 +316,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     // idempotent so the re-entry is harmless.
     const onVidPause = () => { sync.pause(); };
     const onAudioReady = () => {
-      if (!vid.paused) sync.play();
+      engageIfReady();
     };
 
     // Camera audio must never be heard while a master track exists (audio-
@@ -365,11 +372,12 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
       armAudioListeners();
     } else if (audioEl.readyState < 1) {
       armAudioListeners();
+    } else {
+      engageIfReady();
     }
 
     vid.addEventListener('play', onVidPlay);
     vid.addEventListener('pause', onVidPause);
-    if (!vid.paused) engageIfReady();
 
     return () => {
       cancelled = true;
@@ -754,12 +762,19 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
                   muted={shouldMuteVideo}
                   playsInline
                   onLoadedMetadata={(e) => {
+                    // Track-backed clips: sync positions the video at clipStart
+                    // after HLS attach — seeking here races attach and is ignored
+                    // on iOS anyway.
+                    if (audioReplacesVideoFor(clip)) return;
                     const v = e.target;
                     const start = toFiniteNumberOr(clip.clipStart, 0);
                     const end = toFiniteNumberOr(clip.clipEnd, 0);
                     if (end > start) v.currentTime = start;
                   }}
                   onCanPlay={(e) => {
+                    // Track-backed clips: sync warms audio then starts video
+                    // already aligned — onCanPlay would restart from 0:00.
+                    if (audioReplacesVideoFor(clip)) return;
                     if (isCurrent && e.target.paused && pausedOverlay !== index) {
                       setClipBuffering(index, true);
                       e.target.play().catch((err) => {
