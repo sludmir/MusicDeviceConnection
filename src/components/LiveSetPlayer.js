@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, increment } from 'firebase/firestore';
-import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff, MdFullscreen, MdFullscreenExit, MdGraphicEq, MdVisibility } from 'react-icons/md';
+import { MdClose, MdPlayArrow, MdPause, MdVolumeUp, MdVolumeOff, MdFullscreen, MdFullscreenExit, MdGraphicEq, MdVisibility, MdShare } from 'react-icons/md';
 import { db } from '../firebaseConfig';
 import { attachHls } from '../utils/attachHls';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import { createAudioMasterSync, createMulticamAudioMasterSync } from '../utils/audioVideoSync';
 import { normalizeCuts } from '../utils/multicam';
 import { formatCompactNumber } from '../utils/formatCount';
+import CommentSection from './CommentSection';
+import ShareSheet from './ShareSheet';
 import './LiveSetPlayer.css';
 
 function formatTime(seconds) {
@@ -26,6 +29,7 @@ function normalizeAudioTrackURL(url) {
 }
 
 function LiveSetPlayer({ set, onClose, theme = 'light' }) {
+  const navigate = useNavigate();
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const timelineRef = useRef(null);
@@ -51,6 +55,8 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
   // Shown in the header; starts at the count Hub/Feed already fetched and
   // bumps instantly on the first play so the badge doesn't wait on a re-fetch.
   const [displayViews, setDisplayViews] = useState(() => Number(set?.views) || 0);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState(() => Number(set?.commentCount) || 0);
 
   // Sign Bunny URLs (no-op for non-Bunny URLs). signed is null until
   // the cloud function returns; we hold off attaching HLS until then.
@@ -518,9 +524,12 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
 
   if (!set?.videoURL) return null;
 
+  const showComments = !minimized && !!set?.id;
+
   const rootClass = [
     'live-set-player',
     minimized ? 'live-set-player--mini' : 'live-set-player--expanded',
+    showComments ? 'live-set-player--with-comments' : '',
     isDark ? 'live-set-player-dark' : '',
   ].filter(Boolean).join(' ');
 
@@ -546,6 +555,15 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             <button
               type="button"
               className="live-set-player-close"
+              onClick={() => setShareOpen(true)}
+              aria-label="Share"
+              title="Share"
+            >
+              <MdShare size={20} />
+            </button>
+            <button
+              type="button"
+              className="live-set-player-close"
               onClick={() => setMinimized((m) => !m)}
               aria-label={minimized ? 'Expand player' : 'Minimize player'}
               title={minimized ? 'Expand' : 'Minimize'}
@@ -564,6 +582,8 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
           </div>
         </div>
 
+        <div className="live-set-player-body">
+        <div className="live-set-player-main">
         <div className="live-set-player-video-wrap" onClick={togglePlay}>
           {multicam ? (
             angleList.map((a, i) => (
@@ -684,9 +704,36 @@ function LiveSetPlayer({ set, onClose, theme = 'light' }) {
             {formatTime(Math.max(0, currentTime - displayOrigin))} / {formatTime(effDuration)}
           </span>
         </div>
+        </div>
+
+        {showComments && (
+          <aside className="live-set-player-comments" aria-label="Set comments">
+            <CommentSection
+              variant="embedded"
+              open={showComments}
+              targetType="set"
+              targetId={set.id}
+              commentCount={commentCount}
+              onCountChange={setCommentCount}
+              onProfileClick={(uid) => {
+                setMinimized(true);
+                navigate(`/profile/${uid}`);
+              }}
+            />
+          </aside>
+        )}
+        </div>
       </div>
 
       <audio ref={audioRef} style={{ display: 'none' }} />
+
+      {set?.id && (
+        <ShareSheet
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          media={{ type: 'set', item: set }}
+        />
+      )}
     </div>
   );
 }

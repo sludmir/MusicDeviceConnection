@@ -6,6 +6,7 @@ import {
   MdNotificationsNone,
   MdPerson,
   MdViewInAr,
+  MdMailOutline,
 } from "react-icons/md";
 
 // `mobileHidden`  — not shown in the mobile bottom tab bar
@@ -20,6 +21,7 @@ export const NAV_ITEMS = [
   { path: "/create", label: "Create", icon: MdAdd, desktopHidden: true, accent: true },
   { path: "/builder", label: "Scene", icon: MdViewInAr, mobileHidden: true },
   { path: "/search", label: "Search", icon: MdSearch, mobileHidden: true },
+  { path: "/messages", label: "Messages", icon: MdMailOutline },
   { path: "/notifications", label: "Notifications", icon: MdNotificationsNone },
   { path: "/profile", label: "Profile", icon: MdPerson },
 ];

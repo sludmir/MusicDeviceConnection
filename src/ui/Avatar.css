@@ -11,6 +11,16 @@
 
 img.ui-avatar { object-fit: cover; }
 
+/* Initials avatars invert against the app theme for contrast. */
+.ui-avatar:not(img) {
+  background: var(--text);
+  color: var(--bg);
+}
+
+[data-theme="light"] .ui-avatar:not(img) {
+  color: var(--surface-2);
+}
+
 .ui-avatar--24 { width: 24px; height: 24px; }
 .ui-avatar--32 { width: 32px; height: 32px; }
 .ui-avatar--48 { width: 48px; height: 48px; }

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, arrayUnion, arrayRemove, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { MdDelete, MdPlayArrow, MdVerified, MdLink, MdHeadphones, MdPiano } from 'react-icons/md';
+import { MdDelete, MdPlayArrow, MdVerified, MdLink, MdHeadphones, MdPiano, MdMailOutline } from 'react-icons/md';
 import { IoMusicalNotes } from 'react-icons/io5';
 import FaveProductViewer from './FaveProductViewer';
 import { useSetPlayer } from './SetPlayerProvider';
 import useViewerRoles from '../utils/useViewerRoles';
 import { getSignedBunnyUrls } from '../utils/bunnyUrl';
+import { getOrCreateConversation } from '../utils/conversations';
 import {
   Avatar,
   Button,
@@ -48,6 +50,8 @@ function SetupPreview({ setup }) {
 
 function Profile({ userId, onSetupSelect }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { playSet } = useSetPlayer();
   const [profile, setProfile] = useState(null);
   const [sets, setSets] = useState([]);
@@ -66,8 +70,9 @@ function Profile({ userId, onSetupSelect }) {
   const [creatorSaving, setCreatorSaving] = useState(false);
   const { isAdmin } = useViewerRoles();
   const [activeTab, setActiveTab] = useState(() =>
-    new URLSearchParams(window.location.search).get('tab') === 'setups' ? 'setups' : 'sets'
+    searchParams.get('tab') === 'setups' ? 'setups' : 'sets'
   );
+  const openedSetFromUrl = useRef(false);
 
   const currentUserId = auth.currentUser?.uid;
   const isOwnProfile = !!currentUserId && currentUserId === userId;
@@ -136,6 +141,37 @@ function Profile({ userId, onSetupSelect }) {
     })();
     return () => { cancelled = true; };
   }, [userId, currentUserId]);
+
+  // Deep link: /profile/:creatorId?set=<setId> opens the full set player.
+  useEffect(() => {
+    const setId = searchParams.get('set');
+    if (!setId || loading || openedSetFromUrl.current) return;
+    openedSetFromUrl.current = true;
+    const fromList = sets.find((s) => s.id === setId);
+    const openSet = (data) => {
+      if (data?.videoURL) playSet(data);
+      const next = new URLSearchParams(searchParams);
+      next.delete('set');
+      setSearchParams(next, { replace: true });
+    };
+    if (fromList?.videoURL) {
+      openSet(fromList);
+      return;
+    }
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'sets', setId));
+        if (snap.exists()) openSet({ id: snap.id, ...snap.data() });
+        else {
+          const next = new URLSearchParams(searchParams);
+          next.delete('set');
+          setSearchParams(next, { replace: true });
+        }
+      } catch (err) {
+        console.error('Error opening shared set:', err);
+      }
+    })();
+  }, [loading, sets, searchParams, setSearchParams, playSet]);
 
   // Fave-product options are own-profile-only and only feed the picker —
   // load them off the critical path so they never delay first paint.
@@ -216,6 +252,19 @@ function Profile({ userId, onSetupSelect }) {
     } catch (err) {
       console.error('Error updating follow status:', err);
       toast.error('Could not update follow status.');
+    }
+  };
+
+  const handleMessage = async () => {
+    if (!currentUserId || !userId || isOwnProfile) return;
+    try {
+      const conversationId = await getOrCreateConversation(currentUserId, userId);
+      navigate(`/messages/${conversationId}`, {
+        state: { otherUserId: userId, otherUserName: displayName },
+      });
+    } catch (err) {
+      console.error('Error opening conversation:', err);
+      toast.error('Could not open messages.');
     }
   };
 
@@ -363,14 +412,25 @@ function Profile({ userId, onSetupSelect }) {
             </div>
           </div>
           {!isOwnProfile && currentUserId && (
-            <Button
-              variant={isFollowing ? 'secondary' : 'primary'}
-              onClick={handleFollow}
-              size="md"
-              className="profile__follow"
-            >
-              {isFollowing ? 'Following' : 'Follow'}
-            </Button>
+            <div className="profile__actions">
+              <Button
+                variant={isFollowing ? 'secondary' : 'primary'}
+                onClick={handleFollow}
+                size="md"
+                className="profile__follow"
+              >
+                {isFollowing ? 'Following' : 'Follow'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleMessage}
+                size="md"
+                className="profile__message"
+                aria-label="Message"
+              >
+                <MdMailOutline size={18} aria-hidden="true" /> Message
+              </Button>
+            </div>
           )}
           {isAdmin && !loading && (
             <Button

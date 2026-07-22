@@ -1,0 +1,70 @@
+.chat-media-player {
+  width: 100%;
+  max-width: 240px;
+  border: none;
+  padding: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-media-player--set {
+  display: block;
+}
+
+.chat-media-player--compact {
+  max-width: 200px;
+}
+
+.chat-media-player__video-wrap {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+
+.chat-media-player__video,
+.chat-media-player__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-media-player__thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+}
+
+.chat-media-player__play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.chat-media-player__play.visible {
+  opacity: 1;
+}
+
+.chat-media-player__video-wrap:hover .chat-media-player__play {
+  opacity: 1;
+}
+
+.chat-media-player__label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

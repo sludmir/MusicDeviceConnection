@@ -1,0 +1,234 @@
+.messages {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.messages__loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.messages-inbox {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.messages-inbox__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.messages-inbox__item:hover {
+  background: var(--surface-2);
+}
+
+.messages-inbox__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.messages-inbox__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.messages-inbox__name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.messages-inbox__avatar-btn,
+.messages-thread__avatar-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.messages-inbox__name-btn,
+.messages-thread__title-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.messages-inbox__name-btn:hover,
+.messages-thread__title-btn:hover {
+  text-decoration: underline;
+}
+
+.messages-inbox__time {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.messages-inbox__preview {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Thread */
+.messages-thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.messages-thread__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.messages-thread__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.messages-thread__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.messages-thread__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.messages-thread__bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 78%;
+}
+
+.messages-thread__bubble-wrap--mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.messages-thread__bubble {
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.messages-thread__bubble--mine {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.messages-thread__media {
+  max-width: 200px;
+}
+
+.messages-thread__media--mine {
+  align-self: flex-end;
+}
+
+.messages-thread__time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.messages-thread__composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px calc(12px + var(--safe-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.messages-thread__input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+}
+
+.messages-thread__input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.messages-thread__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  cursor: pointer;
+}
+
+.messages-thread__send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (min-width: 1024px) {
+  .messages {
+    max-width: 560px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+}

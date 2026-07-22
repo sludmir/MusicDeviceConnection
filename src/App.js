@@ -30,6 +30,7 @@ import UploadImport from './components/Upload';
 import ProfileImport from './components/Profile';
 import UserSearchImport from './components/UserSearch';
 import NotificationsImport from './components/Notifications';
+import MessagesImport from './components/Messages';
 import SetEditorImport from './components/SetEditor';
 import BuilderEmptyStateImport from './components/BuilderEmptyState';
 import useIsMobile from './utils/useIsMobile';
@@ -57,6 +58,7 @@ const Upload = unwrap(UploadImport);
 const Profile = unwrap(ProfileImport);
 const UserSearch = unwrap(UserSearchImport);
 const Notifications = unwrap(NotificationsImport);
+const Messages = unwrap(MessagesImport);
 const SetEditor = unwrap(SetEditorImport);
 const BuilderEmptyState = unwrap(BuilderEmptyStateImport);
 
@@ -75,6 +77,7 @@ const APP_COMPONENTS = [
   ['Profile', Profile],
   ['UserSearch', UserSearch],
   ['Notifications', Notifications],
+  ['Messages', Messages],
   ['SetEditor', SetEditor],
 ];
 const INVALID_COMPONENTS = APP_COMPONENTS.filter(([, C]) => !isValidComponent(C)).map(([name]) => name);
@@ -570,6 +573,8 @@ function AppRoutes({
                 onProfileClick={(userId) => navigate(`/profile/${userId}`)}
               />
             } />
+            <Route path="/messages" element={<Messages onProfileClick={(userId) => navigate(`/profile/${userId}`)} />} />
+            <Route path="/messages/:conversationId" element={<Messages onProfileClick={(userId) => navigate(`/profile/${userId}`)} />} />
             <Route path="/settings" element={<Settings onBack={() => navigate('/hub')} />} />
             <Route path="/preferences" element={<Preferences onBack={() => navigate('/hub')} />} />
             <Route path="/legal" element={<LegalPage />} />

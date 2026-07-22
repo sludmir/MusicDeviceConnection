@@ -6,6 +6,8 @@ import { getSignedBunnyUrls } from '../utils/bunnyUrl';
 import { createAudioMasterSync } from '../utils/audioVideoSync';
 import useViewerRoles from '../utils/useViewerRoles';
 import { useSetPlayer } from './SetPlayerProvider';
+import CommentSection from './CommentSection';
+import ShareSheet from './ShareSheet';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
 import { MdComment, MdShare, MdMoreVert, MdPlayCircleOutline, MdDelete, MdPlayArrow, MdOndemandVideo, MdGraphicEq, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './Feed.css';
@@ -53,6 +55,8 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
   const [deleting, setDeleting] = useState(false);
   const [pausedOverlay, setPausedOverlay] = useState(null);
   const [bufferingIndices, setBufferingIndices] = useState(() => new Set());
+  const [commentClipId, setCommentClipId] = useState(null);
+  const [shareClip, setShareClip] = useState(null);
   const feedRef = useRef(null);
   const videoRefs = useRef({});
   const feedAudioRef = useRef(null);
@@ -67,6 +71,14 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
     loadClips();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Deep link: /feed?clip=<clipId>
+  useEffect(() => {
+    const clipId = new URLSearchParams(window.location.search).get('clip');
+    if (!clipId || !clips.length) return;
+    const idx = clips.findIndex((c) => c.id === clipId);
+    if (idx >= 0) setCurrentIndex(idx);
+  }, [clips]);
 
   useEffect(() => {
     const ref = pauseTimerRef;
@@ -392,6 +404,22 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
   }, [currentIndex, clips, logAudioDebug]);
 
   // ── Data loading ──────────────────────────────────────────────────
+
+  const activeCommentClip = commentClipId ? clips.find((c) => c.id === commentClipId) : null;
+
+  const handleOpenComments = (clipId, e) => {
+    e?.stopPropagation?.();
+    setCommentClipId(clipId);
+  };
+
+  const handleOpenShare = (clip, e) => {
+    e?.stopPropagation?.();
+    setShareClip(clip);
+  };
+
+  const handleCommentCountChange = (clipId, count) => {
+    setClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, commentCount: count } : c)));
+  };
 
   const loadClips = async () => {
     if (!auth.currentUser) return;
@@ -857,8 +885,8 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
                     </button>
                     {renderCopySetupBtn(clip, 'overlay')}
                     {renderFullSetBtn(clip, 'overlay')}
-                    <button type="button" className="feed-action-btn" aria-label="Comment" onClick={(e) => e.stopPropagation()}><MdComment size={18} /></button>
-                    <button type="button" className="feed-action-btn" aria-label="Share" onClick={(e) => e.stopPropagation()}><MdShare size={18} /></button>
+                    <button type="button" className="feed-action-btn" aria-label="Comment" onClick={(e) => handleOpenComments(clip.id, e)}><MdComment size={18} /></button>
+                    <button type="button" className="feed-action-btn" aria-label="Share" onClick={(e) => handleOpenShare(clip, e)}><MdShare size={18} /></button>
                   </div>
                 </div>
               </div>
@@ -877,11 +905,11 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
                     <span className="feed-action-icon">{likedClips.has(clip.id) ? <FaHeart size={18} /> : <FaRegHeart size={18} />}</span>
                     <span>{clip.likes || 0}</span>
                   </button>
-                  <button type="button" className="feed-action-btn" aria-label="Comment" title="Comment">
+                  <button type="button" className="feed-action-btn" aria-label="Comment" title="Comment" onClick={() => handleOpenComments(clip.id)}>
                     <span className="feed-action-icon"><MdComment size={18} /></span>
                     <span>{clip.commentCount || 0}</span>
                   </button>
-                  <button type="button" className="feed-action-btn" aria-label="Share" title="Share">
+                  <button type="button" className="feed-action-btn" aria-label="Share" title="Share" onClick={() => handleOpenShare(clip)}>
                     <span className="feed-action-icon"><MdShare size={18} /></span>
                   </button>
                 </div>
@@ -893,7 +921,7 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
               <p className="feed-caption">
                 <span className="feed-creator-name-inline">{clip.creatorName || 'Unknown'}</span>
                 {clip.title || 'Untitled'}
-                {clip.setupId && <span className="feed-caption-badge">🎛️ Setup linked</span>}
+                {clip.setupId && <span className="feed-caption-badge">Setup linked</span>}
               </p>
             </div>
             </div>
@@ -929,6 +957,24 @@ function Feed({ onProfileClick, onUploadClick, onCopySetup }) {
           </div>
         </div>
       )}
+
+      {activeCommentClip && (
+        <CommentSection
+          open={!!commentClipId}
+          onClose={() => setCommentClipId(null)}
+          targetType="clip"
+          targetId={activeCommentClip.id}
+          commentCount={activeCommentClip.commentCount || 0}
+          onCountChange={(count) => handleCommentCountChange(activeCommentClip.id, count)}
+          onProfileClick={onProfileClick}
+        />
+      )}
+
+      <ShareSheet
+        open={!!shareClip}
+        onClose={() => setShareClip(null)}
+        media={shareClip ? { type: 'clip', item: shareClip } : null}
+      />
     </div>
   );
 }

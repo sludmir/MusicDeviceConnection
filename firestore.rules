@@ -116,11 +116,88 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    function isClipSocialBump() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']) &&
+         request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1);
+    }
+
+    function isSetSocialBump() {
+      return (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) &&
+              request.resource.data.views == resource.data.get('views', 0) + 1) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']) &&
+         request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1);
+    }
+
+    function isValidComment() {
+      // serverTimestamp() is a write sentinel during rule evaluation — do not
+      // require `createdAt is timestamp` or creates will always be denied.
+      return request.resource.data.keys().hasAll(['authorId', 'authorName', 'text', 'createdAt']) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.authorName is string &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 500;
+    }
+
+    function isCommentLikeBump() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy']);
+    }
+
+    function conversationExists(conversationId) {
+      return exists(/databases/$(database)/documents/conversations/$(conversationId));
+    }
+
+    function isParticipantList(participantIds) {
+      return participantIds is list
+        && participantIds.hasAny([request.auth.uid]);
+    }
+
+    function isConversationParticipant(conversationId) {
+      return conversationExists(conversationId)
+        && isParticipantList(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds);
+    }
+
+    function isConversationParticipantAfter(conversationId) {
+      return isParticipantList(getAfter(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds);
+    }
+
+    function isValidConversationWrite() {
+      return request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() == 2
+        && isParticipantList(request.resource.data.participantIds);
+    }
+
+    function isValidMessageCreate(conversationId) {
+      return request.resource.data.senderId == request.auth.uid
+        && request.resource.data.type in ['text', 'clip', 'liveSet']
+        && (isConversationParticipant(conversationId) || isConversationParticipantAfter(conversationId))
+        && (
+          request.resource.data.type == 'text'
+          || request.resource.data.type == 'clip'
+          || request.resource.data.type == 'liveSet'
+        );
+    }
+
     // Clips (short-form feed videos) — posting requires a creator account
     match /clips/{clipId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid && isCreator();
-      allow update, delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
+        isClipSocialBump()
+      );
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidComment();
+        allow update: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid ||
+          isCommentLikeBump()
+        );
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      }
     }
 
     // Sets (full live set references) — posting requires a creator account
@@ -129,13 +206,32 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid && isCreator();
       allow update: if isSignedIn() && (
         resource.data.creatorId == request.auth.uid ||
-        // Any signed-in viewer may bump the view counter by exactly 1 and
-        // touch nothing else — lets LiveSetPlayer count plays on sets it
-        // doesn't own without opening up arbitrary field writes.
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) &&
-         request.resource.data.views == resource.data.views + 1)
+        isSetSocialBump()
       );
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidComment();
+        allow update: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid ||
+          isCommentLikeBump()
+        );
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      }
+    }
+
+    // Direct messages between two users
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && isParticipantList(resource.data.participantIds);
+      allow create: if isSignedIn() && isValidConversationWrite();
+      allow update: if isSignedIn() && isParticipantList(resource.data.participantIds);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && isConversationParticipant(conversationId);
+        allow create: if isSignedIn() && isValidMessageCreate(conversationId);
+        allow update: if isSignedIn() && isConversationParticipant(conversationId);
+      }
     }
   }
 }

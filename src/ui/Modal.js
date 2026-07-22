@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import IconButton from "./IconButton";
 import "./Modal.css";
 
-function Modal({ open, onClose, title, children, footer }) {
+function Modal({ open, onClose, title, children, footer, className = '' }) {
   useEffect(() => {
     if (!open) return undefined;
     function onKey(e) {
@@ -16,7 +16,7 @@ function Modal({ open, onClose, title, children, footer }) {
   if (!open) return null;
 
   return createPortal(
-    <div className="ui-modal-root" role="dialog" aria-modal="true" aria-label={title}>
+    <div className={`ui-modal-root ${className}`.trim()} role="dialog" aria-modal="true" aria-label={title}>
       <div
         className="ui-modal-backdrop"
         data-testid="ui-modal-backdrop"
