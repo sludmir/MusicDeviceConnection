@@ -1,13 +1,8 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { defineString } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
-const MESSAGE_EMAIL_FROM = defineString('MESSAGE_EMAIL_FROM', {
-  default: 'LiveSet <onboarding@resend.dev>',
-});
-const LIVESET_SITE_URL = defineString('LIVESET_SITE_URL', {
-  default: 'https://liveset.io',
-});
+const DEFAULT_MESSAGE_EMAIL_FROM = 'LiveSet <onboarding@resend.dev>';
+const DEFAULT_LIVESET_SITE_URL = 'https://liveset.io';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -136,8 +131,8 @@ function createMessageNotifyHandler(deps = {}) {
         preview,
         conversationId,
         apiKey,
-        from: MESSAGE_EMAIL_FROM.value(),
-        siteUrl: LIVESET_SITE_URL.value(),
+        from: process.env.MESSAGE_EMAIL_FROM || DEFAULT_MESSAGE_EMAIL_FROM,
+        siteUrl: process.env.LIVESET_SITE_URL || DEFAULT_LIVESET_SITE_URL,
       });
     } catch (err) {
       console.error('Failed to send message email:', err.message);
