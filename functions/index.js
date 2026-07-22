@@ -253,3 +253,7 @@ exports.bunnyWebhook = onRequest(
 /** Product factory: one-click Approve/Reject from weekly email digests. */
 const { createFactoryDecide } = require('./factoryDecide');
 exports.factoryDecide = createFactoryDecide();
+
+/** Email + in-app notification when a DM is received. */
+const { createOnMessageCreated } = require('./messageNotify');
+exports.onMessageCreated = createOnMessageCreated();

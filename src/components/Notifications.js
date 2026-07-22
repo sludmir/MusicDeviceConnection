@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { Avatar, EmptyState, SectionHeader } from '../ui';
@@ -31,7 +32,8 @@ function bucketOf(ts) {
   return 'EARLIER';
 }
 
-function Notifications({ onProfileClick }) {
+function Notifications({ onBack, onProfileClick }) {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,6 +91,15 @@ function Notifications({ onProfileClick }) {
         setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, read: true } : i));
       } catch { /* ignore */ }
     }
+    if (item.type === 'message' && item.conversationId) {
+      navigate(`/messages/${item.conversationId}`, {
+        state: {
+          otherUserId: item.fromUserId,
+          otherUserName: item.fromUserName,
+        },
+      });
+      return;
+    }
     if (item.fromUserId && onProfileClick) onProfileClick(item.fromUserId);
   };
 
@@ -99,6 +110,13 @@ function Notifications({ onProfileClick }) {
       body = <><strong>{name}</strong> started following you.</>;
     } else if (item.type === 'like') {
       body = <><strong>{name}</strong> liked your clip.</>;
+    } else if (item.type === 'message') {
+      body = (
+        <>
+          <strong>{name}</strong> sent you a message
+          {item.preview ? <> — {item.preview}</> : '.'}
+        </>
+      );
     } else {
       body = <><strong>{name}</strong> — {item.type}</>;
     }
@@ -134,7 +152,7 @@ function Notifications({ onProfileClick }) {
           <EmptyState
             eyebrow="EMPTY"
             title="Nothing yet"
-            body="When someone follows you or likes your clips, you'll see it here."
+            body="When someone follows you, likes your clips, or sends you a message, you'll see it here."
           />
         ) : (
           <div className="notifications__groups">
