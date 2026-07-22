@@ -1,5 +1,8 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
+
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 
 const DEFAULT_MESSAGE_EMAIL_FROM = 'LiveSet <onboarding@resend.dev>';
 const DEFAULT_LIVESET_SITE_URL = 'https://liveset.io';
@@ -143,7 +146,10 @@ function createMessageNotifyHandler(deps = {}) {
 function createOnMessageCreated() {
   const handler = createMessageNotifyHandler();
   return onDocumentCreated(
-    'conversations/{conversationId}/messages/{messageId}',
+    {
+      document: 'conversations/{conversationId}/messages/{messageId}',
+      secrets: [RESEND_API_KEY],
+    },
     handler
   );
 }
