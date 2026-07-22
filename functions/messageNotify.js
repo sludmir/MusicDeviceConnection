@@ -1,8 +1,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { defineSecret, defineString } = require('firebase-functions/params');
+const { defineString } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
-const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const MESSAGE_EMAIL_FROM = defineString('MESSAGE_EMAIL_FROM', {
   default: 'LiveSet <onboarding@resend.dev>',
 });
@@ -149,10 +148,7 @@ function createMessageNotifyHandler(deps = {}) {
 function createOnMessageCreated() {
   const handler = createMessageNotifyHandler();
   return onDocumentCreated(
-    {
-      document: 'conversations/{conversationId}/messages/{messageId}',
-      secrets: [RESEND_API_KEY],
-    },
+    'conversations/{conversationId}/messages/{messageId}',
     handler
   );
 }
