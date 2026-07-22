@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { sendMediaToUser } from '../utils/conversations';
@@ -28,6 +29,7 @@ const LINK_CHANNELS = [
 
 function ShareSheet({ open, onClose, media, onSent }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState([]);
   const [following, setFollowing] = useState([]);
@@ -103,6 +105,12 @@ function ShareSheet({ open, onClose, media, onSent }) {
       toast.success(`Sent to ${recipient.displayName || 'user'}`);
       onSent?.(conversationId);
       onClose?.();
+      navigate(`/messages/${conversationId}`, {
+        state: {
+          otherUserId: recipient.id,
+          otherUserName: recipient.displayName || 'User',
+        },
+      });
     } catch (err) {
       console.error('Error sending message:', err, {
         recipientId: recipient.id,

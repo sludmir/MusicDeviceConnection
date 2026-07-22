@@ -2,10 +2,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   writeBatch,
   serverTimestamp,
+  waitForPendingWrites,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -134,6 +136,11 @@ export async function sendMediaToUser(currentUid, recipientUid, media) {
 
   try {
     await batch.commit();
+    await waitForPendingWrites(db);
+    const verifySnap = await getDocs(collection(db, 'conversations', conversationId, 'messages'));
+    if (verifySnap.empty) {
+      throw new Error('Message did not save — try again.');
+    }
   } catch (err) {
     err.step = 'send';
     throw err;

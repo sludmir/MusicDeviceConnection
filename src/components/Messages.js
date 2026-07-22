@@ -165,10 +165,21 @@ function MessagesInbox({ onOpenConversation, onProfileClick }) {
   );
 }
 
+function sortMessages(docs) {
+  return docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => {
+      const aMs = a.createdAt?.toMillis?.() ?? 0;
+      const bMs = b.createdAt?.toMillis?.() ?? 0;
+      return aMs - bMs;
+    });
+}
+
 function MessageThread({ conversationId, otherUserId, otherUserName, onBack, onProfileClick }) {
   const toast = useToast();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef(null);
@@ -176,14 +187,39 @@ function MessageThread({ conversationId, otherUserId, otherUserName, onBack, onP
 
   useEffect(() => {
     if (!conversationId) return undefined;
-    const q = query(
-      collection(db, 'conversations', conversationId, 'messages'),
+    setLoadingMessages(true);
+
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const orderedQuery = query(
+      messagesRef,
       orderBy('createdAt', 'asc'),
       limit(200)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+
+    const loadFallback = async () => {
+      try {
+        const snap = await getDocs(messagesRef);
+        setMessages(sortMessages(snap.docs));
+      } catch (err) {
+        console.error('Messages fallback load error:', err);
+        setMessages([]);
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    const unsub = onSnapshot(
+      orderedQuery,
+      (snap) => {
+        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoadingMessages(false);
+      },
+      (err) => {
+        console.error('Messages listener error:', err);
+        loadFallback();
+      }
+    );
+
     return unsub;
   }, [conversationId]);
 
@@ -249,6 +285,12 @@ function MessageThread({ conversationId, otherUserId, otherUserName, onBack, onP
         </button>
       </header>
       <div className="messages-thread__list" ref={listRef}>
+        {loadingMessages && messages.length === 0 && (
+          <p className="messages-thread__empty">Loading messages…</p>
+        )}
+        {!loadingMessages && messages.length === 0 && (
+          <p className="messages-thread__empty">No messages yet.</p>
+        )}
         {messages.map((msg) => {
           const isMine = msg.senderId === currentUid;
           return (

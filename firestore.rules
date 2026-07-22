@@ -168,6 +168,10 @@ service cloud.firestore {
         && isParticipantList(request.resource.data.participantIds);
     }
 
+    function canReadMessages(conversationId) {
+      return isConversationParticipant(conversationId);
+    }
+
     function isValidMessageCreate(conversationId) {
       return request.resource.data.senderId == request.auth.uid
         && request.resource.data.type in ['text', 'clip', 'liveSet']
@@ -228,9 +232,9 @@ service cloud.firestore {
       allow update: if isSignedIn() && isParticipantList(resource.data.participantIds);
 
       match /messages/{messageId} {
-        allow read: if isSignedIn() && isConversationParticipant(conversationId);
+        allow read: if isSignedIn() && canReadMessages(conversationId);
         allow create: if isSignedIn() && isValidMessageCreate(conversationId);
-        allow update: if isSignedIn() && isConversationParticipant(conversationId);
+        allow update: if isSignedIn() && canReadMessages(conversationId);
       }
     }
   }

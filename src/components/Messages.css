@@ -183,6 +183,13 @@
   padding: 0 4px;
 }
 
+.messages-thread__empty {
+  margin: 24px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 .messages-thread__composer {
   display: flex;
   gap: 8px;
